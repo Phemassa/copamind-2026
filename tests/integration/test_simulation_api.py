@@ -1,4 +1,4 @@
-"""Testes de integração da simulação (serviço + API)."""
+﻿"""Testes de integração da simulação (serviço + API)."""
 
 from __future__ import annotations
 
@@ -33,7 +33,8 @@ def test_simulate_api_invalid_groups(data_client: TestClient) -> None:
         json={
             "iterations": 100,
             "advance_per_group": 1,
-            "groups": {"A": ["T-NTL", "T-SDR", "T-EST"]},
+            "groups": {"A": ["T-BRA", "T-FRA", "T-ENG"]},
         },
     )
     assert response.status_code == 422
+

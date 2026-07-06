@@ -1,4 +1,4 @@
-"""Testes do modelo Poisson/Dixon-Coles."""
+﻿"""Testes do modelo Poisson/Dixon-Coles."""
 
 from __future__ import annotations
 
@@ -96,3 +96,4 @@ def test_predict_requires_fit() -> None:
 def test_fit_requires_finished() -> None:
     with pytest.raises(ValueError, match="finalizada"):
         PoissonModel().fit([])
+

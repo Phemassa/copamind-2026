@@ -1,4 +1,4 @@
-"""Testes de integração do Bolão de IAs (serviço + API)."""
+﻿"""Testes de integração do Bolão de IAs (serviço + API)."""
 
 from __future__ import annotations
 
@@ -45,8 +45,8 @@ def test_insert_duplicate_raises(seeded_repo: DuckDBRepository) -> None:
         predictor_name="poisson",
         match_id="M-000",
         snapshot_id="s",
-        home_team_id="T-NTL",
-        away_team_id="T-SDR",
+        home_team_id="T-BRA",
+        away_team_id="T-FRA",
         prob_home=0.5,
         prob_draw=0.3,
         prob_away=0.2,
@@ -77,3 +77,4 @@ def test_pool_api(data_client: TestClient) -> None:
     leaderboard_response = data_client.get("/pool/leaderboard")
     assert leaderboard_response.status_code == 200
     assert len(leaderboard_response.json()) == 2
+

@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 SAMPLE_DIR = Path("data/samples")
 SAMPLE_TEAMS = SAMPLE_DIR / "teams.json"
 SAMPLE_MATCHES = SAMPLE_DIR / "matches.json"
+_COPA_SNAPSHOT = "copa2026-07-06"
 
 
 @dataclass(frozen=True)
@@ -60,16 +61,21 @@ def ingest_matches_file(repo: DuckDBRepository, path: str | Path) -> int:
 
 
 def ingest_samples(repo: DuckDBRepository) -> IngestionResult:
-    """Ingere o dataset sintético de amostra.
+    """Ingere o dataset de amostra da Copa 2026 real (OpenFootball).
+
+    teams.json e matches.json são gerados por:
+        python scripts/generate_copa_samples.py
 
     Raises:
         FileNotFoundError: se os arquivos de amostra não existirem.
     """
     if not SAMPLE_TEAMS.exists() or not SAMPLE_MATCHES.exists():
-        raise FileNotFoundError("Amostra ausente. Gere com: python scripts/download_sample_data.py")
+        raise FileNotFoundError(
+            "Amostras ausentes. Gere com: python scripts/generate_copa_samples.py"
+        )
     repo.create_schema()
-    snapshot_id = "sample-2026-07-06"
-    _ensure_snapshot(repo, snapshot_id, "Dataset sintético de amostra")
+    snapshot_id = _COPA_SNAPSHOT
+    _ensure_snapshot(repo, snapshot_id, "Copa 2026 — dados reais (OpenFootball)")
     teams = ingest_teams_file(repo, SAMPLE_TEAMS)
     matches = ingest_matches_file(repo, SAMPLE_MATCHES)
     return IngestionResult(teams=teams, matches=matches, snapshot_id=snapshot_id)

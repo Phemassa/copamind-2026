@@ -1,4 +1,4 @@
-"""Fixtures compartilhadas dos testes."""
+﻿"""Fixtures compartilhadas dos testes."""
 
 from __future__ import annotations
 
@@ -44,3 +44,4 @@ def data_client(settings: Settings, seeded_repo: DuckDBRepository) -> Iterator[T
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+

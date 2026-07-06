@@ -1,4 +1,4 @@
-"""Testes das features de forma recente."""
+﻿"""Testes das features de forma recente."""
 
 from __future__ import annotations
 
@@ -90,3 +90,4 @@ def test_form_windows_summary() -> None:
     summary = compute_form_windows(_dataset(), "A", windows=(2, 5))
     assert [w.window for w in summary.windows] == [2, 5]
     assert summary.team_id == "A"
+

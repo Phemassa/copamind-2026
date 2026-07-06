@@ -1,4 +1,4 @@
-"""Testes do conector OpenFootball worldcup.json e sua ingestão."""
+﻿"""Testes do conector OpenFootball worldcup.json e sua ingestão."""
 
 from __future__ import annotations
 
@@ -44,3 +44,4 @@ def test_ingest_worldcup_into_repo() -> None:
         team = repo.get_team("T-ALP")
         assert team is not None
         assert team.confederation is None
+

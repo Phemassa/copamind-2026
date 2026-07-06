@@ -1,1 +1,2 @@
-"""Suíte de testes do CopaMind."""
+﻿"""Suíte de testes do CopaMind."""
+

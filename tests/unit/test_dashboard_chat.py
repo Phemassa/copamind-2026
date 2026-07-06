@@ -1,4 +1,4 @@
-"""Testes dos helpers de chat e calibração do dashboard."""
+﻿"""Testes dos helpers de chat e calibração do dashboard."""
 
 from __future__ import annotations
 
@@ -40,21 +40,22 @@ def test_calibration_view(seeded_repo: DuckDBRepository) -> None:
 def test_chat_view_with_fake_client(seeded_repo: DuckDBRepository) -> None:
     client = FakeLLMClient(
         {
-            "analyst": _analyst_json("primary_analyst", "T-NTL"),
-            "challenger": _analyst_json("alternative_analysis", "T-NTL"),
+            "analyst": _analyst_json("primary_analyst", "T-BRA"),
+            "challenger": _analyst_json("alternative_analysis", "T-BRA"),
             "auditor": _auditor_json(),
         }
     )
     result = chat_view(
         seeded_repo,
         client,
-        home_id="T-NTL",
-        away_id="T-SDR",
+        home_id="T-BRA",
+        away_id="T-FRA",
         question="Quem ganha?",
         analyst=ModelSpec(role="primary_analyst", model_id="analyst"),
         challenger=ModelSpec(role="alternative_analysis", model_id="challenger"),
         auditor=ModelSpec(role="evidence_auditor", model_id="auditor"),
     )
     assert len(result["boxes"]) == 3
-    assert result["consensus"]["predicted_team"] == "T-NTL"
+    assert result["consensus"]["predicted_team"] == "T-BRA"
     assert result["response_language"] == "pt-BR"
+

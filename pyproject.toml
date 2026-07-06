@@ -79,9 +79,9 @@ target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint.extend-per-file-ignores]
-"apps/*" = ["E501"]
-"src/copamind/ui/*" = ["E501"]
-"scripts/*" = ["E501", "E731"]
+"apps/*" = ["E501", "E702", "RUF001"]
+"src/copamind/ui/*" = ["E501", "RUF001"]
+"scripts/*" = ["E501", "E731", "RUF001"]
 
 [tool.ruff.lint]
 select = [

@@ -1,4 +1,4 @@
-"""Testes de integração do orquestrador e do benchmark (com cliente fake)."""
+﻿"""Testes de integração do orquestrador e do benchmark (com cliente fake)."""
 
 from __future__ import annotations
 
@@ -54,8 +54,8 @@ def _orchestrator(client: FakeLLMClient) -> SequentialOrchestrator:
 
 
 def test_evidence_pack(seeded_repo: DuckDBRepository) -> None:
-    pack = build_evidence_pack(seeded_repo, "T-NTL", "T-SDR")
-    assert pack.statistical_pick in {"T-NTL", "T-SDR"}
+    pack = build_evidence_pack(seeded_repo, "T-BRA", "T-FRA")
+    assert pack.statistical_pick in {"T-BRA", "T-FRA"}
     total = sum(pack.statistical_prediction.values())
     assert abs(total - 1.0) < 1e-6
     assert "prediction:poisson" in pack.evidence_ids
@@ -64,15 +64,15 @@ def test_evidence_pack(seeded_repo: DuckDBRepository) -> None:
 def test_orchestration_agreement(seeded_repo: DuckDBRepository) -> None:
     client = FakeLLMClient(
         {
-            "analyst": _analyst_json("primary_analyst", "T-NTL"),
-            "challenger": _analyst_json("alternative_analysis", "T-NTL"),
+            "analyst": _analyst_json("primary_analyst", "T-BRA"),
+            "challenger": _analyst_json("alternative_analysis", "T-BRA"),
             "auditor": _auditor_json(),
         }
     )
-    pack = build_evidence_pack(seeded_repo, "T-NTL", "T-SDR")
+    pack = build_evidence_pack(seeded_repo, "T-BRA", "T-FRA")
     result = _orchestrator(client).run("Quem ganha?", pack)
     assert len(result.boxes) == 3
-    assert result.consensus.predicted_team == "T-NTL"
+    assert result.consensus.predicted_team == "T-BRA"
     assert result.consensus.agreements
     # Modelos foram descarregados (execução sequencial).
     assert set(client.unloaded) == {"analyst", "challenger", "auditor"}
@@ -82,11 +82,11 @@ def test_orchestration_handles_model_failure(seeded_repo: DuckDBRepository) -> N
     client = FakeLLMClient(
         {
             "analyst": "isto não é json",
-            "challenger": _analyst_json("alternative_analysis", "T-SDR"),
+            "challenger": _analyst_json("alternative_analysis", "T-FRA"),
             "auditor": _auditor_json(),
         }
     )
-    pack = build_evidence_pack(seeded_repo, "T-NTL", "T-SDR")
+    pack = build_evidence_pack(seeded_repo, "T-BRA", "T-FRA")
     result = _orchestrator(client).run("Quem ganha?", pack)
     analyst_box = result.boxes[0]
     assert analyst_box.error is not None
@@ -98,11 +98,11 @@ def test_orchestration_handles_model_failure(seeded_repo: DuckDBRepository) -> N
 def test_benchmark_models(seeded_repo: DuckDBRepository) -> None:
     client = FakeLLMClient(
         {
-            "analyst": _analyst_json("primary_analyst", "T-NTL", grounded=True),
-            "challenger": _analyst_json("alternative_analysis", "T-NTL", grounded=False),
+            "analyst": _analyst_json("primary_analyst", "T-BRA", grounded=True),
+            "challenger": _analyst_json("alternative_analysis", "T-BRA", grounded=False),
         }
     )
-    pack = build_evidence_pack(seeded_repo, "T-NTL", "T-SDR")
+    pack = build_evidence_pack(seeded_repo, "T-BRA", "T-FRA")
     specs = [
         ModelSpec(role="primary_analyst", model_id="analyst"),
         ModelSpec(role="alternative_analysis", model_id="challenger"),
@@ -113,3 +113,4 @@ def test_benchmark_models(seeded_repo: DuckDBRepository) -> None:
     grounded = {r.model_id: r.grounded_ratio for r in rows}
     assert grounded["analyst"] == 1.0
     assert grounded["challenger"] == 0.0
+

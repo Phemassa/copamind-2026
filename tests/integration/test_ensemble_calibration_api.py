@@ -1,4 +1,4 @@
-"""Testes de integração de ensemble e calibração (serviço + API)."""
+﻿"""Testes de integração de ensemble e calibração (serviço + API)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from copamind.pool.service import run_backtest
 
 
 def test_ensemble_match(seeded_repo: DuckDBRepository) -> None:
-    pred = ensemble_match(seeded_repo, "T-NTL", "T-SDR")
+    pred = ensemble_match(seeded_repo, "T-BRA", "T-FRA")
     total = pred.prob_home + pred.prob_draw + pred.prob_away
     assert total == pytest.approx(1.0, abs=1e-6)
 
@@ -30,7 +30,7 @@ def test_calibration_report_after_backtest(seeded_repo: DuckDBRepository) -> Non
 def test_ensemble_api(data_client: TestClient) -> None:
     response = data_client.post(
         "/predictions/ensemble",
-        json={"home_team_id": "T-NTL", "away_team_id": "T-SDR"},
+        json={"home_team_id": "T-BRA", "away_team_id": "T-FRA"},
     )
     assert response.status_code == 200
     body = response.json()
@@ -43,3 +43,4 @@ def test_calibration_api(data_client: TestClient) -> None:
     response = data_client.get("/pool/calibration")
     assert response.status_code == 200
     assert len(response.json()) >= 1
+

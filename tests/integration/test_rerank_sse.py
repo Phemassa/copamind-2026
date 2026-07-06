@@ -1,4 +1,4 @@
-"""Testes do reranker e do gerador de eventos (SSE) do orquestrador."""
+﻿"""Testes do reranker e do gerador de eventos (SSE) do orquestrador."""
 
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ def test_reranker_changes_order() -> None:
 def test_run_events_sequence(seeded_repo: DuckDBRepository) -> None:
     client = FakeLLMClient(
         {
-            "analyst": _analyst_json("primary_analyst", "T-NTL"),
-            "challenger": _analyst_json("alternative_analysis", "T-NTL"),
+            "analyst": _analyst_json("primary_analyst", "T-BRA"),
+            "challenger": _analyst_json("alternative_analysis", "T-BRA"),
             "auditor": _auditor_json(),
         }
     )
@@ -54,8 +54,9 @@ def test_run_events_sequence(seeded_repo: DuckDBRepository) -> None:
         ModelSpec(role="alternative_analysis", model_id="challenger"),
         ModelSpec(role="evidence_auditor", model_id="auditor"),
     )
-    pack = build_evidence_pack(seeded_repo, "T-NTL", "T-SDR")
+    pack = build_evidence_pack(seeded_repo, "T-BRA", "T-FRA")
     events = list(orchestrator.run_events("Quem ganha?", pack))
     names = [e["event"] for e in events]
     assert names == ["understanding", "analyst", "challenger", "auditor", "consensus"]
-    assert events[-1]["consensus"]["predicted_team"] == "T-NTL"
+    assert events[-1]["consensus"]["predicted_team"] == "T-BRA"
+

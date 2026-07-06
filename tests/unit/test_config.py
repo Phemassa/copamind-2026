@@ -1,4 +1,4 @@
-"""Testes de configuração."""
+﻿"""Testes de configuração."""
 
 from __future__ import annotations
 
@@ -30,3 +30,4 @@ def test_env_override(monkeypatch) -> None:  # type: ignore[no-untyped-def]
 def test_duckdb_path_is_path() -> None:
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert isinstance(settings.duckdb_path, Path)
+

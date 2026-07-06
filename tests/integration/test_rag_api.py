@@ -1,4 +1,4 @@
-"""Testes de integração do RAG (indexação de relatos + API)."""
+﻿"""Testes de integração do RAG (indexação de relatos + API)."""
 
 from __future__ import annotations
 
@@ -40,3 +40,4 @@ def test_rag_api_index_and_search(data_client: TestClient) -> None:
     sources = data_client.get("/rag/sources")
     assert sources.status_code == 200
     assert "user_input" in sources.json()
+

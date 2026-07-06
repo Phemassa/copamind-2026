@@ -1,4 +1,4 @@
-"""Testes do diagnóstico e da CLI."""
+﻿"""Testes do diagnóstico e da CLI."""
 
 from __future__ import annotations
 
@@ -43,3 +43,4 @@ def test_doctor_command_runs() -> None:
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     assert "Diagnóstico" in result.stdout
+

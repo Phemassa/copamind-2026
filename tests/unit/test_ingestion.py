@@ -1,4 +1,4 @@
-"""Testes de ingestão (leitura, validação e deduplicação)."""
+﻿"""Testes de ingestão (leitura, validação e deduplicação)."""
 
 from __future__ import annotations
 
@@ -37,14 +37,16 @@ def _match(match_id: str, home: str, away: str) -> Match:
 
 def test_load_sample_teams() -> None:
     teams = load_teams("data/samples/teams.json")
-    assert len(teams) == 4
-    assert {t.fifa_code for t in teams} == {"NTL", "SDR", "EST", "WST"}
+    assert len(teams) == 49
+    codes = {t.fifa_code for t in teams}
+    assert "BRA" in codes
+    assert "NOR" in codes
+    assert "FRA" in codes
 
 
 def test_load_sample_matches() -> None:
     matches = load_matches("data/samples/matches.json")
-    # 20 partidas únicas; as 2 duplicatas exatas do arquivo são removidas.
-    assert len(matches) == 20
+    assert len(matches) == 92
     assert all(m.status is MatchStatus.finished for m in matches)
 
 
@@ -72,3 +74,4 @@ def test_unsupported_format(tmp_path: Path) -> None:
     bad.write_text("nope", encoding="utf-8")
     with pytest.raises(IngestionError):
         load_teams(bad)
+

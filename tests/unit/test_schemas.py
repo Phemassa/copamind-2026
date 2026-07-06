@@ -1,4 +1,4 @@
-"""Testes dos schemas de domínio."""
+﻿"""Testes dos schemas de domínio."""
 
 from __future__ import annotations
 
@@ -83,3 +83,4 @@ def test_negative_score_rejected() -> None:
             status=MatchStatus.finished,
             **_LINEAGE,
         )
+

@@ -5,6 +5,8 @@ Execute: copamind ui serve   ou   streamlit run apps/streamlit/app.py
 
 from __future__ import annotations
 
+import os
+
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -17,7 +19,9 @@ from copamind.models.ensemble.service import ensemble_match
 from copamind.models.poisson.service import predict_match
 from copamind.pool.service import run_backtest
 from copamind.simulation.service import build_default_config, run_simulation
+from copamind.ui.backgrounds import clear_bg_css, home_bg_css, page_bg_css
 from copamind.ui.i18n import DEFAULT_LOCALE, Translator, available_locales
+from copamind.ui.styles import inject_css
 from copamind.ui.tournament import build_bracket_html
 
 _POS_ORDER = {"GK": 0, "CB": 1, "RB": 2, "LB": 3, "CDM": 4, "CM": 5, "CAM": 6, "RW": 7, "LW": 8, "CF": 9, "ST": 10}
@@ -42,23 +46,32 @@ def _team_label(team_id: str, locale: str = "pt-BR") -> str:
     return f"{t['emoji']} {name}"
 
 
+def _sidebar_logo() -> None:
+    icon = "docs/assets/icon.png"
+    logo = "docs/assets/copamind_2026.png"
+    if os.path.exists(icon):
+        st.sidebar.image(icon, width=64)
+    if os.path.exists(logo):
+        st.sidebar.image(logo, use_container_width=True)
+    else:
+        st.sidebar.markdown("### ⚽ CopaMind **2026**")
+    st.sidebar.markdown("---")
+
+
 def main() -> None:
-    st.set_page_config(page_title="CopaMind 2026", page_icon="⚽", layout="wide")
+    st.set_page_config(
+        page_title="CopaMind 2026",
+        page_icon="docs/assets/icon.png" if os.path.exists("docs/assets/icon.png") else "⚽",
+        layout="wide",
+    )
+    inject_css()
 
     locales = available_locales()
     locale = st.sidebar.selectbox(
         "🌐 Idioma / Language", locales, index=locales.index(DEFAULT_LOCALE)
     )
     tr = Translator(locale)
-
-    import os
-
-    hero = "docs/assets/copamind-hero.png"
-    if os.path.exists(hero):
-        st.image(hero, use_container_width=True)
-    else:
-        st.title(f"⚽ {tr.t('app_title')}")
-    st.caption(tr.t("subtitle"))
+    _sidebar_logo()
 
     with _open_repo() as repo:
         if repo.count("teams") == 0:
@@ -70,19 +83,33 @@ def main() -> None:
             [
                 tr.t("nav_home"),
                 "🏆 Copa 2026",
+                "⚽ Resultados",
                 "📊 Estatísticas",
                 tr.t("nav_ranking"),
                 tr.t("nav_team"),
                 tr.t("nav_predict"),
-                tr.t("nav_pool"),
+                "🤖 Bolão das IAs",
                 tr.t("nav_chat"),
             ],
         )
 
+        # ── Fundo por página ───────────────────────────────────────────────
+        if page == tr.t("nav_home"):
+            st.markdown(home_bg_css(), unsafe_allow_html=True)
+        elif page in ("🏆 Copa 2026", "⚽ Resultados"):
+            st.markdown(page_bg_css(2), unsafe_allow_html=True)   # estádio
+        elif page in ("📊 Estatísticas", "🤖 Bolão das IAs"):
+            st.markdown(page_bg_css(1), unsafe_allow_html=True)   # clean1
+        else:
+            st.markdown(clear_bg_css(), unsafe_allow_html=True)
+
+        # ── Roteamento ────────────────────────────────────────────────────
         if page == tr.t("nav_home"):
             _render_home(repo, tr)
         elif page == "🏆 Copa 2026":
             _render_copa(repo, tr, locale)
+        elif page == "⚽ Resultados":
+            _render_resultados(repo, tr, locale)
         elif page == "📊 Estatísticas":
             _render_stats(repo, tr, locale)
         elif page == tr.t("nav_ranking"):
@@ -91,7 +118,7 @@ def main() -> None:
             _render_team(repo, tr, locale)
         elif page == tr.t("nav_predict"):
             _render_predict(repo, tr, locale)
-        elif page == tr.t("nav_pool"):
+        elif page == "🤖 Bolão das IAs":
             _render_pool(repo, tr)
         elif page == tr.t("nav_chat"):
             _render_chat(repo, tr, locale)
@@ -100,17 +127,173 @@ def main() -> None:
     st.sidebar.info(tr.t("disclaimer"))
 
 
-# ── Home ──────────────────────────────────────────────────────────────────────
+# ── Home — tela inicial com fundo_taça ───────────────────────────────────────
 def _render_home(repo: DuckDBRepository, tr: Translator) -> None:
-    st.subheader(tr.t("section_status"))
+    # Logo / banner centrado
+    banner = "docs/assets/copamind_2026.png"
+    hero   = "docs/assets/copamind-hero.png"
+    if os.path.exists(banner):
+        c = st.columns([1, 3, 1])
+        c[1].image(banner, use_container_width=True)
+    elif os.path.exists(hero):
+        st.image(hero, use_container_width=True)
+
+    st.markdown(
+        "<div style='text-align:center;margin-bottom:24px'>"
+        "<p style='color:#9eb5b1;letter-spacing:.2em;text-transform:uppercase;"
+        "font-size:13px'>Local AI · ML · RAG · MCP · Agents</p></div>",
+        unsafe_allow_html=True,
+    )
+
+    # Métricas do torneio
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric(tr.t("teams"), repo.count("teams"))
-    c2.metric(tr.t("matches"), repo.count("matches"))
-    c3.metric(tr.t("predictions"), repo.count("predictions"))
-    c4.metric(tr.t("snapshot"), repo.latest_snapshot_id() or "-")
+    c1.metric("⚽ Seleções", repo.count("teams"))
+    c2.metric("📋 Partidas", repo.count("matches"))
+    c3.metric("🔮 Previsões", repo.count("predictions"))
+    c4.metric("👤 Jogadores", repo.count("player_ratings"))
+
+    st.markdown("---")
+    # Jogos de hoje em destaque
+    st.markdown(
+        "<div class='eyebrow'>Hoje · Oitavas de final</div>",
+        unsafe_allow_html=True,
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        _match_hero_card("T-POR", "T-ESP", "🔵 Hoje 15:00")
+    with c2:
+        _match_hero_card("T-USA", "T-BEL", "🔵 Hoje 20:00")
+
+    st.markdown(
+        "<div class='eyebrow' style='margin-top:16px'>Amanhã · Oitavas de final</div>",
+        unsafe_allow_html=True,
+    )
+    c1, c2 = st.columns(2)
+    with c1:
+        _match_hero_card("T-ARG", "T-EGY", "🟡 Amanhã 12:00")
+    with c2:
+        _match_hero_card("T-SUI", "T-COL", "🟡 Amanhã 16:00")
 
 
-# ── Copa 2026 ─────────────────────────────────────────────────────────────────
+def _match_hero_card(home_id: str, away_id: str, label: str) -> None:
+    """Card de destaque de partida com previsão rápida."""
+    h = TEAMS.get(home_id, {}); a = TEAMS.get(away_id, {})
+    h_name = h.get("name_pt", home_id); a_name = a.get("name_pt", away_id)
+    h_flag = h.get("emoji", "🏳"); a_flag = a.get("emoji", "🏳")
+
+    with st.container(border=True):
+        st.caption(label)
+        st.markdown(
+            f"<div style='display:flex;align-items:center;justify-content:space-between;"
+            f"padding:8px 0'>"
+            f"<span style='font-size:24px'>{h_flag}</span>"
+            f"<strong style='font-size:16px'>{h_name}</strong>"
+            f"<span style='color:#9eb5b1;font-weight:700;padding:0 12px'>×</span>"
+            f"<strong style='font-size:16px'>{a_name}</strong>"
+            f"<span style='font-size:24px'>{a_flag}</span></div>",
+            unsafe_allow_html=True,
+        )
+
+
+# ── Resultados — tabela completa + alimentar placar ───────────────────────────
+def _render_resultados(repo: DuckDBRepository, tr: Translator, locale: str) -> None:
+    st.subheader("⚽ Partidas da Copa 2026")
+    tab_feed, tab_all = st.tabs(["➕ Alimentar resultado", "📋 Todas as partidas"])
+
+    with tab_feed:
+        _render_result_entry(repo, locale)
+
+    with tab_all:
+        _render_all_matches(repo, locale)
+
+
+def _render_result_entry(repo: DuckDBRepository, locale: str) -> None:
+    """Formulário para inserir placar de partidas agendadas."""
+    scheduled = [m for m in repo.list_matches(limit=200) if m.status.value == "scheduled"]
+    if not scheduled:
+        st.success("Todas as partidas já têm resultado registrado!")
+        return
+
+    options = {}
+    for m in scheduled:
+        h = TEAMS.get(m.home_team_id, {}); a = TEAMS.get(m.away_team_id, {})
+        h_name = h.get("name_pt", m.home_team_id); a_name = a.get("name_pt", m.away_team_id)
+        h_flag = h.get("emoji", "🏳"); a_flag = a.get("emoji", "🏳")
+        label = f"{h_flag} {h_name} × {a_flag} {a_name}  ({m.match_date.strftime('%d/%m')})"
+        options[label] = m
+
+    selected_label = st.selectbox("Selecione a partida", list(options))
+    match = options[selected_label]
+
+    h = TEAMS.get(match.home_team_id, {})
+    a_i = TEAMS.get(match.away_team_id, {})
+    h_name = h.get("name_pt", match.home_team_id); a_name = a_i.get("name_pt", match.away_team_id)
+
+    with st.form("result_form"):
+        c1, c2, c3 = st.columns([3, 1, 3])
+        c1.markdown(f"**{h.get('emoji','')} {h_name}**")
+        home_score = c1.number_input("Gols mandante", min_value=0, max_value=30, step=1, value=0)
+        c2.markdown("<div style='text-align:center;padding-top:32px;font-size:20px'>×</div>", unsafe_allow_html=True)
+        away_score = c3.number_input("Gols visitante", min_value=0, max_value=30, step=1, value=0)
+        c3.markdown(f"**{a_i.get('emoji','')} {a_name}**")
+        submitted = st.form_submit_button("💾 Registrar resultado", use_container_width=True)
+
+    if submitted:
+        _record_match_result(repo, match.match_id, int(home_score), int(away_score))
+        st.success(f"✅ {h_name} {home_score}–{away_score} {a_name} registrado!")
+        st.rerun()
+
+
+def _record_match_result(repo: DuckDBRepository, match_id: str, home_score: int, away_score: int) -> None:
+    """Atualiza o placar na base e registra no bolão."""
+    from datetime import UTC, datetime
+
+    from copamind.data.schemas import MatchStatus, PoolResult
+
+    repo._con.execute(
+        "UPDATE matches SET home_score=?, away_score=?, status=? WHERE match_id=?",
+        [home_score, away_score, str(MatchStatus.finished), match_id],
+    )
+    repo.upsert_pool_result(
+        PoolResult(
+            match_id=match_id,
+            home_score=home_score,
+            away_score=away_score,
+            recorded_at=datetime.now(UTC),
+        )
+    )
+
+
+def _render_all_matches(repo: DuckDBRepository, locale: str) -> None:
+    """Tabela completa de todas as partidas com filtros."""
+    all_matches = repo.list_matches(limit=500)
+    if not all_matches:
+        st.info("Sem partidas na base.")
+        return
+
+    stages = sorted({m.stage.value for m in all_matches})
+    stage_filter = st.selectbox("Filtrar por fase", ["Todas", *stages])
+
+    rows = []
+    for m in all_matches:
+        if stage_filter != "Todas" and m.stage.value != stage_filter:
+            continue
+        h = TEAMS.get(m.home_team_id, {}); a = TEAMS.get(m.away_team_id, {})
+        h_flag = h.get("emoji", "🏳"); a_flag = a.get("emoji", "🏳")
+        h_name = h.get("name_pt" if locale == "pt-BR" else "name_en", m.home_team_id)
+        a_name = a.get("name_pt" if locale == "pt-BR" else "name_en", m.away_team_id)
+        score = f"**{m.home_score}–{m.away_score}**" if m.home_score is not None else "–"
+        status_icon = "✅" if m.status.value == "finished" else "🕐"
+        rows.append({
+            "Data": m.match_date.strftime("%d/%m"),
+            "Fase": m.stage.value,
+            "Casa": f"{h_flag} {h_name}",
+            "Placar": score,
+            "Fora": f"{a_flag} {a_name}",
+            "": status_icon,
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 def _render_copa(repo: DuckDBRepository, tr: Translator, locale: str) -> None:
     st.subheader("🏆 Copa do Mundo 2026 — ao vivo")
     components.html(build_bracket_html(), height=700, scrolling=True)
@@ -467,44 +650,211 @@ def _render_predict(repo: DuckDBRepository, tr: Translator, locale: str) -> None
 
 # ── Bolão ─────────────────────────────────────────────────────────────────────
 def _render_pool(repo: DuckDBRepository, tr: Translator) -> None:
-    st.subheader(f"🏆 {tr.t('pool_title')}")
-    if st.button(tr.t("pool_run")):
-        summary = run_backtest(repo)
-        if not summary.standings:
-            st.info(tr.t("pool_empty"))
-            return
-        frame = pd.DataFrame([s.model_dump() for s in summary.standings]).rename(
-            columns={
-                "predictor_name": tr.t("predictor"),
-                "predictions": tr.t("pool_predictions"),
-                "total_points": tr.t("pool_points"),
-                "exact_scores": tr.t("pool_exact"),
-                "correct_results": tr.t("pool_correct"),
-                "mean_brier": tr.t("pool_brier"),
-            }
-        )
-        st.dataframe(frame.set_index(tr.t("predictor")), use_container_width=True)
-        st.bar_chart(frame.set_index(tr.t("predictor"))[tr.t("pool_points")])
+    st.subheader("🤖 Bolão das IAs — Copa 2026")
 
+    tab_pred, tab_board, tab_calib = st.tabs(["🔮 Previsões por partida", "🏆 Leaderboard", "📈 Calibração"])
+
+    # ── Previsões por partida ────────────────────────────────────────────────
+    with tab_pred:
+        _render_pool_predictions(repo)
+
+    # ── Leaderboard ──────────────────────────────────────────────────────────
+    with tab_board:
+        if st.button("▶ Calcular pontuação do bolão"):
+            summary = run_backtest(repo)
+            if summary.standings:
+                _render_pool_leaderboard_cards(summary.standings)
+            else:
+                st.info("Sem partidas com resultado registrado ainda.")
+        else:
+            st.info("Clique em 'Calcular' para gerar o leaderboard com os resultados atuais.")
+
+    # ── Calibração ───────────────────────────────────────────────────────────
+    with tab_calib:
         reports = calibration_report(repo)
         if reports:
-            st.markdown(f"**{tr.t('calibration_curve')}**")
             for report in reports:
                 bins = [b for b in report["reliability"] if b["count"] > 0]
                 if not bins:
                     continue
-                curve = pd.DataFrame(
-                    {
-                        tr.t("confidence"): [b["avg_confidence"] for b in bins],
-                        tr.t("accuracy"): [b["accuracy"] for b in bins],
-                    }
-                ).set_index(tr.t("confidence"))
-                st.caption(
-                    f"{report['predictor_name']} — Brier {report['brier']:.3f}, ECE {report['ece']:.3f}"
-                )
+                curve = pd.DataFrame({
+                    "Confiança": [b["avg_confidence"] for b in bins],
+                    "Acurácia":  [b["accuracy"] for b in bins],
+                }).set_index("Confiança")
+                st.caption(f"**{report['predictor_name']}** — Brier {report['brier']:.3f} · ECE {report['ece']:.3f}")
                 st.line_chart(curve)
-    else:
-        st.info(tr.t("pool_empty"))
+        else:
+            st.info("Rode o bolão (aba Leaderboard) para gerar os dados de calibração.")
+
+
+def _render_pool_predictions(repo: DuckDBRepository) -> None:
+    """Cards de previsão estilo EA FC para os jogos restantes."""
+    upcoming_matches = [
+        ("T-POR", "T-ESP", "Hoje 15:00"),
+        ("T-USA", "T-BEL", "Hoje 20:00"),
+        ("T-ARG", "T-EGY", "Amanhã 12:00"),
+        ("T-SUI", "T-COL", "Amanhã 16:00"),
+        ("T-FRA", "T-MAR", "Qui 09/07 — QF"),
+        ("T-NOR", "T-ENG", "Sáb 11/07 — QF"),
+    ]
+
+    try:
+        from copamind.features.service import build_elo
+        from copamind.models.poisson.service import build_poisson
+        poisson_model = build_poisson(repo)
+        elo_system = build_elo(repo)
+    except Exception:
+        st.warning("Sem dados suficientes para gerar previsões.")
+        return
+
+    for home_id, away_id, label in upcoming_matches:
+        h_info = TEAMS.get(home_id, {}); a_info = TEAMS.get(away_id, {})
+        if not h_info or not a_info:
+            continue
+        h_name = h_info["name_pt"]; a_name = a_info["name_pt"]
+        h_flag = h_info["emoji"]; a_flag = a_info["emoji"]
+
+        st.markdown(
+            f"<div style='margin:16px 0 8px'>"
+            f"<span style='color:#52e3b5;font-size:11px;font-weight:900;"
+            f"letter-spacing:.18em;text-transform:uppercase'>{label}</span> "
+            f"<strong style='font-size:18px'>{h_flag} {h_name} × {a_flag} {a_name}</strong>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+        # Gera previsões dos 3 modelos
+        preds = _generate_preds_for_match(home_id, away_id, poisson_model, elo_system, repo)
+        cards_html = _build_pred_cards_html(preds, h_flag, h_name, a_flag, a_name)
+        components.html(cards_html, height=310, scrolling=False)
+        st.markdown("<hr style='border-color:#1e3232'>", unsafe_allow_html=True)
+
+
+def _generate_preds_for_match(
+    home_id: str, away_id: str, poisson_model: object, elo_system: object, repo: DuckDBRepository
+) -> list[dict]:
+    from copamind.models.elo import EloRatingSystem
+    from copamind.models.ensemble.service import ensemble_match
+    from copamind.models.poisson import PoissonModel
+
+    results = []
+    try:
+        pm: PoissonModel = poisson_model  # type: ignore[assignment]
+        pred = pm.predict_match(home_id, away_id, neutral_venue=True)
+        results.append({
+            "name": "Poisson / Dixon-Coles", "tag": "ML Estatístico", "rank": 1,
+            "color": "#52e3b5",
+            "prob_home": pred.prob_home_win, "prob_draw": pred.prob_draw,
+            "prob_away": pred.prob_away_win,
+            "score": f"{pred.most_likely_score[0]}–{pred.most_likely_score[1]}",
+            "xg_home": pred.expected_home_goals, "xg_away": pred.expected_away_goals,
+        })
+    except Exception:
+        pass
+    try:
+        elo: EloRatingSystem = elo_system  # type: ignore[assignment]
+        ph = elo.win_probability(home_id, away_id, neutral_venue=True)
+        results.append({
+            "name": "Elo Rating", "tag": "Rating Histórico", "rank": 2,
+            "color": "#f6c453",
+            "prob_home": ph * 0.74, "prob_draw": 0.26, "prob_away": (1 - ph) * 0.74,
+            "score": "–", "xg_home": 0.0, "xg_away": 0.0,
+        })
+    except Exception:
+        pass
+    try:
+        ens = ensemble_match(repo, home_id, away_id, neutral_venue=True)
+        results.append({
+            "name": "Ensemble (Elo + Poisson)", "tag": "Média Ponderada", "rank": 3,
+            "color": "#8e7cff",
+            "prob_home": ens.prob_home, "prob_draw": ens.prob_draw, "prob_away": ens.prob_away,
+            "score": "–", "xg_home": 0.0, "xg_away": 0.0,
+        })
+    except Exception:
+        pass
+    return results
+
+
+def _build_pred_cards_html(
+    preds: list[dict], h_flag: str, h_name: str, a_flag: str, a_name: str
+) -> str:
+    cards = ""
+    for p in preds:
+        c = p["color"]
+        ph = p["prob_home"]; pd_val = p["prob_draw"]; pa = p["prob_away"]
+        xg = f"xG {p['xg_home']:.2f} × {p['xg_away']:.2f}" if p["xg_home"] > 0 else ""
+        cards += f"""
+        <div style="min-width:240px;max-width:280px;border:1px solid rgba(255,255,255,.1);
+            border-top:3px solid {c};border-radius:14px;
+            background:linear-gradient(160deg,rgba(16,26,26,.98),rgba(8,14,14,.98));
+            padding:16px;box-shadow:0 12px 30px rgba(0,0,0,.4);
+            display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="color:{c};font-size:10px;font-weight:900;letter-spacing:.15em;
+                text-transform:uppercase">{p['tag']}</span>
+            <span style="background:rgba(255,255,255,.06);color:#9eb5b1;
+                border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700">#{p['rank']}</span>
+          </div>
+          <div style="color:#f2faf8;font-weight:700;font-size:14px">{p['name']}</div>
+          <div style="display:flex;align-items:center;justify-content:space-around;
+              background:rgba(255,255,255,.04);border-radius:10px;padding:10px 6px;gap:4px">
+            <div style="text-align:center">
+              <div style="font-size:22px">{h_flag}</div>
+              <div style="color:{c};font-size:20px;font-weight:900">{ph:.0%}</div>
+              <div style="color:#9eb5b1;font-size:10px">{h_name}</div>
+            </div>
+            <div style="text-align:center">
+              <div style="color:#9eb5b1;font-size:16px;font-weight:700">{pd_val:.0%}</div>
+              <div style="color:#9eb5b1;font-size:10px">Empate</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:22px">{a_flag}</div>
+              <div style="color:{c};font-size:20px;font-weight:900">{pa:.0%}</div>
+              <div style="color:#9eb5b1;font-size:10px">{a_name}</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="color:#9eb5b1;font-size:11px">Placar mais provável</span>
+            <span style="color:{c};font-weight:900;font-size:15px">{p['score']}</span>
+          </div>
+          {"<div style='color:#9eb5b1;font-size:10px;text-align:right'>" + xg + "</div>" if xg else ""}
+        </div>"""
+
+    return f"""
+    <style>
+      .pred-grid{{display:flex;gap:14px;flex-wrap:wrap;padding:4px 0 8px}}
+    </style>
+    <div class="pred-grid">{cards}</div>"""
+
+
+def _render_pool_leaderboard_cards(standings: list) -> None:
+    """Leaderboard dos preditores com cards estilo EA."""
+    medals = ["🥇", "🥈", "🥉"]
+    colors = ["#f6c453", "#c7d4d2", "#d89567"]
+    cols = st.columns(min(len(standings), 3))
+    for i, standing in enumerate(standings):
+        c = colors[i] if i < 3 else "#52e3b5"
+        medal = medals[i] if i < 3 else f"#{i+1}"
+        with cols[i % len(cols)]:
+            st.markdown(
+                f"""<div style="border:1px solid {c};border-top:4px solid {c};border-radius:14px;
+                padding:18px;background:rgba(16,26,26,.9);text-align:center;margin-bottom:12px">
+                <div style="font-size:28px">{medal}</div>
+                <div style="font-size:16px;font-weight:800;color:#f2faf8;margin:8px 0 4px">
+                    {standing.predictor_name}</div>
+                <div style="font-size:32px;font-weight:900;color:{c}">{standing.total_points}</div>
+                <div style="color:#9eb5b1;font-size:11px;margin-top:4px">pontos</div>
+                <hr style="border-color:#29403f;margin:10px 0">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;font-size:11px">
+                  <div><span style="color:#9eb5b1">Palpites</span><br>
+                       <strong>{standing.predictions}</strong></div>
+                  <div><span style="color:#9eb5b1">Placar certo</span><br>
+                       <strong>{standing.exact_scores}</strong></div>
+                  <div><span style="color:#9eb5b1">Brier</span><br>
+                       <strong>{standing.mean_brier:.3f}</strong></div>
+                </div></div>""",
+                unsafe_allow_html=True,
+            )
 
 
 # ── Chat ──────────────────────────────────────────────────────────────────────

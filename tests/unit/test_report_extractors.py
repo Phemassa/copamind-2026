@@ -1,4 +1,4 @@
-"""Testes da extração de relatos do usuário."""
+﻿"""Testes da extração de relatos do usuário."""
 
 from __future__ import annotations
 
@@ -36,3 +36,4 @@ def test_extract_general() -> None:
     result = extractor.extract("Achei o time muito bem organizado.")
     assert result.report_type is ReportType.general
     assert result.confidence < 0.5
+

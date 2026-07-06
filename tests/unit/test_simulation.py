@@ -1,4 +1,4 @@
-"""Testes do simulador Monte Carlo do torneio."""
+﻿"""Testes do simulador Monte Carlo do torneio."""
 
 from __future__ import annotations
 
@@ -107,3 +107,4 @@ def test_stage_probabilities_present() -> None:
         assert set(team.stage_probabilities) == {"semifinal", "final"}
         # Reachar a final implica reachar a semifinal.
         assert team.stage_probabilities["semifinal"] >= team.stage_probabilities["final"]
+

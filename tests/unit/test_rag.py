@@ -1,4 +1,4 @@
-"""Testes do RAG (embeddings, store, retriever, anti-injection)."""
+﻿"""Testes do RAG (embeddings, store, retriever, anti-injection)."""
 
 from __future__ import annotations
 
@@ -92,3 +92,4 @@ def test_build_grounded_context_marks_untrusted() -> None:
     context, used = build_grounded_context(results)
     assert "NÃO CONFIÁVEIS" in context
     assert used == ["c1"]
+

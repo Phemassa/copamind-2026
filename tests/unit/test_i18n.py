@@ -1,4 +1,4 @@
-"""Testes da internacionalização da UI."""
+﻿"""Testes da internacionalização da UI."""
 
 from __future__ import annotations
 
@@ -29,3 +29,4 @@ def test_unknown_locale_falls_back() -> None:
 def test_unknown_key_returns_key() -> None:
     tr = Translator("en")
     assert tr.t("nonexistent_key") == "nonexistent_key"
+

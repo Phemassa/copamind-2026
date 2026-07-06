@@ -1,4 +1,4 @@
-"""Testes do sistema de rating Elo."""
+﻿"""Testes do sistema de rating Elo."""
 
 from __future__ import annotations
 
@@ -98,3 +98,4 @@ def test_process_requires_finished() -> None:
     )
     with pytest.raises(ValueError, match="finalizadas"):
         EloRatingSystem(EloConfig()).process_match(scheduled)
+

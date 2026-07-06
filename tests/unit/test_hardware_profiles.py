@@ -1,4 +1,4 @@
-"""Testes dos perfis de hardware (E10)."""
+﻿"""Testes dos perfis de hardware (E10)."""
 
 from __future__ import annotations
 
@@ -35,3 +35,4 @@ def test_profile_concurrency_flag() -> None:
     conc = HardwareProfile(name="24gb", max_concurrent_models=2, execution="concurrent")
     assert seq.allows_concurrency is False
     assert conc.allows_concurrency is True
+

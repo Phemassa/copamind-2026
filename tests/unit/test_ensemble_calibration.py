@@ -1,4 +1,4 @@
-"""Testes de ensemble e calibração."""
+﻿"""Testes de ensemble e calibração."""
 
 from __future__ import annotations
 
@@ -77,3 +77,4 @@ def test_calibrated_triples_valid_and_reduces_ece() -> None:
     ece_before = expected_calibration_error(probs, outcomes)
     ece_after = expected_calibration_error(calibrated, outcomes)
     assert ece_after <= ece_before
+

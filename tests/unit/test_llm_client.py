@@ -1,4 +1,4 @@
-"""Testes de contratos, cliente fake e utilitários de LLM."""
+﻿"""Testes de contratos, cliente fake e utilitários de LLM."""
 
 from __future__ import annotations
 
@@ -46,3 +46,4 @@ def test_load_model_specs_from_example() -> None:
     specs = load_model_specs("config/models.example.yaml")
     assert set(specs) == {"analyst", "challenger", "auditor"}
     assert specs["auditor"].temperature == 0.0
+

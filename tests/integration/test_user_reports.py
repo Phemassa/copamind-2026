@@ -1,4 +1,4 @@
-"""Testes de integração dos relatos do usuário (serviço + API)."""
+﻿"""Testes de integração dos relatos do usuário (serviço + API)."""
 
 from __future__ import annotations
 
@@ -83,3 +83,4 @@ def test_user_report_api(data_client: TestClient) -> None:
     deleted = data_client.delete(f"/user-reports/{report_id}")
     assert deleted.status_code == 204
     assert data_client.get(f"/user-reports/{report_id}").status_code == 404
+

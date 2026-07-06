@@ -1,4 +1,4 @@
-"""Testes de integração dos endpoints de saúde."""
+﻿"""Testes de integração dos endpoints de saúde."""
 
 from __future__ import annotations
 
@@ -19,3 +19,4 @@ def test_ready(client: TestClient) -> None:
     response = client.get("/ready")
     assert response.status_code == 200
     assert response.json() == {"ready": True}
+
