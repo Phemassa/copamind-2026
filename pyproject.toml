@@ -53,6 +53,9 @@ ui = [
     "streamlit>=1.36",
     "plotly>=5.22",
 ]
+rag = [
+    "qdrant-client>=1.9",
+]
 
 [project.scripts]
 copamind = "copamind.cli.main:app"

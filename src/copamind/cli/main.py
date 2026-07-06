@@ -27,6 +27,7 @@ from copamind.llm.config import load_model_specs
 from copamind.llm.orchestrator import build_evidence_pack
 from copamind.models.poisson.service import build_poisson
 from copamind.pool.service import run_backtest
+from copamind.rag.service import RagService
 from copamind.reports.service import create_user_report
 from copamind.simulation.service import build_default_config, run_simulation
 
@@ -54,6 +55,9 @@ app.add_typer(pool_app, name="pool")
 
 llm_app = typer.Typer(help="Comandos de LLMs locais.")
 app.add_typer(llm_app, name="llm")
+
+rag_app = typer.Typer(help="Comandos de RAG.")
+app.add_typer(rag_app, name="rag")
 
 console = Console()
 
@@ -151,6 +155,17 @@ def ingest_user_report(
         f"[green]Relato salvo[/] ({report.report_type}, "
         f"confiança {report.confidence:.0%}): {report.report_id}"
     )
+
+
+@rag_app.command("index")
+def rag_index() -> None:
+    """Indexa os relatos do usuário no índice vetorial (em memória)."""
+    settings = get_settings()
+    service = RagService()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        indexed = service.index_user_reports(repo)
+    console.print(f"[green]Indexados {indexed} chunks.[/] Total: {service.count()}")
 
 
 @train_app.command("elo")

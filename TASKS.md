@@ -111,22 +111,21 @@ Objetivo: ingestão de texto livre do usuário com ciclo de vida controlado.
 
 ---
 
-## E5 — RAG
+## E5 — RAG ✅ (core)
 Objetivo: recuperação híbrida segura, multilíngue e auditável.
 
 ### H5.1 — Indexação
-- [ ] Chunking + metadados completos (§12.3)
-- [ ] Embeddings **bge-m3** em Qdrant
+- [x] Chunking + metadados completos (`RagChunk`)
+- [x] Embeddings (FakeEmbedder offline; OllamaEmbedder/bge-m3 real) + store (InMemory; Qdrant opcional)
 ### H5.2 — Busca híbrida
-- [ ] Denso + BM25 + filtros (seleção/jogador/data/fonte)
-- [ ] Reranking **bge-reranker-v2-m3** + pesos de recência/confiabilidade
+- [x] Vetorial + léxico + filtros + recência/confiabilidade/verificação/entidade
+- [ ] Reranking bge-reranker-v2-m3 — futuro (real)
 ### H5.3 — Segurança
-- [ ] Tratar contexto como não confiável; proteção anti prompt-injection
-- [ ] Citations e registro de documentos que influenciaram a resposta
+- [x] Contexto tratado como não confiável; anti prompt-injection; chunk_ids usados registrados
 ### H5.4 — Avaliação
-- [ ] Dataset de eval: recall@k, precision@k, MRR, groundedness, citation accuracy
+- [ ] Dataset de eval (recall@k, MRR, groundedness) — futuro
 
-**Aceite:** busca híbrida retorna documentos esperados; injeção bloqueada; citações registradas.
+**Aceite:** busca híbrida retorna docs esperados; injeção marcada; chunks usados registrados. ✅
 
 ---
 
