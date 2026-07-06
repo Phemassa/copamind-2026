@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 Confidence = Literal["low", "medium", "high"]
 ClaimStatus = Literal[
@@ -30,16 +30,18 @@ class SupportingFactor(BaseModel):
 class Claim(BaseModel):
     """Afirmação factual com as evidências que a sustentam."""
 
-    text: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    text: str = Field(validation_alias=AliasChoices("text", "claim", "statement"))
     evidence_ids: list[str] = Field(default_factory=list)
 
 
 class AnalystResponse(BaseModel):
     """Resposta estruturada de um analista/challenger."""
 
-    model_role: str
+    model_role: str = "analyst"
     response_language: str = "pt-BR"
-    answer: str
+    answer: str = ""
     predicted_team: str | None = None
     confidence: Confidence = "medium"
     supporting_factors: list[SupportingFactor] = Field(default_factory=list)

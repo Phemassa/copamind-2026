@@ -120,11 +120,13 @@ class LMStudioClient:
         model_id: str,
         temperature: float = 0.2,
     ) -> LLMResponse:
+        # Não forçamos `response_format` (versões do LM Studio divergem: algumas
+        # só aceitam 'json_schema' ou 'text'). O JSON é solicitado no prompt e
+        # extraído de forma tolerante por `extract_json`.
         payload = {
             "model": model_id,
             "messages": messages,
             "temperature": temperature,
-            "response_format": {"type": "json_object"},
         }
         start = time.perf_counter()
         try:

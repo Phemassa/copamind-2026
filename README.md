@@ -31,6 +31,16 @@ Não é um chatbot que "chuta" o campeão. As probabilidades vêm de **modelos d
 
 Veja o plano completo em [CopaMind_2026_MASTER_PLAN.md](CopaMind_2026_MASTER_PLAN.md), o backlog em [TASKS.md](TASKS.md), as decisões em [DECISIONS.md](DECISIONS.md) e o cronograma em [ROADMAP.md](ROADMAP.md).
 
+## Demonstração
+
+Chances de título + caminho até o título (simulação Monte Carlo):
+
+![Dashboard — Chances de título](pictures/dashboard_ranking.png)
+
+Bolão de IAs (leaderboard + curva de calibração):
+
+![Dashboard — Bolão de IAs](pictures/dashboard_pool.png)
+
 ## Hardware recomendado
 
 - Windows 11 (também roda em Linux), Docker Desktop, VS Code

@@ -4,7 +4,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Unreleased]
 
+### Corrigido
+- **Compatibilidade LM Studio:** removido `response_format: json_object` (versões recentes só aceitam `json_schema`/`text`), evitando erro 400; o JSON é solicitado no prompt e extraído com tolerância.
+- **Robustez do contrato LLM:** `AnalystResponse.model_role`/`answer` opcionais e `Claim.text` aceita aliases (`claim`/`statement`); prompt do analista com template JSON explícito. Chat com LLMs locais validado ponta a ponta (Qwen3.5 / Gemma 4).
+
 ### Adicionado
+- **Kit visual/landing:** landing page GitHub Pages (`docs/index.html`), hero no README e screenshots do dashboard em `pictures/`.
 - **Épico E10 (Evolução 24 GB, core):** perfis de hardware (`copamind.llm.hardware`: `HardwareProfile`, `load_hardware_profiles`, `detect_vram_gb`, `suggest_profile`); `copamind doctor` detecta a VRAM (nvidia-smi) e sugere o perfil; sequencial permanece o default, concorrência é opt-in do perfil 24gb. 160 testes verdes.
 - **Ingestão real (OpenFootball):** conector `worldcup.json` (`copamind.data.connectors.openfootball`) tolerante a variações de formato; serviço `ingest_worldcup` e comando `copamind ingest worldcup <path>`. `confederation` agora é opcional (fontes nem sempre fornecem).
 - **RAG — reranker:** protocolo `Reranker` + `LexicalReranker` (baseline offline), plugável no `HybridRetriever` (cross-encoder bge-reranker pode substituir).
