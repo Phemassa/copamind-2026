@@ -80,8 +80,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "box_consensus": "Consenso",
         "evidence": "Evidências",
         "llm_unavailable": (
-            "LLMs locais indisponíveis. Carregue modelos no LM Studio e "
-            "configure models.yaml."
+            "LLMs locais indisponíveis. Carregue modelos no LM Studio e configure models.yaml."
         ),
     },
     "en": {

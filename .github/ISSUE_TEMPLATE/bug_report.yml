@@ -1,0 +1,29 @@
+name: Bug report
+description: Reportar um comportamento incorreto
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o bug e o comportamento esperado.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão / commit
+  - type: textarea
+    id: environment
+    attributes:
+      label: Ambiente
+      placeholder: SO, Python, GPU/VRAM, LM Studio/Ollama

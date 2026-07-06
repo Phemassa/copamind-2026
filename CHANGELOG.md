@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 ## [Unreleased]
 
 ### Adicionado
+- **Épico E9 (Conteúdo & Publicação, core):** README com badges e seção de recursos; `CONTRIBUTING.md`, `SECURITY.md`, `MODEL_CARD.md`; templates de issue (bug/feature/data source) e PR; gerador de cards bilíngues (`copamind content ranking|match`). 147 testes verdes.
 - **Épico E8b (Chat na UI + calibração):** página de chat no dashboard com 3 boxes (analista/challenger/auditor) + consenso, via orquestrador de LLMs (cliente LM Studio; resiliente quando indisponível); curva de calibração (reliability) por preditor; helpers testáveis `chat_view` (cliente injectável) e `calibration_view`; i18n do chat. 145 testes verdes.
 - **Épico E6 (MCP `copamind-mcp`, core):** camada de ferramentas testável (dados, predição, ensemble, simulação, RAG, calibração, bolão) separando read-only (`READ_ONLY_TOOLS`) de escrita (`WRITE_TOOLS`); servidor FastMCP com import lazy do pacote `mcp`; comando `copamind mcp serve`; extra `mcp`. 143 testes verdes.
 - **Épico E3b (Ensemble + Calibração):** blend de probabilidades Elo+Poisson (`blend`, `blend_named`, `fit_two_model_weights` por grade Brier); calibração isotônica via PAV (`IsotonicCalibrator`, `CalibratedTriples`); métricas Brier/Log-Loss/ECE + curva de confiabilidade; relatório de calibração sobre os dados do bolão; serviço `ensemble_match`; rotas `POST /predictions/ensemble` e `GET /pool/calibration`. CatBoost/XGBoost/SHAP adiados (dataset sintético pequeno). 134 testes verdes.

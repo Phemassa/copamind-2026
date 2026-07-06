@@ -62,6 +62,9 @@ app.add_typer(rag_app, name="rag")
 mcp_app = typer.Typer(help="Comandos do servidor MCP.")
 app.add_typer(mcp_app, name="mcp")
 
+content_app = typer.Typer(help="Comandos de geração de conteúdo.")
+app.add_typer(content_app, name="content")
+
 console = Console()
 
 _STATUS_STYLE = {
@@ -177,6 +180,36 @@ def mcp_serve() -> None:
     from copamind.mcp.server import create_server
 
     create_server().run()
+
+
+@content_app.command("ranking")
+def content_ranking(
+    locale: str = typer.Option("pt-BR", help="Idioma: pt-BR ou en."),
+) -> None:
+    """Gera o card de chances de título (Markdown) para divulgação."""
+    from copamind.content.cards import championship_card
+
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        cards = championship_card(repo)
+    console.print(cards.get(locale, cards["pt-BR"]))
+
+
+@content_app.command("match")
+def content_match(
+    home: str = typer.Option(..., help="team_id do mandante."),
+    away: str = typer.Option(..., help="team_id do visitante."),
+    locale: str = typer.Option("pt-BR", help="Idioma: pt-BR ou en."),
+) -> None:
+    """Gera o card de confronto (Markdown) para divulgação."""
+    from copamind.content.cards import matchup_card
+
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        cards = matchup_card(repo, home, away)
+    console.print(cards.get(locale, cards["pt-BR"]))
 
 
 @train_app.command("elo")

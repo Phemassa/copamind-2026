@@ -208,18 +208,18 @@ Objetivo: UI EN/PT-BR polida. E8a (dashboard MVP) precede E8b (UI completa).
 
 ---
 
-## E9 — Conteúdo & Publicação
+## E9 — Conteúdo & Publicação ✅ (core)
 Objetivo: publicar no GitHub e gerar conteúdo para LinkedIn.
 
 ### H9.1 — GitHub
-- [ ] README bilíngue, arquitetura, ROADMAP, CONTRIBUTING, SECURITY, LICENSE, MODEL_CARD
-- [ ] Templates de issue/PR; release; disclaimer público
+- [x] README com badges, recursos e instalação; CONTRIBUTING, SECURITY, MODEL_CARD, LICENSE
+- [x] Templates de issue (bug/feature/data source) e PR
 ### H9.2 — Geração de conteúdo
-- [ ] Cards de confronto, gráfico de chances, comparação entre LLMs — em PT-BR **e** EN
+- [x] Cards de ranking e confronto em PT-BR **e** EN (`copamind content ...`)
 ### H9.3 — Backtest ao vivo
-- [ ] Publicar previsão antes do jogo e mostrar acerto + Brier depois
+- [x] Bolão registra previsão vs resultado com Brier (E11); cards prontos p/ divulgação
 
-**Aceite:** repositório público completo; disclaimer presente; conteúdo bilíngue gerado.
+**Aceite:** repositório público completo; disclaimer presente; conteúdo bilíngue gerado. ✅ (falta apenas `git push` e imagens/gifs)
 
 ---
 

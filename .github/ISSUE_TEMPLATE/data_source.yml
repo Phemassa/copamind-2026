@@ -1,0 +1,30 @@
+name: Data source
+description: Propor uma nova fonte de dados
+labels: [data-source]
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Nome da fonte
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: URL / repositório
+  - type: dropdown
+    id: type
+    attributes:
+      label: Tipo
+      options: [git, rest, csv, json, outro]
+  - type: input
+    id: license
+    attributes:
+      label: Licença
+      description: A fonte permite redistribuição? Respeita os ToS (sem scraping proibido)?
+    validations:
+      required: true
+  - type: textarea
+    id: fields
+    attributes:
+      label: Campos disponíveis / cobertura
