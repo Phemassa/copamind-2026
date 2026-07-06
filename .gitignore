@@ -65,3 +65,6 @@ Thumbs.db
 
 # Relatórios de teste
 junit.xml
+full.txt
+out_check.txt
+result.txt
