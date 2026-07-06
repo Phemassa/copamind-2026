@@ -19,6 +19,7 @@ from copamind.ui.dashboard import (
     database_status,
     match_prediction_view,
     pool_leaderboard_view,
+    stage_probabilities_view,
     team_analysis_view,
 )
 from copamind.ui.i18n import DEFAULT_LOCALE, Translator, available_locales
@@ -103,6 +104,14 @@ def _render_ranking(repo: DuckDBRepository, tr: Translator) -> None:
     st.bar_chart(frame[tr.t("title")])
     st.dataframe(
         frame.style.format({tr.t("qualify"): "{:.1%}", tr.t("title"): "{:.1%}"}),
+        use_container_width=True,
+    )
+
+    st.markdown(f"**{tr.t('bracket_path')}**")
+    stage_rows = stage_probabilities_view(repo, iterations=iterations)
+    stage_frame = pd.DataFrame(stage_rows).set_index("team_id")
+    st.dataframe(
+        stage_frame.style.format("{:.1%}"),
         use_container_width=True,
     )
 

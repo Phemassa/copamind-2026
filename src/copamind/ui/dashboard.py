@@ -44,6 +44,21 @@ def championship_table(
     ]
 
 
+def stage_probabilities_view(
+    repo: DuckDBRepository, *, iterations: int = 5000, seed: int = 2026
+) -> list[dict[str, Any]]:
+    """Probabilidade de cada seleção alcançar cada fase (base do 'bracket')."""
+    config = build_default_config(repo, iterations=iterations, seed=seed)
+    result = run_simulation(repo, config)
+    rows: list[dict[str, Any]] = []
+    for team in result.teams:
+        row: dict[str, Any] = {"team_id": team.team_id}
+        row.update(team.stage_probabilities)
+        row["champion"] = team.champion_probability
+        rows.append(row)
+    return rows
+
+
 def team_analysis_view(repo: DuckDBRepository, team_id: str) -> dict[str, Any]:
     """Rating Elo, forma por janelas e últimas partidas de uma seleção."""
     analysis = analyze_team(repo, team_id)
