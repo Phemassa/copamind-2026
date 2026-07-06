@@ -67,15 +67,15 @@ Objetivo: ML é o motor de probabilidades (o LLM nunca sobrescreve). Dividido em
 #### H3.4 — CatBoost
 - [ ] Dataset temporal + pipeline + tuning Optuna (Brier/Log-Loss) + model registry
 #### H3.5 — XGBoost / LightGBM
-- [ ] Modelo adicional para diversidade de ensemble
-#### H3.6 — Ensemble & calibração
-- [ ] Stacking com **pesos aprendidos** em validação temporal
-- [ ] Platt scaling, isotônica, curva de calibração, Brier, Log-Loss, ECE
+- [ ] Modelo adicional para diversidade de ensemble — futuro (requer dataset real)
+#### H3.6 — Ensemble & calibração ✅
+- [x] Blend de probabilidades (Elo + Poisson) com pesos configuráveis / aprendidos (grade Brier)
+- [x] Calibração isotônica (PAV), curva de confiabilidade, Brier, Log-Loss, ECE
 #### H3.7 — Explicabilidade & incerteza
-- [ ] SHAP / feature importance
-- [ ] Intervalos de incerteza (bootstrap / distribuição Monte Carlo)
+- [ ] SHAP / feature importance — futuro (com CatBoost)
+- [ ] Intervalos de incerteza (bootstrap / Monte Carlo) — futuro
 #### H3.8 — Anti-vazamento temporal
-- [ ] Validação walk-forward; `cutoff_timestamp` por dataset; testes de leakage
+- [x] Filtro `as_of` em Elo/Poisson/ensemble; testes de leakage (E3a)
 
 **Aceite:** rating reproduzível; probabilidades somam ~1; backtest e métricas documentados; artefatos versionados; sem leakage.
 

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends
 
 from copamind.api.dependencies import get_repository
 from copamind.data.repositories import DuckDBRepository
+from copamind.models.calibration.report import CalibrationReport, calibration_report
 from copamind.pool.service import (
     BacktestSummary,
     PredictorStanding,
@@ -30,3 +31,9 @@ def backtest(repo: RepoDep) -> BacktestSummary:
 def get_leaderboard(repo: RepoDep) -> list[PredictorStanding]:
     """Retorna a classificação atual do bolão."""
     return leaderboard(repo)
+
+
+@router.get("/calibration", response_model=list[CalibrationReport])
+def get_calibration(repo: RepoDep) -> list[CalibrationReport]:
+    """Relatório de calibração (Brier/LogLoss/ECE + curva) por preditor."""
+    return calibration_report(repo)
