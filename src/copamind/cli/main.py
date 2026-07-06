@@ -18,6 +18,7 @@ from copamind.data.ingestion.service import (
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import build_elo
 from copamind.models.poisson.service import build_poisson
+from copamind.simulation.service import build_default_config, run_simulation
 
 app = typer.Typer(
     name="copamind",
@@ -153,6 +154,31 @@ def train_poisson() -> None:
         attack = model.attack_strength(team.team_id)
         defense = model.defense_strength(team.team_id)
         table.add_row(team.name, f"{attack:.2f}", f"{defense:.2f}")
+    console.print(table)
+
+
+@app.command()
+def simulate(
+    iterations: int = typer.Option(10_000, help="Número de simulações."),
+    seed: int = typer.Option(2026, help="Seed para reprodutibilidade."),
+) -> None:
+    """Simula o torneio (Monte Carlo) e exibe as chances de título."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        config = build_default_config(repo, iterations=iterations, seed=seed)
+        result = run_simulation(repo, config)
+
+    table = Table(title=f"Chances de título ({result.iterations} simulações)")
+    table.add_column("Seleção", style="bold")
+    table.add_column("Classificação", justify="right")
+    table.add_column("Título", justify="right")
+    for team in result.teams:
+        table.add_row(
+            team.team_id,
+            f"{team.qualified_probability:.1%}",
+            f"{team.champion_probability:.1%}",
+        )
     console.print(table)
 
 

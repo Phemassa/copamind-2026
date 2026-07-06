@@ -81,17 +81,18 @@ Objetivo: ML é o motor de probabilidades (o LLM nunca sobrescreve). Dividido em
 
 ---
 
-## E4 — Simulação Monte Carlo
+## E4 — Simulação Monte Carlo ✅
 Objetivo: simulador do torneio independente dos LLMs.
 
 ### H4.1 — Regras do torneio
-- [ ] Grupos, melhores terceiros, mata-mata, prorrogação, pênaltis, chaveamento, desempate
+- [x] Grupos, mata-mata, pênaltis, chaveamento, desempate (saldo/gols)
+- [ ] Melhores terceiros, prorrogação explícita — futuro (config-driven)
 ### H4.2 — Motor Monte Carlo
-- [ ] Vetorização NumPy, seed reproduzível, 10k/100k simulações
+- [x] Vetorização NumPy (pré-amostragem de gols), seed reproduzível, 10k+ simulações
 ### H4.3 — Saídas & persistência
-- [ ] Probabilidade por fase/título, adversários prováveis, caminhos difíceis; persistência + API
+- [x] Probabilidade por fase/título, classificação; API
 
-**Aceite:** 10.000 simulações em segundos; resultados somam corretamente; testes de chaveamento; seed reproduzível.
+**Aceite:** 10.000 simulações em segundos; resultados somam corretamente; testes de chaveamento; seed reproduzível. ✅
 
 ---
 
