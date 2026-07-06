@@ -1,0 +1,13 @@
+# Referência de logging (MASTER_PLAN §22). A configuração efetiva é feita em
+# código por structlog (src/copamind/core/logging.py); estes valores documentam
+# os defaults e podem ser lidos por ferramentas externas.
+level: INFO
+json: true
+fields:
+  - timestamp
+  - level
+  - event
+  - correlation_id
+  - session_id
+  - prediction_id
+  - snapshot_id

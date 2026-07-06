@@ -1,0 +1,58 @@
+[
+  {
+    "team_id": "T-NTL",
+    "name": "Nortlândia",
+    "fifa_code": "NTL",
+    "confederation": "UEFA",
+    "country": "Nortlândia",
+    "fifa_ranking": 1,
+    "elo_rating": 1575.0,
+    "active": true,
+    "source": "synthetic",
+    "collected_at": "2026-07-06T12:00:00+00:00",
+    "available_at": "2026-07-06T12:00:00+00:00",
+    "snapshot_id": "sample-2026-07-06"
+  },
+  {
+    "team_id": "T-SDR",
+    "name": "Sudria",
+    "fifa_code": "SDR",
+    "confederation": "CONMEBOL",
+    "country": "Sudria",
+    "fifa_ranking": 2,
+    "elo_rating": 1550.0,
+    "active": true,
+    "source": "synthetic",
+    "collected_at": "2026-07-06T12:00:00+00:00",
+    "available_at": "2026-07-06T12:00:00+00:00",
+    "snapshot_id": "sample-2026-07-06"
+  },
+  {
+    "team_id": "T-EST",
+    "name": "Estland",
+    "fifa_code": "EST",
+    "confederation": "AFC",
+    "country": "Estland",
+    "fifa_ranking": 3,
+    "elo_rating": 1525.0,
+    "active": true,
+    "source": "synthetic",
+    "collected_at": "2026-07-06T12:00:00+00:00",
+    "available_at": "2026-07-06T12:00:00+00:00",
+    "snapshot_id": "sample-2026-07-06"
+  },
+  {
+    "team_id": "T-WST",
+    "name": "Westória",
+    "fifa_code": "WST",
+    "confederation": "CAF",
+    "country": "Westória",
+    "fifa_ranking": 4,
+    "elo_rating": 1500.0,
+    "active": true,
+    "source": "synthetic",
+    "collected_at": "2026-07-06T12:00:00+00:00",
+    "available_at": "2026-07-06T12:00:00+00:00",
+    "snapshot_id": "sample-2026-07-06"
+  }
+]

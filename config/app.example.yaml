@@ -1,0 +1,17 @@
+# Configuração geral da aplicação (exemplo).
+# Copie para config/app.yaml e ajuste. Segredos ficam no .env, nunca aqui.
+app:
+  env: development
+  host: 127.0.0.1
+  port: 8000
+
+i18n:
+  default_locale: pt-BR
+  supported_locales: [pt-BR, en]
+
+snapshot:
+  default_policy: latest_consistent
+
+observability:
+  log_level: INFO
+  log_json: true

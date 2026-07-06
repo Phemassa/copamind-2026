@@ -1,0 +1,2 @@
+# Placeholder para manter a pasta data/ versionada.
+# Dados reais (raw/bronze/silver/gold/user_input/...) NÃO são versionados — ver .gitignore.

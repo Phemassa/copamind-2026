@@ -1,0 +1,52 @@
+# Perfis de modelos LLM locais (exemplo) — ver MASTER_PLAN §15 e §37, DECISIONS ADR-0003/0004.
+# Copie para config/models.yaml e ajuste os model_id conforme baixados no LM Studio / Ollama.
+# Regra: no máximo 1-2 modelos por marca. Execução sequencial com unload é o default.
+
+hardware_profiles:
+  8gb:
+    max_concurrent_models: 1
+    default_quantization: Q4_K_M
+    default_context_length: 8192
+    execution: sequential
+  24gb:
+    max_concurrent_models: 2
+    default_quantization: Q6_K
+    default_context_length: 32768
+    execution: sequential   # concorrência é opt-in
+
+embeddings:
+  provider: lmstudio
+  model_id: bge-m3
+reranker:
+  model_id: bge-reranker-v2-m3
+
+models:
+  analyst:
+    provider: lmstudio
+    model_id: qwen3-8b
+    role: primary_analyst
+    context_length: 8192
+    temperature: 0.2
+    unload_after_run: true
+    retry: 1
+    fallback: challenger
+
+  challenger:
+    provider: lmstudio
+    model_id: llama-3.1-8b-instruct
+    role: alternative_analysis
+    context_length: 8192
+    temperature: 0.25
+    unload_after_run: true
+    retry: 1
+    fallback: null
+
+  auditor:
+    provider: lmstudio
+    model_id: phi-4
+    role: evidence_auditor
+    context_length: 6144
+    temperature: 0.0
+    unload_after_run: true
+    retry: 1
+    fallback: null

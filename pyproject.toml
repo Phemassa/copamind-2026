@@ -1,0 +1,117 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "copamind"
+dynamic = ["version"]
+description = "CopaMind 2026 — plataforma local e open source de inteligência esportiva para previsão da Copa 2026."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "CopaMind 2026 contributors" }]
+keywords = ["football", "world-cup", "machine-learning", "rag", "mcp", "llm", "monte-carlo"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "typer>=0.12",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "structlog>=24.1",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+data = [
+    "duckdb>=1.0",
+    "polars>=1.0",
+    "pyarrow>=16.0",
+    "pandera>=0.20",
+]
+dev = [
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.10",
+    "ruff>=0.5",
+    "pre-commit>=3.7",
+    "bandit>=1.7",
+    "pip-audit>=2.7",
+    "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+copamind = "copamind.cli.main:app"
+
+[project.urls]
+Homepage = "https://github.com/Phemassa/copamind-2026"
+Repository = "https://github.com/Phemassa/copamind-2026"
+
+[tool.hatch.version]
+path = "src/copamind/__about__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/copamind"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "RUF", # ruff-specific
+]
+ignore = ["B008"]  # FastAPI/Typer usam chamadas em defaults (Depends/Argument)
+
+[tool.ruff.lint.isort]
+known-first-party = ["copamind"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["copamind"]
+strict = true
+warn_unused_configs = true
+warn_return_any = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["duckdb.*", "polars.*", "pandera.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --cov=copamind --cov-report=term-missing"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+branch = true
+source = ["src/copamind"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]

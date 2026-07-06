@@ -1,0 +1,69 @@
+# Fontes de dados (exemplo) — ver MASTER_PLAN §23 e DECISIONS ADR-0012.
+# Copie para config/sources.yaml. Use apenas fontes com licença compatível; sem scraping proibido por ToS.
+# Chaves de API ficam no .env, NUNCA aqui.
+
+sources:
+  # --- Base estática (offline, redistribuível) — preferida para bootstrap ---
+  - name: openfootball_worldcup_json
+    type: git
+    base_url: https://github.com/openfootball/worldcup.json
+    auth: none
+    license: Public Domain / CC0
+    description: Calendário e chaveamento estático da Copa 2026 (104 partidas) em JSON.
+    priority: 1
+    confidence: 0.7
+    enabled: true
+
+  - name: worldcup2026_rezarahiminia
+    type: git
+    base_url: https://github.com/rezarahiminia/worldcup2026
+    auth: none
+    license: ver repositório
+    description: Dataset CSV + scripts (Node/Mongo) da Copa 2026; usar apenas os dados brutos.
+    priority: 2
+    confidence: 0.6
+    enabled: false
+
+  - name: statsbomb_open_data
+    type: git
+    base_url: https://github.com/statsbomb/open-data
+    auth: none
+    license: StatsBomb Open Data License
+    description: Eventos e xG de partidas selecionadas (histórico para treino).
+    priority: 3
+    confidence: 0.85
+    enabled: true
+
+  # --- APIs ao vivo (planos gratuitos; exigem cache local e chave no .env) ---
+  - name: football_data_org
+    type: rest
+    base_url: https://api.football-data.org/v4
+    auth: api_key
+    license: Free tier
+    description: Tabela de grupos e resultados; ~10 chamadas/min no plano free.
+    rate_limit_per_minute: 10
+    priority: 4
+    confidence: 0.8
+    enabled: false
+
+  - name: api_football
+    type: rest
+    base_url: https://v3.football.api-sports.io
+    auth: api_key
+    license: Free tier
+    description: Placares ao vivo e estatísticas; ~100 requisições/dia no plano free.
+    rate_limit_per_day: 100
+    priority: 5
+    confidence: 0.8
+    enabled: false
+
+  - name: zafronix_worldcup
+    type: rest
+    base_url: https://api.zafronix.com
+    auth: api_key
+    license: Free tier
+    description: Histórico de Copas (1930–2026); ~250 requisições/dia no plano free.
+    rate_limit_per_day: 250
+    priority: 6
+    confidence: 0.7
+    enabled: false
