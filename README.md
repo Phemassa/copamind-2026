@@ -1,5 +1,7 @@
 # CopaMind 2026 🧠⚽
 
+![CopaMind 2026](docs/assets/copamind-hero.png)
+
 [![CI](https://github.com/Phemassa/copamind-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Phemassa/copamind-2026/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
 [![Ruff](https://img.shields.io/badge/lint-ruff-261230.svg)](https://github.com/astral-sh/ruff)

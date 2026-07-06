@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CopaMind 2026 — Local AI · ML · RAG · MCP · Agents</title>
+  <meta name="description" content="Plataforma local e open source de inteligência esportiva: ML, simulação Monte Carlo, RAG, MCP e LLMs locais para analisar e simular a Copa 2026." />
+  <meta property="og:title" content="CopaMind 2026" />
+  <meta property="og:description" content="Local AI · ML · RAG · MCP · Agents — analisando a Copa 2026 com transparência e reprodutibilidade." />
+  <meta property="og:image" content="assets/copamind-hero.png" />
+  <style>
+    :root {
+      --bg: #0a0e1a; --panel: #121829; --line: #223; --txt: #e8ecf4;
+      --muted: #9aa4bd; --blue: #2f6bff; --red: #e33; --green: #1db954;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--txt);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.6;
+    }
+    a { color: #6ea8ff; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+    header { text-align: center; padding: 24px 0 8px; }
+    header img { width: 100%; max-width: 1000px; border-radius: 14px; border: 1px solid var(--line); }
+    .tagline { color: var(--muted); letter-spacing: 2px; text-transform: uppercase; font-size: 14px; margin-top: 12px; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 20px 0 8px; }
+    .btn { background: var(--blue); color: #fff; padding: 12px 20px; border-radius: 10px; text-decoration: none; font-weight: 600; }
+    .btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--txt); }
+    section { padding: 28px 0; border-top: 1px solid var(--line); }
+    h2 { font-size: 22px; margin: 0 0 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    pre { background: #0d1220; border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; }
+    code { color: #b8e0ff; }
+    .disclaimer { color: var(--muted); font-size: 13px; }
+    footer { text-align: center; color: var(--muted); padding: 30px 0; font-size: 13px; }
+    .flag { height: 4px; background: linear-gradient(90deg, var(--blue) 0 33%, var(--red) 33% 66%, var(--green) 66% 100%); border-radius: 2px; margin: 8px 0 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="assets/copamind-hero.png" alt="CopaMind 2026" />
+      <div class="flag"></div>
+      <p class="tagline">Local AI · ML · RAG · MCP · Agents</p>
+      <div class="cta">
+        <a class="btn" href="https://github.com/Phemassa/copamind-2026">Ver no GitHub</a>
+        <a class="btn ghost" href="#instalar">Como instalar</a>
+      </div>
+    </header>
+
+    <section>
+      <h2>O que é o CopaMind</h2>
+      <p>
+        Plataforma <strong>local</strong> e <strong>open source</strong> de inteligência esportiva.
+        As probabilidades vêm de <strong>modelos de ML calibrados</strong> (Elo, Poisson, ensemble, Monte Carlo);
+        os <strong>LLMs locais</strong> apenas interpretam, consultam ferramentas e explicam — nunca "chutam" o resultado.
+        A Copa 2026 é o caso de uso; o projeto é um laboratório de IA aplicada, agentes, dados e explicabilidade.
+      </p>
+    </section>
+
+    <section>
+      <h2>Recursos</h2>
+      <div class="grid">
+        <div class="card"><h3>📊 Modelos preditivos</h3><p>Elo, Poisson/Dixon-Coles, ensemble e calibração isotônica (Brier/Log-Loss/ECE).</p></div>
+        <div class="card"><h3>🎲 Simulação Monte Carlo</h3><p>Chances por fase e de título, reprodutível por seed.</p></div>
+        <div class="card"><h3>🏆 Bolão de IAs</h3><p>Preditores competem com palpites imutáveis e leaderboard (anti-leakage).</p></div>
+        <div class="card"><h3>🔍 RAG</h3><p>Busca híbrida (vetorial + léxico) com proteção contra prompt injection.</p></div>
+        <div class="card"><h3>🤖 LLMs locais</h3><p>Analista → challenger → auditor → consenso + benchmark, sequencial.</p></div>
+        <div class="card"><h3>🔌 MCP</h3><p>Ferramentas read-only e de escrita para o agente/IDE.</p></div>
+        <div class="card"><h3>🖥️ Dashboard EN/PT-BR</h3><p>Ranking, previsões, bolão, calibração e chat.</p></div>
+        <div class="card"><h3>🧾 Reprodutibilidade</h3><p>Linhagem, snapshot e evidências em cada resultado.</p></div>
+      </div>
+    </section>
+
+    <section id="instalar">
+      <h2>Como instalar</h2>
+      <pre><code>git clone https://github.com/Phemassa/copamind-2026.git
+cd copamind-2026
+python -m venv .venv && . .venv/Scripts/activate  # Linux/macOS: source .venv/bin/activate
+pip install -e ".[data,dev]"
+copamind ingest sample     # dataset de exemplo
+copamind simulate          # chances de título (Monte Carlo)
+pip install -e ".[ui]" && copamind ui serve   # dashboard bilíngue</code></pre>
+    </section>
+
+    <section>
+      <h2>Arquitetura</h2>
+      <p class="disclaimer">
+        Fontes → Ingestão (linhagem) → Data lake (DuckDB) + Base textual (Qdrant) →
+        Feature engineering + RAG → Modelos preditivos (Elo/Poisson/ensemble) →
+        Simulador Monte Carlo → MCP + agente → Orquestração de LLMs locais → Interface web.
+      </p>
+    </section>
+
+    <section>
+      <h2>Modelos locais recomendados (8 GB VRAM)</h2>
+      <div class="grid">
+        <div class="card"><h3>Analista</h3><p>Qwen3-8B</p></div>
+        <div class="card"><h3>Challenger</h3><p>Llama 3.1 8B / Ministral 8B</p></div>
+        <div class="card"><h3>Auditor</h3><p>Phi-4</p></div>
+        <div class="card"><h3>Embeddings</h3><p>bge-m3</p></div>
+      </div>
+      <p class="disclaimer" style="margin-top:12px">Evolução para servidor 24 GB prevista via perfis de hardware (roster 27–32B).</p>
+    </section>
+
+    <footer>
+      <div class="flag"></div>
+      <p>Projeto independente, sem vínculo oficial com FIFA, seleções ou federações.<br />
+      As probabilidades são experimentais e educacionais e não representam garantia de resultado.</p>
+      <p><a href="https://github.com/Phemassa/copamind-2026">github.com/Phemassa/copamind-2026</a> · MIT</p>
+    </footer>
+  </div>
+</body>
+</html>
