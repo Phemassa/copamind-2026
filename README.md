@@ -59,6 +59,14 @@ copamind api serve
 curl http://127.0.0.1:8000/health
 ```
 
+## Dashboard
+
+```bash
+copamind ingest sample     # carrega o dataset de exemplo
+pip install -e ".[ui]"      # instala Streamlit/Plotly
+copamind ui serve          # abre o dashboard bilíngue (EN/PT-BR)
+```
+
 ## Desenvolvimento
 
 ```bash
@@ -71,7 +79,7 @@ pytest                 # testes + cobertura
 
 ## Estado do projeto
 
-Fase 0 (fundação) concluída: estrutura, configuração, logging estruturado, API `/health` e `/ready`, CLI `copamind doctor`, Docker Compose do Qdrant, lint/tipos/testes e CI. Próximas fases no [ROADMAP.md](ROADMAP.md).
+Marco 1 em andamento: fundação (E0), dados/ingestão (E1), Elo + forma (E3a), Poisson/Dixon-Coles (E4), simulação Monte Carlo (E4b) e dashboard bilíngue (E8a). Veja [TASKS.md](TASKS.md) e o [ROADMAP.md](ROADMAP.md).
 
 ## Licença
 

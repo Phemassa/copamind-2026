@@ -49,6 +49,10 @@ dev = [
     "pip-audit>=2.7",
     "types-PyYAML>=6.0",
 ]
+ui = [
+    "streamlit>=1.36",
+    "plotly>=5.22",
+]
 
 [project.scripts]
 copamind = "copamind.cli.main:app"

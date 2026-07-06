@@ -173,14 +173,15 @@ Objetivo: execução sequencial com unload, consenso auditável e benchmark loca
 ## E8 — Interface bilíngue (Dashboard + Chat)
 Objetivo: UI EN/PT-BR polida. E8a (dashboard MVP) precede E8b (UI completa).
 
-### E8a — Dashboard MVP
+### E8a — Dashboard MVP ✅
 #### H8.2 — Dashboard
-- [ ] Ranking de título + incerteza
-- [ ] **Árvore de mata-mata (bracket)**
-- [ ] Evolução da probabilidade ao longo do tempo
-- [ ] Radar head-to-head
-- [ ] Curva de calibração (reliability diagram)
-- [ ] **Aba Bolão** (leaderboard das IAs)
+- [x] Ranking de título + gráfico de barras
+- [x] Análise de seleção (Elo + forma + últimas partidas)
+- [x] Previsão de partida (1x2, gols esperados, placar provável)
+- [x] i18n EN/PT-BR na UI
+- [ ] Árvore de mata-mata (bracket) visual — futuro (requer bracket real >4 times)
+- [ ] Curva de calibração — após E3b (backtest)
+- [ ] Aba Bolão — E11
 
 ### E8b — UI completa
 #### H8.1 — i18n

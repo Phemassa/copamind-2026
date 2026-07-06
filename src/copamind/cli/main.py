@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 import typer
 import uvicorn
 from rich.console import Console
@@ -35,6 +39,9 @@ app.add_typer(ingest_app, name="ingest")
 
 train_app = typer.Typer(help="Comandos de treino/cálculo de modelos.")
 app.add_typer(train_app, name="train")
+
+ui_app = typer.Typer(help="Comandos da interface.")
+app.add_typer(ui_app, name="ui")
 
 console = Console()
 
@@ -180,6 +187,21 @@ def simulate(
             f"{team.champion_probability:.1%}",
         )
     console.print(table)
+
+
+@ui_app.command("serve")
+def ui_serve(
+    port: int = typer.Option(8501, help="Porta do Streamlit."),
+) -> None:
+    """Sobe o dashboard Streamlit."""
+    app_path = Path("apps/streamlit/app.py")
+    if not app_path.exists():
+        console.print(f"[red]App não encontrado: {app_path}[/]")
+        raise typer.Exit(code=1)
+    subprocess.run(  # nosec B603
+        [sys.executable, "-m", "streamlit", "run", str(app_path), "--server.port", str(port)],
+        check=True,
+    )
 
 
 if __name__ == "__main__":
