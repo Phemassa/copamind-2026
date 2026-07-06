@@ -41,6 +41,10 @@ Bolão de IAs (leaderboard + curva de calibração):
 
 ![Dashboard — Bolão de IAs](pictures/dashboard_pool.png)
 
+## Arquitetura
+
+![Arquitetura do CopaMind 2026](pictures/architecture.png)
+
 ## Hardware recomendado
 
 - Windows 11 (também roda em Linux), Docker Desktop, VS Code

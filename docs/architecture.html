@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CopaMind 2026 — Arquitetura</title>
+  <style>
+    :root { --bg:#070b12; --panel:#0f1826; --line:#1f2f42; --txt:#e8f0f8; --muted:#8fa3bd; --cyan:#19e3c2; --blue:#2f6bff; }
+    * { box-sizing: border-box; }
+    body { margin:0; background: radial-gradient(1200px 600px at 50% -10%, #10202f 0%, var(--bg) 60%); color:var(--txt); font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+    .stage { width:1280px; height:720px; margin:0 auto; padding:34px 40px; display:flex; flex-direction:column; }
+    .title { text-align:center; }
+    .title h1 { margin:0; font-size:30px; letter-spacing:1px; }
+    .title h1 .accent { color:var(--cyan); }
+    .title p { margin:4px 0 0; color:var(--muted); letter-spacing:3px; text-transform:uppercase; font-size:12px; }
+    .flow { flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; margin-top:14px; }
+    .row { display:flex; gap:14px; justify-content:center; align-items:stretch; }
+    .box { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; min-width:150px; box-shadow: 0 0 0 1px rgba(25,227,194,.04), 0 10px 30px rgba(0,0,0,.35); }
+    .box h3 { margin:0 0 4px; font-size:15px; }
+    .box p { margin:0; color:var(--muted); font-size:12px; line-height:1.4; }
+    .box.wide { flex:1; }
+    .box.cyan { border-color: rgba(25,227,194,.45); }
+    .box.blue { border-color: rgba(47,107,255,.45); }
+    .arrow { text-align:center; color:var(--cyan); font-size:18px; line-height:1; margin:-4px 0; }
+    .pair { display:flex; gap:14px; flex:1; }
+    .footer { text-align:center; color:var(--muted); font-size:12px; margin-top:12px; }
+    .flag { height:3px; width:220px; margin:10px auto 0; background:linear-gradient(90deg,var(--blue) 0 40%, var(--cyan) 40% 100%); border-radius:2px; }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="title">
+      <h1>CopaMind <span class="accent">2026</span> — Arquitetura</h1>
+      <p>Local AI · ML · RAG · MCP · Agents</p>
+      <div class="flag"></div>
+    </div>
+    <div class="flow">
+      <div class="row">
+        <div class="box wide"><h3>1 · Fontes de dados</h3><p>OpenFootball · APIs abertas · CSV/JSON · relatos do usuário</p></div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="row">
+        <div class="box wide"><h3>2 · Ingestão</h3><p>Validação (Pydantic/Pandera) · deduplicação · linhagem (origem, snapshot, available_at)</p></div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="row">
+        <div class="pair">
+          <div class="box wide blue"><h3>3 · Data lake local</h3><p>DuckDB + Parquet · seleções, partidas, estatísticas</p></div>
+          <div class="box wide cyan"><h3>3 · Base textual</h3><p>Qdrant + embeddings (bge-m3) · RAG híbrido</p></div>
+        </div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="row">
+        <div class="box wide"><h3>4 · Modelos preditivos (ML)</h3><p>Elo · Poisson/Dixon-Coles · ensemble · calibração (Brier/ECE)</p></div>
+        <div class="box wide"><h3>5 · Simulação</h3><p>Monte Carlo · chances por fase e de título</p></div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="row">
+        <div class="box wide cyan"><h3>6 · MCP + mini agente</h3><p>ferramentas de dados, previsão, RAG, simulação e auditoria</p></div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="row">
+        <div class="box wide"><h3>7 · Orquestração de LLMs locais</h3><p>Analista → Challenger → Auditor → <strong>Consenso</strong> · sequencial, com benchmark</p></div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="row">
+        <div class="box wide blue"><h3>8 · Interface (EN/PT-BR)</h3><p>Dashboard · Chat (boxes por modelo) · Bolão de IAs · Calibração · fontes e lineage</p></div>
+      </div>
+    </div>
+    <div class="footer">As probabilidades vêm do ML calibrado; os LLMs interpretam e explicam — nunca sobrescrevem. Tudo local e reprodutível.</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,299 @@
+Para divulgar o CopaMind 2026, eu usaria o Gemini Omni para produzir as cenas cinematográficas e transições, mas manteria as telas reais do projeto. Assim, o vídeo demonstra um produto existente e não parece uma interface fictícia.
+
+Na tela mostrada, escolha primeiro o estilo Montagem. Para um segundo vídeo mais técnico, use Conceito científico.
+
+O Gemini Omni permite combinar texto, imagens e vídeo, editar um vídeo já enviado, continuar refinando o resultado na mesma conversa, escolher a proporção e solicitar áudio. No computador, você pode enviar um vídeo e até cinco imagens por geração.
+
+1. Separe estes materiais
+
+Prepare cinco imagens em PNG:
+
+Capa com o nome CopaMind 2026.
+Dashboard com probabilidades.
+Chat mostrando os boxes dos modelos.
+Diagrama da arquitetura.
+Página do repositório no GitHub.
+
+Também grave um vídeo real de aproximadamente 8–10 segundos mostrando:
+
+você digitando uma pergunta;
+os modelos sendo executados;
+os boxes aparecendo;
+o consenso final.
+
+Use OBS Studio, Xbox Game Bar ou a ferramenta de gravação do Windows.
+
+O vídeo final deve ter aproximadamente 45–60 segundos, mas é melhor produzi-lo como seis ou sete cenas curtas e depois juntá-las. Isso permite corrigir uma cena sem gerar tudo novamente.
+
+2. Como iniciar no Gemini
+
+Na tela do Gemini:
+
+Clique em Criar vídeos.
+Selecione Montagem.
+Escolha a proporção:
+16:9 para YouTube e apresentação;
+9:16 para Instagram e Shorts;
+para LinkedIn, eu começaria em 16:9.
+Clique em Adicionar arquivos.
+Envie as imagens do projeto.
+Cole um prompt de uma única cena.
+Gere e refine a cena na mesma conversa.
+Repita o processo para as outras cenas.
+
+O próprio Gemini também permite enviar um vídeo existente e pedir transformações ou edições conversacionais.
+
+3. Prompt mestre
+
+Use este contexto no início da conversa com o Gemini:
+
+Estamos criando um vídeo promocional profissional para o CopaMind 2026, uma plataforma open source de inteligência esportiva executada localmente.
+
+O projeto combina:
+
+dados históricos de partidas;
+jogadores, técnicos, táticas e escalações;
+modelos Elo, Poisson e CatBoost;
+simulações Monte Carlo;
+RAG;
+MCP;
+um mini agente;
+diferentes LLMs locais executados sequencialmente;
+auditoria das afirmações;
+um consenso final baseado em dados.
+
+Direção visual:
+
+tecnologia esportiva premium;
+cinematográfico, moderno e confiável;
+fundo escuro;
+detalhes em verde-ciano;
+visual de dados, partículas e linhas conectadas;
+estádios apenas como ambientação;
+interfaces limpas;
+movimento suave de câmera;
+iluminação dramática;
+sem estética infantil;
+sem aparência de propaganda de apostas;
+sem logos da FIFA;
+sem logos de emissoras;
+sem marcas de terceiros;
+sem inventar textos pequenos dentro da interface;
+não alterar os screenshots reais do produto;
+não criar jogadores reconhecíveis;
+não utilizar imagens de partidas televisionadas.
+
+Paleta:
+
+preto;
+grafite;
+verde-ciano;
+branco;
+pequenos detalhes em azul.
+
+O nome visual do produto é:
+
+CopaMind 2026
+
+Formato principal:
+
+horizontal 16:9;
+qualidade cinematográfica;
+cenas curtas;
+ritmo crescente;
+adequado para LinkedIn, YouTube e GitHub.
+
+Não inclua textos extensos dentro do vídeo. Reserve áreas limpas para que títulos sejam adicionados posteriormente na edição.
+
+4. Cenas para gerar
+Cena 1 — Abertura
+
+Envie a imagem da capa como referência.
+
+Crie uma abertura cinematográfica de 6 segundos.
+
+Comece com um estádio internacional visto de cima à noite, sem logos ou marcas oficiais. Linhas de dados verde-ciano percorrem o campo como uma rede neural. A câmera avança suavemente até um núcleo digital abstrato no centro do gramado.
+
+No final, revele a imagem de referência do CopaMind 2026 de maneira elegante, preservando exatamente o design original.
+
+Atmosfera tecnológica, premium e realista. Som crescente, eletrônico e discreto. Sem narração. Sem textos adicionais.
+
+Título para inserir posteriormente:
+
+Quem vai ganhar a Copa?
+Cena 2 — O problema
+Crie uma cena tecnológica de 6 segundos.
+
+Uma pergunta aparece de forma abstrata em uma interface escura: quem será campeão?
+
+Em seguida, várias respostas contraditórias surgem e se desfazem, representando opiniões sem evidências. A cena deve comunicar visualmente que perguntar diretamente a apenas uma inteligência artificial não é suficiente.
+
+Não apresentar nomes de seleções. Não usar logos. Não gerar textos pequenos ou ilegíveis. Deixar uma área limpa no centro para título posterior.
+
+Estética profissional, analítica e cinematográfica.
+
+Título:
+
+Um LLM sozinho não é suficiente.
+Cena 3 — Dados e modelos preditivos
+
+Envie a imagem da arquitetura.
+
+Anime esta arquitetura sem mudar seu conteúdo.
+
+Os dados de partidas, jogadores, técnicos e táticas devem fluir visualmente para os modelos Elo, Poisson e CatBoost. Em seguida, os resultados seguem para uma simulação Monte Carlo.
+
+Use linhas luminosas verde-ciano, movimentos suaves e profundidade tridimensional discreta. Preserve todas as formas principais da imagem enviada. Não invente novos componentes.
+
+Duração de 7 segundos. Visual de produto enterprise, científico e confiável.
+
+Título:
+
+Dados + Machine Learning + 100 mil simulações
+Cena 4 — RAG, MCP e mini agente
+Crie uma visualização conceitual de 7 segundos para uma arquitetura de agentes.
+
+No centro existe um pequeno agente digital abstrato. Ao redor dele estão quatro fontes conectadas:
+
+- banco estruturado;
+- documentos e notícias;
+- ferramentas MCP;
+- modelos preditivos.
+
+O agente consulta cada fonte e monta um pacote de evidências. As informações devem parecer organizadas, rastreáveis e auditáveis.
+
+Use ícones abstratos, sem marcas de empresas. Fundo escuro, detalhes verde-ciano, animação sofisticada e limpa. Deixe espaço para títulos adicionados posteriormente.
+
+Título:
+
+RAG + MCP + um agente para coordenar tudo
+Cena 5 — Modelos locais em sequência
+
+Envie o screenshot real dos boxes.
+
+Crie uma cena de 8 segundos usando este screenshot real do CopaMind.
+
+A câmera deve percorrer suavemente os boxes da interface na seguinte ordem:
+
+1. modelo estatístico;
+2. analista principal;
+3. segunda opinião;
+4. auditor;
+5. consenso.
+
+Cada box recebe um brilho discreto quando é analisado. Deve ficar claro que os modelos são executados sequencialmente, e não simultaneamente.
+
+Preserve integralmente o screenshot e não altere os textos existentes. Não recrie a interface. Apenas anime a câmera, o foco, os brilhos e as transições.
+
+Visual profissional de demonstração de software.
+
+Título:
+
+Modelos locais. Respostas independentes. Consenso auditado.
+Cena 6 — Demonstração real
+
+Aqui, envie a gravação da tela do CopaMind.
+
+Edite este vídeo real da interface do CopaMind.
+
+Não altere a interface, os dados, os textos ou os resultados.
+
+Faça apenas:
+
+- estabilização visual;
+- zoom suave nos elementos importantes;
+- destaque da pergunta;
+- destaque das probabilidades;
+- destaque dos boxes dos modelos;
+- destaque do consenso final;
+- transições discretas;
+- trilha tecnológica suave;
+- melhoria de contraste e nitidez.
+
+Mantenha o produto claramente legível e verdadeiro. Não invente nenhuma função ou resultado.
+
+Essa cena é a mais importante porque comprova que o projeto realmente funciona.
+
+Cena 7 — Encerramento
+
+Envie a imagem da página do GitHub.
+
+Crie um encerramento de 6 segundos.
+
+Comece com uma visão do dashboard do CopaMind. A câmera se afasta e revela a página real do repositório no GitHub enviada como referência.
+
+Preserve a imagem da página, sem alterar nomes, números ou textos.
+
+Finalize com fundo escuro, partículas sutis verde-ciano e espaço central para a chamada:
+
+Open source. Local. Auditável.
+
+Deixe também espaço inferior para inserir posteriormente o endereço do repositório.
+
+Trilha termina com uma assinatura sonora curta e tecnológica.
+
+Título:
+
+Baixe, teste e acompanhe no GitHub.
+5. Narração pronta
+
+Você pode solicitar que o Gemini gere áudio junto ao vídeo, embora eu prefira gravar uma única narração depois para manter a mesma voz em todas as cenas. O Gemini informa que também pode gerar áudio nos vídeos.
+
+Quem vai ganhar a Copa de 2026?
+
+Em vez de simplesmente perguntar a uma inteligência artificial, eu construí o CopaMind.
+
+Uma plataforma open source que combina dados de partidas, jogadores, técnicos e táticas com modelos Elo, Poisson, CatBoost e milhares de simulações.
+
+Um mini agente consulta a base, recupera evidências com RAG, aciona ferramentas por MCP e executa diferentes modelos locais em sequência.
+
+Cada modelo apresenta sua própria análise.
+
+Depois, um auditor verifica as afirmações, identifica divergências e produz um consenso baseado nos dados disponíveis.
+
+Tudo executado localmente.
+
+Código, arquitetura e instruções disponíveis no GitHub.
+
+CopaMind 2026.
+
+A Copa é o caso de uso. A inteligência aplicada é o projeto.
+
+6. Montagem final
+
+Depois de gerar as cenas, use CapCut, Clipchamp, DaVinci Resolve ou Canva para:
+
+unir os clipes;
+inserir a narração;
+adicionar os títulos;
+colocar música baixa;
+incluir legendas;
+apresentar o endereço do GitHub;
+exportar em 1080p.
+
+Ordem recomendada:
+
+00–06s  Abertura
+06–12s  Problema
+12–19s  Dados e modelos
+19–26s  RAG, MCP e agente
+26–34s  LLMs sequenciais
+34–47s  Demonstração real
+47–55s  GitHub e encerramento
+7. O que não colocar diretamente no Gemini
+
+Evite pedir que ele invente:
+
+screenshots completos do produto;
+códigos legíveis;
+gráficos com números reais;
+links;
+nomes de modelos escritos em telas;
+ranking de seleções;
+estatísticas finais.
+
+Essas informações devem vir das capturas reais do CopaMind. Use o Gemini para criar ambientação, movimento, transições e narrativa visual.
+
+Também envie apenas imagens e vídeos sobre os quais você tenha direitos. A documentação do Gemini exige que o usuário tenha autorização para utilizar os materiais enviados e recomenda cautela antes de publicar o conteúdo gerado.
+
+Os limites de geração são baseados em capacidade computacional e podem variar conforme plano, complexidade e disponibilidade. Por isso, aprove primeiro o roteiro e gere apenas uma cena por vez.
