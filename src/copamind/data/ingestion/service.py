@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from copamind.core.logging import get_logger
+from copamind.data.connectors.openfootball import read_worldcup_file
 from copamind.data.ingestion.loaders import load_matches, load_teams
 from copamind.data.repositories import DuckDBRepository
 from copamind.data.schemas import Snapshot
@@ -72,3 +73,16 @@ def ingest_samples(repo: DuckDBRepository) -> IngestionResult:
     teams = ingest_teams_file(repo, SAMPLE_TEAMS)
     matches = ingest_matches_file(repo, SAMPLE_MATCHES)
     return IngestionResult(teams=teams, matches=matches, snapshot_id=snapshot_id)
+
+
+def ingest_worldcup(
+    repo: DuckDBRepository, path: str | Path, *, snapshot_id: str = "worldcup-openfootball"
+) -> IngestionResult:
+    """Ingere um `worldcup.json` do OpenFootball (dados reais/estáticos)."""
+    repo.create_schema()
+    _ensure_snapshot(repo, snapshot_id, "OpenFootball worldcup.json")
+    teams, matches = read_worldcup_file(path, snapshot_id=snapshot_id)
+    n_teams = repo.upsert_teams(teams)
+    n_matches = repo.upsert_matches(matches)
+    logger.info("worldcup_ingested", teams=n_teams, matches=n_matches, path=str(path))
+    return IngestionResult(teams=n_teams, matches=n_matches, snapshot_id=snapshot_id)

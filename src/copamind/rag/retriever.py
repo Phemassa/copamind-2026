@@ -8,7 +8,7 @@ dado NÃO confiável ao montar o contexto para o LLM.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from pydantic import BaseModel
 
@@ -64,10 +64,12 @@ class HybridRetriever:
         store: VectorStore,
         embedder: Embedder,
         weights: RetrievalWeights | None = None,
+        reranker: Reranker | None = None,
     ) -> None:
         self._store = store
         self._embedder = embedder
         self._weights = weights or RetrievalWeights()
+        self._reranker = reranker
 
     def search(
         self,
@@ -107,7 +109,33 @@ class HybridRetriever:
                 )
             )
         retrieved.sort(key=lambda item: item.score, reverse=True)
-        return retrieved[:top_k]
+        top = retrieved[:top_k]
+        if self._reranker is not None:
+            top = self._reranker.rerank(query, top)
+        return top
+
+
+class Reranker(Protocol):
+    """Interface de um reranker de segunda etapa."""
+
+    def rerank(self, query: str, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+        """Reordena os chunks recuperados."""
+        ...
+
+
+class LexicalReranker:
+    """Reranker offline: reordena priorizando sobreposição lexical forte.
+
+    Serve como baseline determinístico; um cross-encoder (bge-reranker) pode
+    substituí-lo implementando a mesma interface.
+    """
+
+    def rerank(self, query: str, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+        return sorted(
+            chunks,
+            key=lambda item: (lexical_overlap(query, item.chunk.text), item.score),
+            reverse=True,
+        )
 
 
 def build_grounded_context(chunks: list[RetrievedChunk]) -> tuple[str, list[str]]:

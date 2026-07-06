@@ -107,7 +107,7 @@ no_implicit_optional = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["duckdb.*", "polars.*", "pandera.*", "mcp.*"]
+module = ["duckdb.*", "polars.*", "pandera.*", "mcp.*", "qdrant_client.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

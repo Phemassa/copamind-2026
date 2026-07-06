@@ -5,7 +5,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 ## [Unreleased]
 
 ### Adicionado
-- **Bolão com LLMs + bracket:** `LLMPredictor` permite que um LLM local participe do Bolão de IAs (palpite estruturado 1x2 + placar, anti-leakage); helper `stage_probabilities_view` e visualização "caminho até o título" (probabilidade por fase) no dashboard. 151 testes verdes.
+- **Ingestão real (OpenFootball):** conector `worldcup.json` (`copamind.data.connectors.openfootball`) tolerante a variações de formato; serviço `ingest_worldcup` e comando `copamind ingest worldcup <path>`. `confederation` agora é opcional (fontes nem sempre fornecem).
+- **RAG — reranker:** protocolo `Reranker` + `LexicalReranker` (baseline offline), plugável no `HybridRetriever` (cross-encoder bge-reranker pode substituir).
+- **RAG — QdrantStore:** backend vetorial real (import lazy do `qdrant-client`, extra `rag`).
+- **Chat SSE:** `SequentialOrchestrator.run_events` (eventos por etapa) e rota `POST /chat/stream` (Server-Sent Events).
+- **Bolão com LLMs + bracket:** `LLMPredictor` no Bolão de IAs; `stage_probabilities_view` e visualização "caminho até o título" no dashboard. 156 testes verdes.
 - **Épico E9 (Conteúdo & Publicação, core):** README com badges e seção de recursos; `CONTRIBUTING.md`, `SECURITY.md`, `MODEL_CARD.md`; templates de issue (bug/feature/data source) e PR; gerador de cards bilíngues (`copamind content ranking|match`). 147 testes verdes.
 - **Épico E8b (Chat na UI + calibração):** página de chat no dashboard com 3 boxes (analista/challenger/auditor) + consenso, via orquestrador de LLMs (cliente LM Studio; resiliente quando indisponível); curva de calibração (reliability) por preditor; helpers testáveis `chat_view` (cliente injectável) e `calibration_view`; i18n do chat. 145 testes verdes.
 - **Épico E6 (MCP `copamind-mcp`, core):** camada de ferramentas testável (dados, predição, ensemble, simulação, RAG, calibração, bolão) separando read-only (`READ_ONLY_TOOLS`) de escrita (`WRITE_TOOLS`); servidor FastMCP com import lazy do pacote `mcp`; comando `copamind mcp serve`; extra `mcp`. 143 testes verdes.

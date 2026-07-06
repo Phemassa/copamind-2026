@@ -18,6 +18,7 @@ from copamind.data.ingestion.service import (
     ingest_matches_file,
     ingest_samples,
     ingest_teams_file,
+    ingest_worldcup,
 )
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import build_elo
@@ -146,6 +147,20 @@ def ingest_file(
             console.print("[red]entity deve ser 'teams' ou 'matches'.[/]")
             raise typer.Exit(code=1)
     console.print(f"[green]Ingeridos {count} registros de '{entity}'.[/]")
+
+
+@ingest_app.command("worldcup")
+def ingest_worldcup_cmd(
+    path: str = typer.Argument(..., help="Caminho do worldcup.json (OpenFootball)."),
+) -> None:
+    """Ingere um worldcup.json do OpenFootball (dados reais/estáticos)."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        result = ingest_worldcup(repo, path)
+    console.print(
+        f"[green]Ingestão worldcup concluída.[/] Times: {result.teams}, "
+        f"Partidas: {result.matches}, Snapshot: {result.snapshot_id}"
+    )
 
 
 @ingest_app.command("user-report")

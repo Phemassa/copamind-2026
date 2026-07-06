@@ -28,7 +28,7 @@ def _team_dict(team: Team) -> dict[str, Any]:
         "team_id": team.team_id,
         "name": team.name,
         "fifa_code": team.fifa_code,
-        "confederation": str(team.confederation),
+        "confederation": team.confederation.value if team.confederation else None,
         "elo_rating": team.elo_rating,
     }
 

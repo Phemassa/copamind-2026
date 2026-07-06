@@ -85,3 +85,64 @@ class InMemoryVectorStore:
 
     def count(self) -> int:
         return len(self._items)
+
+
+class QdrantStore:
+    """Store vetorial usando Qdrant (real; requer o extra `rag` e servidor ativo)."""
+
+    def __init__(
+        self,
+        collection: str = "copamind_knowledge",
+        url: str = "http://localhost:6333",
+        dimension: int = 1024,
+    ) -> None:
+        try:
+            from qdrant_client import QdrantClient
+            from qdrant_client.models import Distance, VectorParams
+        except ImportError as exc:  # pragma: no cover - depende do extra 'rag'
+            raise RuntimeError(
+                "pacote 'qdrant-client' não instalado. Instale com: pip install -e '.[rag]'"
+            ) from exc
+        self._collection = collection
+        self._client = QdrantClient(url=url)
+        if not self._client.collection_exists(collection):
+            self._client.create_collection(
+                collection_name=collection,
+                vectors_config=VectorParams(size=dimension, distance=Distance.COSINE),
+            )
+
+    def upsert(self, items: list[tuple[RagChunk, list[float]]]) -> None:  # pragma: no cover
+        import uuid
+
+        from qdrant_client.models import PointStruct
+
+        points = [
+            PointStruct(
+                id=str(uuid.uuid5(uuid.NAMESPACE_URL, chunk.chunk_id)),
+                vector=vector,
+                payload=chunk.model_dump(mode="json"),
+            )
+            for chunk, vector in items
+        ]
+        self._client.upsert(collection_name=self._collection, points=points)
+
+    def search(  # pragma: no cover
+        self,
+        query_vector: list[float],
+        top_k: int,
+        filters: dict[str, Any] | None = None,
+    ) -> list[tuple[RagChunk, float]]:
+        hits = self._client.query_points(
+            collection_name=self._collection,
+            query=query_vector,
+            limit=top_k * 5,
+        ).points
+        results: list[tuple[RagChunk, float]] = []
+        for hit in hits:
+            chunk = RagChunk.model_validate(hit.payload)
+            if matches_filters(chunk, filters):
+                results.append((chunk, float(hit.score)))
+        return results[:top_k]
+
+    def count(self) -> int:  # pragma: no cover
+        return int(self._client.count(collection_name=self._collection).count)

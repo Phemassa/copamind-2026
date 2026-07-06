@@ -66,7 +66,7 @@ class Team(LineageMixin):
     name: str = Field(min_length=1)
     fifa_code: str = Field(min_length=2, max_length=3)
     country: str = Field(min_length=1)
-    confederation: Confederation
+    confederation: Confederation | None = None
     fifa_ranking: int | None = Field(default=None, ge=1)
     elo_rating: float | None = Field(default=None, gt=0)
     active: bool = True

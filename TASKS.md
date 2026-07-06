@@ -40,6 +40,7 @@ Objetivo: modelo de dados, persistência e ingestão reproduzível com linhagem.
 - [x] Deduplicação (por id e por chave lógica) de entidades/partidas
 - [x] Campos de linhagem: `source`, `collected_at`, `available_at`, `snapshot_id`
 - [x] Dataset sintético/redistribuível + `download_sample_data.py`
+- [x] Conector real OpenFootball `worldcup.json` (`copamind ingest worldcup`)
 
 **Aceite:** importar partidas; listar seleções; consultar últimos jogos; rejeitar dados inválidos; origem e snapshot registrados; ingestão reproduzível. ✅
 
@@ -119,7 +120,8 @@ Objetivo: recuperação híbrida segura, multilíngue e auditável.
 - [x] Embeddings (FakeEmbedder offline; OllamaEmbedder/bge-m3 real) + store (InMemory; Qdrant opcional)
 ### H5.2 — Busca híbrida
 - [x] Vetorial + léxico + filtros + recência/confiabilidade/verificação/entidade
-- [ ] Reranking bge-reranker-v2-m3 — futuro (real)
+- [x] Reranker plugável (`LexicalReranker`; cross-encoder bge-reranker como evolução)
+- [x] `QdrantStore` (backend real, extra `rag`)
 ### H5.3 — Segurança
 - [x] Contexto tratado como não confiável; anti prompt-injection; chunk_ids usados registrados
 ### H5.4 — Avaliação
@@ -186,7 +188,7 @@ Objetivo: UI EN/PT-BR polida. E8a (dashboard MVP) precede E8b (UI completa).
 - [x] Página de chat com 3 boxes (analista/challenger/auditor) + consenso
 - [x] Curva de calibração (reliability) no dashboard
 - [x] Resposta no idioma da sessão (`response_language`)
-- [ ] Eventos SSE em tempo real — futuro (Streamlit é síncrono; Reflex na evolução)
+- [x] Eventos SSE (`POST /chat/stream` + `run_events`)
 #### H8.4 — Camadas
 - [x] Streamlit (MVP); Reflex — evolução
 

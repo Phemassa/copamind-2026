@@ -8,6 +8,7 @@ síntese de consenso auditável. A falha de um modelo não derruba a sessão.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -224,6 +225,25 @@ class SequentialOrchestrator:
             boxes=[analyst_box, challenger_box, auditor_box],
             consensus=consensus,
         )
+
+    def run_events(
+        self, question: str, evidence: EvidencePack, *, response_language: str = "pt-BR"
+    ) -> Iterator[dict[str, object]]:
+        """Executa o pipeline emitindo eventos por etapa (para SSE).
+
+        Sequência: understanding -> analyst -> challenger -> auditor -> consensus.
+        """
+        yield {"event": "understanding", "snapshot_id": evidence.snapshot_id}
+        analyst_box = self._run_analyst(self._analyst, question, evidence, response_language)
+        yield {"event": "analyst", "box": analyst_box.model_dump()}
+        challenger_box = self._run_analyst(self._challenger, question, evidence, response_language)
+        yield {"event": "challenger", "box": challenger_box.model_dump()}
+        auditor_box = self._run_auditor(
+            self._auditor, [analyst_box, challenger_box], evidence, response_language
+        )
+        yield {"event": "auditor", "box": auditor_box.model_dump()}
+        consensus = _build_consensus([analyst_box, challenger_box], auditor_box, evidence)
+        yield {"event": "consensus", "consensus": consensus.model_dump()}
 
 
 def _build_consensus(

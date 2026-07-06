@@ -105,6 +105,13 @@ copamind content ranking --locale pt-BR   # card de chances de título (Markdown
 copamind content match --home T-NTL --away T-SDR --locale en
 ```
 
+## Dados reais (OpenFootball)
+
+```bash
+# Baixe um worldcup.json de https://github.com/openfootball/worldcup.json
+copamind ingest worldcup caminho/para/worldcup.json
+```
+
 ## Contribuição e segurança
 
 - [CONTRIBUTING](.github/CONTRIBUTING.md) · [SECURITY](.github/SECURITY.md) · [MODEL_CARD](MODEL_CARD.md)
