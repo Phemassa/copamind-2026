@@ -93,3 +93,4 @@ def test_build_grounded_context_marks_untrusted() -> None:
     assert "NÃO CONFIÁVEIS" in context
     assert used == ["c1"]
 
+

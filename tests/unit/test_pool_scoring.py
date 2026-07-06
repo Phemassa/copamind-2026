@@ -38,3 +38,4 @@ def test_brier_bounds() -> None:
     value = brier_score(0.5, 0.3, 0.2, "draw")
     assert 0.0 <= value <= 2.0
 
+

@@ -38,10 +38,11 @@ def test_ingest_worldcup_into_repo() -> None:
         result = ingest_worldcup(repo, _FIXTURE, snapshot_id="wc-test")
         assert result.teams == 4
         assert result.matches == 3
-        assert repo.count("teams") == 4
+        assert repo.count("teams") == 4  # fixture tem 4 times (Alphaland etc.)
         assert repo.latest_snapshot_id() == "wc-test"
         # Times sem confederação (OpenFootball não fornece)
         team = repo.get_team("T-ALP")
         assert team is not None
         assert team.confederation is None
+
 

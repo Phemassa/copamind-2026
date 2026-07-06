@@ -9,7 +9,7 @@ from copamind.pool.service import run_backtest
 
 def test_list_and_get_team(seeded_repo: DuckDBRepository) -> None:
     teams = tools.list_teams(seeded_repo)
-    assert len(teams) == 49
+    assert len(teams) == 48
     team = tools.get_team(seeded_repo, "T-BRA")
     assert team is not None
     assert team["fifa_code"] == "BRA"
@@ -40,7 +40,7 @@ def test_simulation_tool(seeded_repo: DuckDBRepository) -> None:
 
 def test_data_freshness(seeded_repo: DuckDBRepository) -> None:
     freshness = tools.get_data_freshness(seeded_repo)
-    assert freshness["teams"] == 49
+    assert freshness["teams"] == 48
     assert freshness["matches"] == 92
     assert freshness["snapshot_id"] == "copa2026-07-06"
 
@@ -76,4 +76,5 @@ def test_tool_groups_separated() -> None:
     assert "list_teams" in read_names
     assert "add_user_report" in write_names
     assert read_names.isdisjoint(write_names)
+
 

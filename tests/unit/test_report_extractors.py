@@ -37,3 +37,4 @@ def test_extract_general() -> None:
     assert result.report_type is ReportType.general
     assert result.confidence < 0.5
 
+

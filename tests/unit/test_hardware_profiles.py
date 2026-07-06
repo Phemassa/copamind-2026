@@ -36,3 +36,4 @@ def test_profile_concurrency_flag() -> None:
     assert seq.allows_concurrency is False
     assert conc.allows_concurrency is True
 
+

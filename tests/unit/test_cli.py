@@ -44,3 +44,4 @@ def test_doctor_command_runs() -> None:
     assert result.exit_code == 0
     assert "Diagnóstico" in result.stdout
 
+

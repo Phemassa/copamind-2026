@@ -45,3 +45,4 @@ def data_client(settings: Settings, seeded_repo: DuckDBRepository) -> Iterator[T
         yield test_client
     app.dependency_overrides.clear()
 
+

@@ -97,3 +97,4 @@ def test_fit_requires_finished() -> None:
     with pytest.raises(ValueError, match="finalizada"):
         PoissonModel().fit([])
 
+

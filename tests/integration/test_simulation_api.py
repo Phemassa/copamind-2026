@@ -38,3 +38,4 @@ def test_simulate_api_invalid_groups(data_client: TestClient) -> None:
     )
     assert response.status_code == 422
 
+

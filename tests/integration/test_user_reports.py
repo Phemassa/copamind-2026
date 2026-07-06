@@ -84,3 +84,4 @@ def test_user_report_api(data_client: TestClient) -> None:
     assert deleted.status_code == 204
     assert data_client.get(f"/user-reports/{report_id}").status_code == 404
 
+

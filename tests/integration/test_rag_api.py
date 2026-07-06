@@ -41,3 +41,4 @@ def test_rag_api_index_and_search(data_client: TestClient) -> None:
     assert sources.status_code == 200
     assert "user_input" in sources.json()
 
+

@@ -28,6 +28,10 @@ def main() -> None:
 
     teams, matches = read_worldcup_file(COPA_JSON, snapshot_id=SNAPSHOT)
 
+    # Filtra times placeholder (TBD*) criados pelos confrontos ainda indefinidos
+    teams = [t for t in teams if not t.team_id.startswith("T-TBD")
+             and len(t.fifa_code) <= 3 and t.name not in ("A definir",)]
+
     teams_json = [t.model_dump(mode="json") for t in teams]
 
     # Apenas partidas com placar registrado (status=finished)

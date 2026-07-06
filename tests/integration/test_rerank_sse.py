@@ -60,3 +60,4 @@ def test_run_events_sequence(seeded_repo: DuckDBRepository) -> None:
     assert names == ["understanding", "analyst", "challenger", "auditor", "consensus"]
     assert events[-1]["consensus"]["predicted_team"] == "T-BRA"
 
+

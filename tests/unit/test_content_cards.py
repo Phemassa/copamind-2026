@@ -23,3 +23,4 @@ def test_matchup_card_bilingual(seeded_repo: DuckDBRepository) -> None:
     # disclaimer presente
     assert ">" in cards["en"]
 
+

@@ -59,3 +59,4 @@ def test_chat_view_with_fake_client(seeded_repo: DuckDBRepository) -> None:
     assert result["consensus"]["predicted_team"] == "T-BRA"
     assert result["response_language"] == "pt-BR"
 
+

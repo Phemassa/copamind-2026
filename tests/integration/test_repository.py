@@ -9,7 +9,7 @@ from copamind.data.schemas import MatchStatus
 
 
 def test_seeded_counts(seeded_repo: DuckDBRepository) -> None:
-    assert seeded_repo.count("teams") == 49
+    assert seeded_repo.count("teams") == 48
     assert seeded_repo.count("matches") == 92
     assert seeded_repo.count("snapshots") == 1
 
@@ -17,12 +17,12 @@ def test_seeded_counts(seeded_repo: DuckDBRepository) -> None:
 def test_create_schema_idempotent(seeded_repo: DuckDBRepository) -> None:
     # Chamar novamente não deve falhar nem duplicar dados.
     seeded_repo.create_schema()
-    assert seeded_repo.count("teams") == 49
+    assert seeded_repo.count("teams") == 48
 
 
 def test_list_and_get_team(seeded_repo: DuckDBRepository) -> None:
     teams = seeded_repo.list_teams()
-    assert len(teams) == 49
+    assert len(teams) == 48
     team = seeded_repo.get_team("T-BRA")
     assert team is not None
     assert team.fifa_code == "BRA"
@@ -48,4 +48,5 @@ def test_upsert_is_idempotent(seeded_repo: DuckDBRepository) -> None:
     teams = seeded_repo.list_teams()
     seeded_repo.upsert_teams(teams)  # reprocessar não duplica (PK)
     assert seeded_repo.count("teams") == before
+
 

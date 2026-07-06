@@ -78,3 +78,4 @@ def test_pool_api(data_client: TestClient) -> None:
     assert leaderboard_response.status_code == 200
     assert len(leaderboard_response.json()) == 2
 
+

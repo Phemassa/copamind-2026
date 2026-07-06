@@ -37,7 +37,7 @@ def _match(match_id: str, home: str, away: str) -> Match:
 
 def test_load_sample_teams() -> None:
     teams = load_teams("data/samples/teams.json")
-    assert len(teams) == 49
+    assert len(teams) == 48
     codes = {t.fifa_code for t in teams}
     assert "BRA" in codes
     assert "NOR" in codes
@@ -74,4 +74,5 @@ def test_unsupported_format(tmp_path: Path) -> None:
     bad.write_text("nope", encoding="utf-8")
     with pytest.raises(IngestionError):
         load_teams(bad)
+
 

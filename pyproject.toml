@@ -81,7 +81,7 @@ src = ["src", "tests"]
 [tool.ruff.lint.extend-per-file-ignores]
 "apps/*" = ["E501", "E702", "RUF001"]
 "src/copamind/ui/*" = ["E501", "RUF001"]
-"scripts/*" = ["E501", "E731", "RUF001"]
+"scripts/*" = ["E501", "E731", "RUF001", "E702", "E701", "C408"]
 
 [tool.ruff.lint]
 select = [

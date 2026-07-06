@@ -47,3 +47,4 @@ def test_predict_api_unknown_team(data_client: TestClient) -> None:
     )
     assert response.status_code == 404
 
+

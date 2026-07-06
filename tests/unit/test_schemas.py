@@ -84,3 +84,4 @@ def test_negative_score_rejected() -> None:
             **_LINEAGE,
         )
 
+

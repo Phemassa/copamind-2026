@@ -20,3 +20,4 @@ def test_ready(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json() == {"ready": True}
 
+

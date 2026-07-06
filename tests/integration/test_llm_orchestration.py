@@ -114,3 +114,4 @@ def test_benchmark_models(seeded_repo: DuckDBRepository) -> None:
     assert grounded["analyst"] == 1.0
     assert grounded["challenger"] == 0.0
 
+

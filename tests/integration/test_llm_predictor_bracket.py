@@ -57,3 +57,4 @@ def test_stage_probabilities_view(seeded_repo: DuckDBRepository) -> None:
         assert "team_id" in row
         assert "champion" in row
 
+

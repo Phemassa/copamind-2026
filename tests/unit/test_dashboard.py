@@ -15,7 +15,7 @@ from copamind.ui.dashboard import (
 
 def test_database_status(seeded_repo: DuckDBRepository) -> None:
     status = database_status(seeded_repo)
-    assert status["teams"] == 49
+    assert status["teams"] == 48
     assert status["matches"] == 92
     assert status["snapshot"] == "copa2026-07-06"
 
@@ -41,4 +41,5 @@ def test_match_prediction_view(seeded_repo: DuckDBRepository) -> None:
     assert abs(total - 1.0) < 1e-6
     # não persiste
     assert seeded_repo.count("predictions") == 0
+
 

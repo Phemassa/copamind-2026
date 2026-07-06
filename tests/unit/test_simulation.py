@@ -108,3 +108,4 @@ def test_stage_probabilities_present() -> None:
         # Reachar a final implica reachar a semifinal.
         assert team.stage_probabilities["semifinal"] >= team.stage_probabilities["final"]
 
+

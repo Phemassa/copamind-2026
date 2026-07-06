@@ -44,3 +44,4 @@ def test_calibration_api(data_client: TestClient) -> None:
     assert response.status_code == 200
     assert len(response.json()) >= 1
 
+

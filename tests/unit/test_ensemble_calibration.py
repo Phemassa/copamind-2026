@@ -78,3 +78,4 @@ def test_calibrated_triples_valid_and_reduces_ece() -> None:
     ece_after = expected_calibration_error(calibrated, outcomes)
     assert ece_after <= ece_before
 
+

@@ -30,3 +30,4 @@ def test_unknown_key_returns_key() -> None:
     tr = Translator("en")
     assert tr.t("nonexistent_key") == "nonexistent_key"
 
+

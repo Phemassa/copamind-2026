@@ -47,3 +47,4 @@ def test_load_model_specs_from_example() -> None:
     assert set(specs) == {"analyst", "challenger", "auditor"}
     assert specs["auditor"].temperature == 0.0
 
+

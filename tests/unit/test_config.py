@@ -31,3 +31,4 @@ def test_duckdb_path_is_path() -> None:
     settings = Settings(_env_file=None)  # type: ignore[call-arg]
     assert isinstance(settings.duckdb_path, Path)
 
+

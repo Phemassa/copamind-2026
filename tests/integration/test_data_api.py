@@ -9,7 +9,7 @@ def test_list_teams(data_client: TestClient) -> None:
     response = data_client.get("/teams")
     assert response.status_code == 200
     body = response.json()
-    assert len(body) == 49
+    assert len(body) == 48
 
 
 def test_get_team(data_client: TestClient) -> None:
@@ -47,4 +47,5 @@ def test_team_form(data_client: TestClient) -> None:
 def test_team_form_not_found(data_client: TestClient) -> None:
     response = data_client.get("/teams/nope/form")
     assert response.status_code == 404
+
 

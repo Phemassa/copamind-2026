@@ -91,3 +91,4 @@ def test_form_windows_summary() -> None:
     assert [w.window for w in summary.windows] == [2, 5]
     assert summary.team_id == "A"
 
+
