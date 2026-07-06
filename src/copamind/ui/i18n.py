@@ -67,6 +67,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "pool_correct": "Resultado certo",
         "pool_brier": "Brier médio",
         "pool_empty": "Rode o bolão para gerar a classificação.",
+        "calibration_curve": "Curva de calibração",
+        "confidence": "Confiança",
+        "accuracy": "Acurácia",
+        "nav_chat": "Chat (IAs)",
+        "chat_title": "Chat com IAs locais",
+        "question": "Pergunta",
+        "run_chat": "Executar",
+        "box_analyst": "Analista",
+        "box_challenger": "Segunda opinião",
+        "box_auditor": "Auditor",
+        "box_consensus": "Consenso",
+        "evidence": "Evidências",
+        "llm_unavailable": (
+            "LLMs locais indisponíveis. Carregue modelos no LM Studio e "
+            "configure models.yaml."
+        ),
     },
     "en": {
         "app_title": "CopaMind 2026",
@@ -126,6 +142,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "pool_correct": "Correct result",
         "pool_brier": "Mean Brier",
         "pool_empty": "Run the pool to build the leaderboard.",
+        "calibration_curve": "Calibration curve",
+        "confidence": "Confidence",
+        "accuracy": "Accuracy",
+        "nav_chat": "Chat (AIs)",
+        "chat_title": "Chat with local AIs",
+        "question": "Question",
+        "run_chat": "Run",
+        "box_analyst": "Analyst",
+        "box_challenger": "Second opinion",
+        "box_auditor": "Auditor",
+        "box_consensus": "Consensus",
+        "evidence": "Evidence",
+        "llm_unavailable": "Local LLMs unavailable. Load models in LM Studio and set models.yaml.",
     },
 }
 

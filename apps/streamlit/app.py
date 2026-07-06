@@ -10,8 +10,12 @@ import streamlit as st
 
 from copamind.core.config import get_settings
 from copamind.data.repositories import DuckDBRepository
+from copamind.llm.client import LMStudioClient
+from copamind.llm.config import load_model_specs
 from copamind.ui.dashboard import (
+    calibration_view,
     championship_table,
+    chat_view,
     database_status,
     match_prediction_view,
     pool_leaderboard_view,
@@ -60,6 +64,7 @@ def main() -> None:
                 tr.t("nav_team"),
                 tr.t("nav_predict"),
                 tr.t("nav_pool"),
+                tr.t("nav_chat"),
             ],
         )
 
@@ -73,6 +78,8 @@ def main() -> None:
             _render_predict(repo, tr)
         elif page == tr.t("nav_pool"):
             _render_pool(repo, tr)
+        elif page == tr.t("nav_chat"):
+            _render_chat(repo, tr, locale)
 
     st.sidebar.divider()
     st.sidebar.info(tr.t("disclaimer"))
@@ -164,8 +171,80 @@ def _render_pool(repo: DuckDBRepository, tr: Translator) -> None:
         )
         st.dataframe(frame.set_index(tr.t("predictor")), use_container_width=True)
         st.bar_chart(frame.set_index(tr.t("predictor"))[tr.t("pool_points")])
+
+        st.markdown(f"**{tr.t('calibration_curve')}**")
+        reports = calibration_view(repo)
+        for report in reports:
+            bins = [b for b in report["reliability"] if b["count"] > 0]
+            if not bins:
+                continue
+            curve = pd.DataFrame(
+                {
+                    tr.t("confidence"): [b["avg_confidence"] for b in bins],
+                    tr.t("accuracy"): [b["accuracy"] for b in bins],
+                }
+            ).set_index(tr.t("confidence"))
+            st.caption(
+                f"{report['predictor_name']} — Brier {report['brier']:.3f}, ECE {report['ece']:.3f}"
+            )
+            st.line_chart(curve)
     else:
         st.info(tr.t("pool_empty"))
+
+
+def _render_chat(repo: DuckDBRepository, tr: Translator, locale: str) -> None:
+    st.subheader(f"💬 {tr.t('chat_title')}")
+    teams = repo.list_teams()
+    options = {t.name: t.team_id for t in teams}
+    names = list(options)
+    col1, col2 = st.columns(2)
+    home = col1.selectbox(tr.t("home"), names, index=0)
+    away = col2.selectbox(tr.t("away"), names, index=min(1, len(names) - 1))
+    question = st.text_input(tr.t("question"), value="Quem tem mais chance de vencer?")
+
+    if not st.button(tr.t("run_chat")):
+        return
+    if options[home] == options[away]:
+        st.error(tr.t("same_team_error"))
+        return
+
+    try:
+        specs = load_model_specs()
+        settings = get_settings()
+        client = LMStudioClient(
+            base_url=settings.lmstudio_base_url,
+            api_key=settings.lmstudio_api_key,
+            timeout=float(settings.lmstudio_timeout_seconds),
+        )
+        result = chat_view(
+            repo,
+            client,
+            home_id=options[home],
+            away_id=options[away],
+            question=question,
+            analyst=specs["analyst"],
+            challenger=specs["challenger"],
+            auditor=specs["auditor"],
+            response_language=locale,
+        )
+    except Exception as exc:
+        st.warning(f"{tr.t('llm_unavailable')}\n\n{exc}")
+        return
+
+    labels = {
+        "primary_analyst": tr.t("box_analyst"),
+        "alternative_analysis": tr.t("box_challenger"),
+        "evidence_auditor": tr.t("box_auditor"),
+    }
+    for box in result["boxes"]:
+        with st.expander(f"{labels.get(box['role'], box['role'])} — {box['model_id']}"):
+            if box["error"]:
+                st.error(box["error"])
+            elif box["response"]:
+                st.write(box["response"]["answer"])
+            elif box["audit"]:
+                st.json(box["audit"])
+    st.success(f"**{tr.t('box_consensus')}:** {result['consensus']['answer']}")
 
 
 if __name__ == "__main__":

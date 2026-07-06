@@ -10,6 +10,9 @@ from typing import Any
 
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import analyze_team
+from copamind.llm.client import LLMClient
+from copamind.llm.orchestrator import ModelSpec, SequentialOrchestrator, build_evidence_pack
+from copamind.models.calibration.report import calibration_report
 from copamind.models.poisson.service import predict_match
 from copamind.pool.service import run_backtest
 from copamind.simulation.service import build_default_config, run_simulation
@@ -75,3 +78,28 @@ def pool_leaderboard_view(repo: DuckDBRepository) -> list[dict[str, Any]]:
     """Roda o bolão sobre o histórico e retorna a classificação dos preditores."""
     summary = run_backtest(repo)
     return [standing.model_dump() for standing in summary.standings]
+
+
+def calibration_view(repo: DuckDBRepository) -> list[dict[str, Any]]:
+    """Roda o bolão e retorna o relatório de calibração por preditor."""
+    run_backtest(repo)
+    return [report.model_dump() for report in calibration_report(repo)]
+
+
+def chat_view(
+    repo: DuckDBRepository,
+    client: LLMClient,
+    *,
+    home_id: str,
+    away_id: str,
+    question: str,
+    analyst: ModelSpec,
+    challenger: ModelSpec,
+    auditor: ModelSpec,
+    response_language: str = "pt-BR",
+) -> dict[str, Any]:
+    """Executa a orquestração de LLMs para um confronto e retorna boxes + consenso."""
+    pack = build_evidence_pack(repo, home_id, away_id)
+    orchestrator = SequentialOrchestrator(client, analyst, challenger, auditor)
+    result = orchestrator.run(question, pack, response_language=response_language)
+    return result.model_dump()

@@ -175,8 +175,22 @@ Objetivo: UI EN/PT-BR polida. E8a (dashboard MVP) precede E8b (UI completa).
 - [x] Previsão de partida (1x2, gols esperados, placar provável)
 - [x] i18n EN/PT-BR na UI
 - [ ] Árvore de mata-mata (bracket) visual — futuro (requer bracket real >4 times)
-- [ ] Curva de calibração — após E3b (backtest)
-- [ ] Aba Bolão — E11
+- [x] Curva de calibração (E8b)
+- [x] Aba Bolão (E11)
+
+### E8b — UI completa ✅ (core)
+#### H8.1 — i18n
+- [x] PT-BR default + EN; chaves por seção; seleção de idioma
+- [x] Dados canônicos não traduzidos
+#### H8.3 — Chat
+- [x] Página de chat com 3 boxes (analista/challenger/auditor) + consenso
+- [x] Curva de calibração (reliability) no dashboard
+- [x] Resposta no idioma da sessão (`response_language`)
+- [ ] Eventos SSE em tempo real — futuro (Streamlit é síncrono; Reflex na evolução)
+#### H8.4 — Camadas
+- [x] Streamlit (MVP); Reflex — evolução
+
+**Aceite:** troca de idioma sem hardcode; respostas no idioma escolhido; 3 boxes + consenso; calibração visível. ✅
 
 ### E8b — UI completa
 #### H8.1 — i18n
