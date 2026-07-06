@@ -21,6 +21,10 @@ from copamind.data.ingestion.service import (
 )
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import build_elo
+from copamind.llm.benchmark import benchmark_models
+from copamind.llm.client import LMStudioClient
+from copamind.llm.config import load_model_specs
+from copamind.llm.orchestrator import build_evidence_pack
 from copamind.models.poisson.service import build_poisson
 from copamind.pool.service import run_backtest
 from copamind.simulation.service import build_default_config, run_simulation
@@ -46,6 +50,9 @@ app.add_typer(ui_app, name="ui")
 
 pool_app = typer.Typer(help="Comandos do Bolão de IAs.")
 app.add_typer(pool_app, name="pool")
+
+llm_app = typer.Typer(help="Comandos de LLMs locais.")
+app.add_typer(llm_app, name="llm")
 
 console = Console()
 
@@ -229,6 +236,46 @@ def pool_run() -> None:
             str(standing.total_points),
             str(standing.exact_scores),
             f"{standing.mean_brier:.3f}",
+        )
+    console.print(table)
+
+
+@llm_app.command("benchmark")
+def llm_benchmark(
+    home: str = typer.Option(..., help="team_id do mandante."),
+    away: str = typer.Option(..., help="team_id do visitante."),
+    question: str = typer.Option(
+        "Quem tem mais chance de vencer e por quê?", help="Pergunta ao modelo."
+    ),
+) -> None:
+    """Compara os LLMs locais (LM Studio) numa pergunta. Requer modelos carregados."""
+    settings = get_settings()
+    specs = list(load_model_specs().values())
+    client = LMStudioClient(
+        base_url=settings.lmstudio_base_url,
+        api_key=settings.lmstudio_api_key,
+        timeout=float(settings.lmstudio_timeout_seconds),
+    )
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        pack = build_evidence_pack(repo, home, away)
+    rows = benchmark_models(client, specs, question, pack)
+
+    table = Table(title="Benchmark de LLMs locais")
+    table.add_column("Modelo", style="bold")
+    table.add_column("Papel")
+    table.add_column("Schema OK", justify="center")
+    table.add_column("Grounded", justify="right")
+    table.add_column("Latência (ms)", justify="right")
+    table.add_column("tok/s", justify="right")
+    for row in rows:
+        table.add_row(
+            row.model_id,
+            row.role,
+            "✓" if row.schema_valid else "✗",
+            f"{row.grounded_ratio:.0%}",
+            f"{row.latency_ms:.0f}",
+            f"{row.tokens_per_second:.1f}" if row.tokens_per_second else "-",
         )
     console.print(table)
 

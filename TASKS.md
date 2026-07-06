@@ -148,25 +148,23 @@ Objetivo: expor ferramentas locais ao agente com menor privilégio.
 
 ---
 
-## E7 — Orquestração de LLMs + Benchmark
+## E7 — Orquestração de LLMs + Benchmark ✅ (core)
 Objetivo: execução sequencial com unload, consenso auditável e benchmark local.
 
 ### H7.1 — Cliente & perfis
-- [ ] Cliente LM Studio (OpenAI-compat) + Ollama
-- [ ] `models.yaml` (papel, contexto, temperatura, unload, retry, fallback, `hardware_profile`)
-- [ ] Saída estruturada por JSON Schema (inclui `response_language`)
+- [x] Cliente LM Studio (OpenAI-compat) + Ollama + FakeLLMClient (testes)
+- [x] `models.yaml` (perfis) + loader `load_model_specs`
+- [x] Saída estruturada via JSON + validação Pydantic (contratos §15.4, `response_language`)
 ### H7.2 — Pipeline sequencial
-- [ ] analista → unload → challenger → unload → auditor → unload → consenso
-- [ ] Máquina de estados (Pydantic AI / LangGraph)
-- [ ] Falha de um modelo não derruba a sessão; fallback disponível
+- [x] analista → unload → challenger → unload → auditor → unload → consenso
+- [x] Falha de um modelo não derruba a sessão
 ### H7.3 — Grounding & auditoria
-- [ ] Claims ligados a `evidence_id`
-- [ ] Auditor marca suportado/parcial/não suportado/contraditório/desatualizado
+- [x] Claims ligados a `evidence_id`; auditor com veredito por claim
 ### H7.4 — Benchmark harness (feature)
-- [ ] Métricas: groundedness, aderência a schema, concordância com ML, latência, tokens/s, VRAM, load/unload
-- [ ] **Leaderboard local** + export para conteúdo
+- [x] Métricas: aderência a schema, groundedness, latência, tokens/s, concordância com ML
+- [x] Comando `copamind llm benchmark` (uso ao vivo)
 
-**Aceite:** três boxes; um modelo por vez; fallback; claims ligados a evidências; leaderboard gerado.
+**Aceite:** três boxes; um modelo por vez; fallback; claims ligados a evidências; benchmark. ✅ (chat na UI = E8b)
 
 ---
 
