@@ -6,6 +6,7 @@ MASTER_PLAN §5.2 (dados estruturados em DuckDB) e §18 (anti-leakage via
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 from types import TracebackType
@@ -21,6 +22,7 @@ from copamind.data.schemas import (
     Prediction,
     Snapshot,
     Team,
+    UserReport,
 )
 
 _SCHEMA_SQL = """
@@ -101,6 +103,25 @@ CREATE TABLE IF NOT EXISTS pool_results (
     away_score INTEGER NOT NULL,
     recorded_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_reports (
+    report_id VARCHAR NOT NULL,
+    version INTEGER NOT NULL,
+    is_current BOOLEAN NOT NULL,
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    session_id VARCHAR,
+    user_text VARCHAR NOT NULL,
+    report_type VARCHAR NOT NULL,
+    parsed_payload VARCHAR NOT NULL,
+    entities VARCHAR NOT NULL,
+    source_type VARCHAR NOT NULL,
+    verified BOOLEAN NOT NULL,
+    confidence DOUBLE NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    available_at TIMESTAMP NOT NULL,
+    snapshot_id VARCHAR NOT NULL,
+    PRIMARY KEY (report_id, version)
+);
 """
 
 _TEAM_COLUMNS = (
@@ -168,6 +189,24 @@ _POOL_PREDICTION_COLUMNS = (
 )
 
 _POOL_RESULT_COLUMNS = ("match_id", "home_score", "away_score", "recorded_at")
+
+_USER_REPORT_COLUMNS = (
+    "report_id",
+    "version",
+    "is_current",
+    "deleted",
+    "session_id",
+    "user_text",
+    "report_type",
+    "parsed_payload",
+    "entities",
+    "source_type",
+    "verified",
+    "confidence",
+    "created_at",
+    "available_at",
+    "snapshot_id",
+)
 
 
 def _placeholders(n: int) -> str:
@@ -450,9 +489,59 @@ class DuckDBRepository:
         cursor = self._con.execute(f"SELECT {', '.join(_POOL_RESULT_COLUMNS)} FROM pool_results")
         return [PoolResult(**row) for row in _rows_to_dicts(cursor)]
 
+    # -- User reports (E2) ---------------------------------------------------
+    def insert_user_report(self, report: UserReport) -> None:
+        """Insere uma versão de relato do usuário."""
+        sql = (
+            f"INSERT INTO user_reports ({', '.join(_USER_REPORT_COLUMNS)}) "
+            f"VALUES ({_placeholders(len(_USER_REPORT_COLUMNS))})"
+        )
+        self._con.execute(sql, _user_report_row(report))
+
+    def add_user_report_version(self, report: UserReport) -> None:
+        """Adiciona uma nova versão como atual, desmarcando as anteriores."""
+        self._con.execute(
+            "UPDATE user_reports SET is_current = FALSE WHERE report_id = ?",
+            [report.report_id],
+        )
+        self.insert_user_report(report)
+
+    def current_user_report_version(self, report_id: str) -> int:
+        """Maior número de versão existente para um relato (0 se inexistente)."""
+        result = self._con.execute(
+            "SELECT max(version) FROM user_reports WHERE report_id = ?", [report_id]
+        ).fetchone()
+        return int(result[0]) if result and result[0] is not None else 0
+
+    def get_user_report(self, report_id: str) -> UserReport | None:
+        """Retorna a versão atual e não deletada de um relato."""
+        cursor = self._con.execute(
+            f"SELECT {', '.join(_USER_REPORT_COLUMNS)} FROM user_reports "
+            "WHERE report_id = ? AND is_current = TRUE AND deleted = FALSE",
+            [report_id],
+        )
+        dicts = _rows_to_dicts(cursor)
+        return _row_to_user_report(dicts[0]) if dicts else None
+
+    def list_user_reports(self) -> list[UserReport]:
+        """Lista os relatos atuais e não deletados."""
+        cursor = self._con.execute(
+            f"SELECT {', '.join(_USER_REPORT_COLUMNS)} FROM user_reports "
+            "WHERE is_current = TRUE AND deleted = FALSE ORDER BY created_at DESC"
+        )
+        return [_row_to_user_report(row) for row in _rows_to_dicts(cursor)]
+
     def count(self, table: str) -> int:
         """Conta linhas de uma tabela conhecida."""
-        known = {"teams", "matches", "snapshots", "predictions", "pool_predictions", "pool_results"}
+        known = {
+            "teams",
+            "matches",
+            "snapshots",
+            "predictions",
+            "pool_predictions",
+            "pool_results",
+            "user_reports",
+        }
         if table not in known:
             raise ValueError(f"tabela desconhecida: {table}")
         result = self._con.execute(f"SELECT count(*) FROM {table}").fetchone()
@@ -466,3 +555,32 @@ def _rows_to_dicts(cursor: duckdb.DuckDBPyConnection) -> list[dict[str, Any]]:
         return []
     columns = [col[0] for col in description]
     return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+
+
+def _user_report_row(report: UserReport) -> list[Any]:
+    """Serializa um UserReport para inserção (payload/entities como JSON)."""
+    return [
+        report.report_id,
+        report.version,
+        report.is_current,
+        report.deleted,
+        report.session_id,
+        report.user_text,
+        str(report.report_type),
+        json.dumps(report.parsed_payload, ensure_ascii=False),
+        json.dumps(report.entities, ensure_ascii=False),
+        report.source_type,
+        report.verified,
+        report.confidence,
+        report.created_at,
+        report.available_at,
+        report.snapshot_id,
+    ]
+
+
+def _row_to_user_report(row: dict[str, Any]) -> UserReport:
+    """Desserializa uma linha de user_reports em UserReport."""
+    data = dict(row)
+    data["parsed_payload"] = json.loads(data["parsed_payload"])
+    data["entities"] = json.loads(data["entities"])
+    return UserReport(**data)

@@ -11,6 +11,7 @@ from copamind.api.routes import (
     pool_router,
     predictions_router,
     simulations_router,
+    user_reports_router,
 )
 from copamind.core.config import Settings, get_settings
 from copamind.core.logging import configure_logging
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(predictions_router)
     app.include_router(simulations_router)
     app.include_router(pool_router)
+    app.include_router(user_reports_router)
 
     return app
 

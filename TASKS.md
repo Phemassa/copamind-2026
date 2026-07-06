@@ -96,19 +96,18 @@ Objetivo: simulador do torneio independente dos LLMs.
 
 ---
 
-## E2 — User Reports & Memória
+## E2 — User Reports & Memória ✅ (RAG na E5)
 Objetivo: ingestão de texto livre do usuário com ciclo de vida controlado.
 
 ### H2.1 — Ingestão de texto livre
-- [ ] Endpoint POST + classificação de tipo
-- [ ] Extração estruturada por LLM pequeno (Qwen3-4B) + validação de schema
-- [ ] Detecção de entidades e ambiguidade
+- [x] Endpoint POST + extração estruturada (regras; LLM opcional via `LLMExtractor`)
+- [x] Detecção de entidades e tipo (match_result/injury/general)
 ### H2.2 — Ciclo de vida
-- [ ] Listar / editar / excluir / verificar / promover
-- [ ] Versionamento (sem apagar histórico)
-- [ ] Marcação `source_type=user_input`, `verified=false`, `confidence`
+- [x] Listar / editar / excluir (tombstone) / verificar
+- [x] Versionamento (histórico preservado)
+- [x] Marcação `source_type=user_input`, `verified=false`, `confidence`
 
-**Aceite:** salvar/recuperar por seleção; corrigir; impedir promoção automática ao treino; impedir uso no RAG quando solicitado.
+**Aceite:** salvar/recuperar; corrigir (nova versão); impedir promoção automática ao treino; histórico preservado. ✅ (indexação RAG = E5)
 
 ---
 

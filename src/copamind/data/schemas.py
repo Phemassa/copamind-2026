@@ -181,3 +181,38 @@ class PoolResult(BaseModel):
     home_score: int = Field(ge=0)
     away_score: int = Field(ge=0)
     recorded_at: datetime
+
+
+class ReportType(StrEnum):
+    """Tipo de relato informado pelo usuário."""
+
+    match_result = "match_result"
+    injury = "injury"
+    tactical_note = "tactical_note"
+    general = "general"
+
+
+class UserReport(BaseModel):
+    """Relato informado pelo usuário (MASTER_PLAN §11).
+
+    Nunca é promovido automaticamente ao treino oficial. Correções geram novas
+    versões (o histórico é preservado).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    report_id: str = Field(min_length=1)
+    version: int = Field(default=1, ge=1)
+    is_current: bool = True
+    deleted: bool = False
+    session_id: str | None = None
+    user_text: str = Field(min_length=1)
+    report_type: ReportType = ReportType.general
+    parsed_payload: dict[str, object] = Field(default_factory=dict)
+    entities: list[str] = Field(default_factory=list)
+    source_type: str = "user_input"
+    verified: bool = False
+    confidence: float = Field(default=0.0, ge=0, le=1)
+    created_at: datetime
+    available_at: datetime
+    snapshot_id: str = Field(min_length=1)

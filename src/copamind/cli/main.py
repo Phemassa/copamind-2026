@@ -27,6 +27,7 @@ from copamind.llm.config import load_model_specs
 from copamind.llm.orchestrator import build_evidence_pack
 from copamind.models.poisson.service import build_poisson
 from copamind.pool.service import run_backtest
+from copamind.reports.service import create_user_report
 from copamind.simulation.service import build_default_config, run_simulation
 
 app = typer.Typer(
@@ -135,6 +136,21 @@ def ingest_file(
             console.print("[red]entity deve ser 'teams' ou 'matches'.[/]")
             raise typer.Exit(code=1)
     console.print(f"[green]Ingeridos {count} registros de '{entity}'.[/]")
+
+
+@ingest_app.command("user-report")
+def ingest_user_report(
+    text: str = typer.Argument(..., help="Texto livre do relato."),
+) -> None:
+    """Registra um relato do usuário (extração por regras)."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        report = create_user_report(repo, text)
+    console.print(
+        f"[green]Relato salvo[/] ({report.report_type}, "
+        f"confiança {report.confidence:.0%}): {report.report_id}"
+    )
 
 
 @train_app.command("elo")
