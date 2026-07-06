@@ -13,7 +13,7 @@ from typing import Any, Self
 
 import duckdb
 
-from copamind.data.schemas import Match, MatchStatus, Snapshot, Team
+from copamind.data.schemas import Match, MatchStatus, Prediction, Snapshot, Team
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -55,6 +55,22 @@ CREATE TABLE IF NOT EXISTS matches (
     available_at TIMESTAMP NOT NULL,
     snapshot_id VARCHAR NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS predictions (
+    prediction_id VARCHAR PRIMARY KEY,
+    snapshot_id VARCHAR NOT NULL,
+    match_id VARCHAR,
+    model_name VARCHAR NOT NULL,
+    model_version VARCHAR NOT NULL,
+    home_team_id VARCHAR NOT NULL,
+    away_team_id VARCHAR NOT NULL,
+    home_win_probability DOUBLE NOT NULL,
+    draw_probability DOUBLE NOT NULL,
+    away_win_probability DOUBLE NOT NULL,
+    expected_home_goals DOUBLE NOT NULL,
+    expected_away_goals DOUBLE NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
 """
 
 _TEAM_COLUMNS = (
@@ -88,6 +104,22 @@ _MATCH_COLUMNS = (
     "collected_at",
     "available_at",
     "snapshot_id",
+)
+
+_PREDICTION_COLUMNS = (
+    "prediction_id",
+    "snapshot_id",
+    "match_id",
+    "model_name",
+    "model_version",
+    "home_team_id",
+    "away_team_id",
+    "home_win_probability",
+    "draw_probability",
+    "away_win_probability",
+    "expected_home_goals",
+    "expected_away_goals",
+    "created_at",
 )
 
 
@@ -262,9 +294,52 @@ class DuckDBRepository:
         cursor = self._con.execute(sql, params)
         return [Match(**row) for row in _rows_to_dicts(cursor)]
 
+    # -- Predictions ---------------------------------------------------------
+    def upsert_prediction(self, prediction: Prediction) -> None:
+        """Insere ou substitui uma previsão."""
+        sql = (
+            f"INSERT OR REPLACE INTO predictions ({', '.join(_PREDICTION_COLUMNS)}) "
+            f"VALUES ({_placeholders(len(_PREDICTION_COLUMNS))})"
+        )
+        self._con.execute(
+            sql,
+            [
+                prediction.prediction_id,
+                prediction.snapshot_id,
+                prediction.match_id,
+                prediction.model_name,
+                prediction.model_version,
+                prediction.home_team_id,
+                prediction.away_team_id,
+                prediction.home_win_probability,
+                prediction.draw_probability,
+                prediction.away_win_probability,
+                prediction.expected_home_goals,
+                prediction.expected_away_goals,
+                prediction.created_at,
+            ],
+        )
+
+    def list_predictions(self, limit: int | None = None) -> list[Prediction]:
+        """Lista previsões ordenadas por criação (desc)."""
+        sql = f"SELECT {', '.join(_PREDICTION_COLUMNS)} FROM predictions ORDER BY created_at DESC"
+        params: list[Any] = []
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        cursor = self._con.execute(sql, params)
+        return [Prediction(**row) for row in _rows_to_dicts(cursor)]
+
+    def latest_snapshot_id(self) -> str | None:
+        """Retorna o id do snapshot mais recente, se houver."""
+        result = self._con.execute(
+            "SELECT snapshot_id FROM snapshots ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        return str(result[0]) if result else None
+
     def count(self, table: str) -> int:
         """Conta linhas de uma tabela conhecida."""
-        if table not in {"teams", "matches", "snapshots"}:
+        if table not in {"teams", "matches", "snapshots", "predictions"}:
             raise ValueError(f"tabela desconhecida: {table}")
         result = self._con.execute(f"SELECT count(*) FROM {table}").fetchone()
         return int(result[0]) if result else 0

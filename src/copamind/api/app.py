@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from copamind import __version__
-from copamind.api.routes import data_router, health_router
+from copamind.api.routes import data_router, health_router, predictions_router
 from copamind.core.config import Settings, get_settings
 from copamind.core.logging import configure_logging
 
@@ -27,6 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(data_router)
+    app.include_router(predictions_router)
 
     return app
 

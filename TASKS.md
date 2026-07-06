@@ -62,8 +62,8 @@ Objetivo: ML é o motor de probabilidades (o LLM nunca sobrescreve). Dividido em
 - [x] Testes de leakage dedicados (`as_of`)
 
 ### E3b — Avançado
-#### H3.3 — Poisson / Dixon-Coles
-- [ ] Ataque/defesa, matriz de placares, 1x2, over/under, mata-mata
+#### H3.3 — Poisson / Dixon-Coles ✅
+- [x] Ataque/defesa, matriz de placares, 1x2, over/under, mata-mata
 #### H3.4 — CatBoost
 - [ ] Dataset temporal + pipeline + tuning Optuna (Brier/Log-Loss) + model registry
 #### H3.5 — XGBoost / LightGBM

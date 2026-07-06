@@ -17,6 +17,7 @@ from copamind.data.ingestion.service import (
 )
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import build_elo
+from copamind.models.poisson.service import build_poisson
 
 app = typer.Typer(
     name="copamind",
@@ -132,6 +133,26 @@ def train_elo() -> None:
     ranked = sorted(teams, key=lambda t: elo.rating(t.team_id), reverse=True)
     for team in ranked:
         table.add_row(team.name, f"{elo.rating(team.team_id):.1f}")
+    console.print(table)
+
+
+@train_app.command("poisson")
+def train_poisson() -> None:
+    """Ajusta o modelo Poisson e exibe as forças de ataque/defesa por seleção."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        model = build_poisson(repo)
+        teams = repo.list_teams()
+
+    table = Table(title="Forças Poisson (ataque / defesa)")
+    table.add_column("Seleção", style="bold")
+    table.add_column("Ataque", justify="right")
+    table.add_column("Defesa", justify="right")
+    for team in teams:
+        attack = model.attack_strength(team.team_id)
+        defense = model.defense_strength(team.team_id)
+        table.add_row(team.name, f"{attack:.2f}", f"{defense:.2f}")
     console.print(table)
 
 

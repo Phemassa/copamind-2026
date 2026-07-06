@@ -127,3 +127,23 @@ class Snapshot(BaseModel):
     created_at: datetime
     description: str = ""
     dataset_version: str = Field(default="0.1.0")
+
+
+class Prediction(BaseModel):
+    """Previsão de partida produzida por um modelo (MASTER_PLAN §9.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    prediction_id: str = Field(min_length=1)
+    snapshot_id: str = Field(min_length=1)
+    match_id: str | None = None
+    model_name: str = Field(min_length=1)
+    model_version: str = Field(min_length=1)
+    home_team_id: str = Field(min_length=1)
+    away_team_id: str = Field(min_length=1)
+    home_win_probability: float = Field(ge=0, le=1)
+    draw_probability: float = Field(ge=0, le=1)
+    away_win_probability: float = Field(ge=0, le=1)
+    expected_home_goals: float = Field(ge=0)
+    expected_away_goals: float = Field(ge=0)
+    created_at: datetime
