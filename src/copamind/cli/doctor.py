@@ -100,6 +100,23 @@ def _check_disk() -> CheckResult:
     )
 
 
+def _check_vram(settings: Settings) -> CheckResult:
+    from copamind.llm.hardware import detect_vram_gb, suggest_profile
+
+    vram = detect_vram_gb()
+    suggested = suggest_profile(vram)
+    active = settings.hardware_profile.value
+    if vram is None:
+        return CheckResult(
+            "GPU/VRAM",
+            CheckStatus.warn,
+            f"não detectada (perfil ativo: {active}, sugerido: {suggested})",
+        )
+    detail = f"{vram:.0f} GB — perfil ativo: {active}, sugerido: {suggested}"
+    status = CheckStatus.ok if active == suggested else CheckStatus.warn
+    return CheckResult("GPU/VRAM", status, detail)
+
+
 def _probe_http(name: str, url: str, *, timeout: float = 2.0) -> CheckResult:
     try:
         response = httpx.get(url, timeout=timeout)
@@ -136,6 +153,7 @@ def run_diagnostics(settings: Settings | None = None) -> list[CheckResult]:
         _check_directories(),
         _check_config_files(),
         _check_disk(),
+        _check_vram(settings),
         _check_qdrant(settings),
         _check_lmstudio(settings),
         _check_ollama(settings),

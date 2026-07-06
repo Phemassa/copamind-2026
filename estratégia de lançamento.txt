@@ -1,0 +1,280 @@
+Vou montar uma estratégia de lançamento em camadas: preparar o GitHub para conversão, criar uma demo curta e distribuir em canais onde IA local, open source e futebol já têm audiência.
+
+Pensou por 59s
+
+O melhor posicionamento não é “fiz um bolão com IA”. É:
+
+Construí uma plataforma open source de inteligência esportiva com modelos estatísticos, simulação Monte Carlo, RAG, MCP, agentes e LLMs locais. A Copa é o caso de uso.
+
+Isso valoriza muito mais seu perfil profissional em IA aplicada, modernização e construção de produtos.
+
+Como hoje é 6 de julho de 2026, a Copa está nas oitavas, com quartas começando em 9 de julho e final em 19 de julho. Sua janela de maior atenção é agora; publique uma versão utilizável rapidamente e evolua em público.
+
+1. Prepare o GitHub para converter visitantes
+
+Antes da primeira publicação, o repositório precisa ter:
+
+Elemento	O que mostrar
+Capa	Nome, proposta e screenshot principal
+GIF/vídeo	Chat executando os modelos sequencialmente
+Quick start	Instalação em 3–5 comandos
+Arquitetura	Diagrama ML + RAG + MCP + LLM
+Resultados	Probabilidades por seleção
+Demo	Uma pergunta completa com os boxes
+Modelos	Tabela com LLMs recomendados
+Hardware	Seu Predator e configuração mínima
+Roadmap	Funcionalidades prontas e próximas
+Disclaimer	Projeto independente e probabilidades experimentais
+
+Crie uma imagem de compartilhamento em 1280 × 640, com fundo sólido, nome CopaMind 2026, arquitetura resumida e screenshot do dashboard. O GitHub recomenda pelo menos 640 × 320 e 1280 × 640 para melhor exibição social.
+
+Adicione estes tópicos ao repositório:
+
+local-llm
+rag
+mcp
+ai-agents
+machine-learning
+football-analytics
+world-cup
+monte-carlo
+lm-studio
+fastapi
+duckdb
+qdrant
+python
+open-source
+sports-analytics
+
+Os tópicos ajudam pessoas a encontrar projetos relacionados e o GitHub permite até 20 por repositório.
+
+Publique uma release:
+
+v0.1.0 — Public Beta
+
+Inclua changelog, instruções, limitações conhecidas e, quando possível, um pacote ou script de instalação. Releases são a forma apropriada no GitHub de empacotar versões baixáveis do software.
+
+2. Crie uma página pública
+
+Ative o GitHub Pages e use a pasta /docs para publicar:
+
+Página inicial
+├── O que é o CopaMind
+├── Demonstração
+├── Probabilidades atuais
+├── Arquitetura
+├── Modelos locais
+├── Como instalar
+└── GitHub
+
+Seu HTML de modelos locais já pode virar uma das páginas. O GitHub Pages hospeda HTML, CSS e JavaScript diretamente do repositório.
+
+3. Produza três ativos principais
+Vídeo de 45–75 segundos
+
+Mostre, nesta ordem:
+
+A pergunta no chat.
+O agente consultando RAG e MCP.
+A previsão estatística.
+O box do Qwen.
+O box do Gemma.
+A auditoria.
+O consenso final.
+O ranking de chances de título.
+O link do GitHub.
+
+Evite começar explicando tecnologias. Comece com:
+
+“Perguntei a três modelos locais quem deve ganhar a Copa. Mas eles não decidem sozinhos.”
+
+Carrossel técnico para LinkedIn
+
+Use oito páginas:
+
+Eu construí uma IA local para analisar a Copa.
+Por que um LLM sozinho não é suficiente.
+Base de dados e últimas partidas.
+Elo, Poisson, CatBoost e ensemble.
+Simulação Monte Carlo.
+RAG, MCP e mini agente.
+Três LLMs executados sequencialmente.
+Open source: baixe e participe.
+
+O LinkedIn permite publicar documentos em PDF diretamente no feed e recomenda esse formato para compartilhamento de conhecimento e insights.
+
+Imagem principal
+
+Inclua:
+
+CopaMind 2026
+
+Local AI · ML · RAG · MCP · Agents
+
+Quem será campeão?
+Veja o que os dados e diferentes modelos respondem.
+4. Calendário de divulgação
+6–7 de julho
+Publicar GitHub.
+Publicar release beta.
+Ativar GitHub Pages.
+Post principal no LinkedIn.
+Compartilhar vídeo demonstrativo.
+8 de julho
+
+Publicar:
+
+“Como o CopaMind calcula a probabilidade de um campeão?”
+
+Explique Elo, Poisson, CatBoost e Monte Carlo.
+
+9–11 de julho — quartas de final
+
+Antes de cada jogo:
+
+comparação das seleções;
+probabilidades;
+análise dos três LLMs;
+fatores de risco;
+resultado da simulação.
+
+Depois de cada jogo:
+
+o que os modelos acertaram;
+o que erraram;
+quais dados mudaram;
+atualização do ranking.
+13 de julho
+
+Publicar o carrossel:
+
+“Por que LLM sozinho não deveria prever futebol.”
+
+14–15 de julho — semifinais
+
+Publicar previsões completas e vídeos curtos mostrando a atualização automática da base.
+
+18 de julho
+
+Publicar:
+
+“100 mil simulações depois: quem chega favorito à final?”
+
+19 de julho — final
+previsão final;
+screenshot do consenso;
+link para reprodução;
+chamada para novos contribuidores.
+20–21 de julho
+
+Publique o relatório mais importante:
+
+“O que a IA acertou e errou na Copa de 2026.”
+
+Esse pós-mortem continuará relevante mesmo depois do torneio.
+
+5. Canais prioritários
+LinkedIn
+
+É seu canal principal porque conecta o projeto à sua experiência executiva e técnica.
+
+Não faça uma única publicação. Faça uma série:
+
+Construindo o CopaMind
+Arquitetura
+Modelos estatísticos
+LLMs locais
+RAG
+MCP
+Erros e aprendizados
+Resultados finais
+GitHub
+
+Use Issues com tarefas acessíveis:
+
+good first issue
+help wanted
+data-source
+model-evaluation
+documentation
+frontend
+
+Ative Discussions para receber ideias, resultados de instalações e sugestões sem transformar toda conversa em Issue. GitHub Discussions permite que usuários autenticados iniciem conversas e enquetes no repositório.
+
+Hacker News
+
+Quando houver instalação funcional e demo reproduzível, publique:
+
+Show HN: CopaMind – Local LLMs, RAG and ML predicting the 2026 World Cup
+
+Show HN exige algo que as pessoas consigam experimentar, preferencialmente sem cadastro, e recomenda explicar como e por que o projeto foi construído.
+
+Product Hunt
+
+Use quando a página pública e o instalador estiverem suficientemente claros. O Product Hunt aceita uma página própria ou repositório GitHub como URL principal, recomenda uma descrição objetiva, até três categorias e um primeiro comentário do criador contextualizando o projeto.
+
+6. Mensagem principal para o LinkedIn
+
+⚽ Construí uma plataforma de IA local para analisar e simular a Copa de 2026.
+
+Mas não queria apenas perguntar a um LLM: “quem será campeão?”
+
+LLMs são excelentes para interpretar contexto e explicar cenários, mas não deveriam inventar probabilidades.
+
+Por isso, o CopaMind 2026 combina:
+
+▪️ Dados históricos, jogadores, técnicos, táticas e confrontos
+▪️ Forma das últimas 5, 10 e 15 partidas
+▪️ Elo, Poisson, CatBoost e ensemble preditivo
+▪️ Milhares de simulações Monte Carlo
+▪️ RAG para notícias, análises e informações fornecidas pelo usuário
+▪️ MCP e um mini agente para consultar dados e executar ferramentas
+▪️ Diferentes LLMs locais respondendo de forma sequencial
+▪️ Um auditor que verifica as afirmações e produz um consenso final
+
+Tudo executado localmente, usando LM Studio, Python, DuckDB, Qdrant e modelos quantizados.
+
+A Copa é o caso de uso. O projeto, na prática, é um laboratório open source de IA aplicada, agentes, dados, modelos preditivos e explicabilidade.
+
+O código, a arquitetura e as instruções de instalação estão disponíveis no GitHub:
+
+[LINK DO REPOSITÓRIO]
+
+Contribuições, testes em outros equipamentos e novas fontes de dados são muito bem-vindos.
+
+#LocalAI #MachineLearning #RAG #MCP #AIAgents #OpenSource #SportsAnalytics
+
+7. O que pedir ao público
+
+Não termine apenas com “o que acharam?”. Use chamadas específicas:
+
+Rode no seu computador e compartilhe o resultado.
+
+Abra uma Issue informando seu hardware e desempenho.
+
+Sugira uma nova fonte de dados.
+
+Crie um conector para outra API.
+
+Compare a previsão com seu modelo favorito.
+
+Envie uma análise tática para a RAG.
+
+8. Métricas de divulgação
+
+Acompanhe semanalmente:
+
+estrelas;
+forks;
+clones;
+visitantes únicos;
+origem do tráfego;
+Issues abertas;
+pessoas que conseguiram instalar;
+contribuições externas;
+comentários técnicos;
+convites profissionais gerados.
+
+O GitHub exibe visitantes, clones, sites de referência e conteúdos mais acessados, mas a visualização principal de tráfego cobre os últimos 14 dias; registre os números durante a campanha.
+
+A divulgação deve vender o método e a arquitetura, não apenas o palpite do campeão. A Copa atrai a audiência; o que fortalece seu portfólio é demonstrar construção de produto, IA local, agentes, governança dos dados, explicabilidade e capacidade de execução.

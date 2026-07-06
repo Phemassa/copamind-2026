@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 ## [Unreleased]
 
 ### Adicionado
+- **Épico E10 (Evolução 24 GB, core):** perfis de hardware (`copamind.llm.hardware`: `HardwareProfile`, `load_hardware_profiles`, `detect_vram_gb`, `suggest_profile`); `copamind doctor` detecta a VRAM (nvidia-smi) e sugere o perfil; sequencial permanece o default, concorrência é opt-in do perfil 24gb. 160 testes verdes.
 - **Ingestão real (OpenFootball):** conector `worldcup.json` (`copamind.data.connectors.openfootball`) tolerante a variações de formato; serviço `ingest_worldcup` e comando `copamind ingest worldcup <path>`. `confederation` agora é opcional (fontes nem sempre fornecem).
 - **RAG — reranker:** protocolo `Reranker` + `LexicalReranker` (baseline offline), plugável no `HybridRetriever` (cross-encoder bge-reranker pode substituir).
 - **RAG — QdrantStore:** backend vetorial real (import lazy do `qdrant-client`, extra `rag`).

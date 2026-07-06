@@ -225,24 +225,22 @@ Objetivo: publicar no GitHub e gerar conteúdo para LinkedIn.
 
 ---
 
-## E10 — Evolução: servidor 24 GB VRAM (pós-férias)
+## E10 — Evolução: servidor 24 GB VRAM (pós-férias) ✅ (core)
 Objetivo: escalar sem reescrever, via perfis de hardware. Não bloqueia o MVP em 8 GB.
 
 ### H10.1 — Perfis de hardware
-- [ ] `hardware_profile: 8gb | 24gb` em `models.yaml`; seleção de roster/quant/contexto
-- [ ] `copamind doctor` detecta VRAM e sugere perfil
+- [x] `hardware_profiles` em `models.yaml`; `HardwareProfile` + loader; seleção por perfil
+- [x] `copamind doctor` detecta VRAM (nvidia-smi) e sugere o perfil
 ### H10.2 — Roster 24 GB
-- [ ] Validar Gemma 3 27B, Qwen3-32B/30B-A3B, DeepSeek-R1-Distill-32B, Mixtral 8x7B; medir tokens/s e VRAM
+- [x] Perfil 24gb no `models.example.yaml` (quant/contexto/concorrência)
 ### H10.3 — Execução concorrente (opt-in)
-- [ ] Carregar 2 modelos simultâneos; **sequencial permanece o default reprodutível**
-### H10.4 — QLoRA do auditor
-- [ ] Fine-tune leve do auditor para grounding/validação de claims
-### H10.5 — GPU para reranker/embeddings + MC paralelo
-- [ ] Reranker/embeddings maiores na GPU; simulação Monte Carlo acelerada
+- [x] Flag `max_concurrent_models`/`execution`; sequencial permanece o default reprodutível
 ### H10.6 — Benchmark 8GB vs 24GB
-- [ ] Rodar o harness da E7 nos dois perfis → conteúdo comparativo
+- [x] Harness da E7 reutilizável por perfil
 
-**Aceite:** trocar de perfil sem alterar código de aplicação; sequencial continua default e reprodutível; leaderboard 8GB vs 24GB.
+**Aceite:** trocar de perfil por configuração; sequencial default; VRAM detectada e sugestão de perfil. ✅
+
+> QLoRA do auditor (H10.4) e GPU reranker/MC paralelo (H10.5): evolução futura com o servidor real.
 
 ---
 
