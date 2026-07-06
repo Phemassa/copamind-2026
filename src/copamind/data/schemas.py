@@ -183,6 +183,30 @@ class PoolResult(BaseModel):
     recorded_at: datetime
 
 
+class PlayerRating(BaseModel):
+    """Jogador com ratings estilo EA FC e estatísticas da Copa (MASTER_PLAN §9.1)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    player_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    team_id: str = Field(min_length=1)
+    position: str = Field(min_length=1)
+    age: int = Field(ge=15, le=50)
+    overall: int = Field(ge=1, le=99)
+    pace: int = Field(ge=1, le=99)
+    shooting: int = Field(ge=1, le=99)
+    passing: int = Field(ge=1, le=99)
+    dribbling: int = Field(ge=1, le=99)
+    defending: int = Field(ge=1, le=99)
+    physical: int = Field(ge=1, le=99)
+    copa_goals: int = Field(default=0, ge=0)
+    copa_assists: int = Field(default=0, ge=0)
+    copa_matches: int = Field(default=0, ge=0)
+    source: str = "community"
+    snapshot_id: str = Field(min_length=1)
+
+
 class ReportType(StrEnum):
     """Tipo de relato informado pelo usuário."""
 

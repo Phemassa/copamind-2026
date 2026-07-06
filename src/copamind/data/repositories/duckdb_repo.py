@@ -17,6 +17,7 @@ import duckdb
 from copamind.data.schemas import (
     Match,
     MatchStatus,
+    PlayerRating,
     PoolPrediction,
     PoolResult,
     Prediction,
@@ -102,6 +103,26 @@ CREATE TABLE IF NOT EXISTS pool_results (
     home_score INTEGER NOT NULL,
     away_score INTEGER NOT NULL,
     recorded_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS player_ratings (
+    player_id VARCHAR PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    team_id VARCHAR NOT NULL,
+    position VARCHAR NOT NULL,
+    age INTEGER NOT NULL,
+    overall INTEGER NOT NULL,
+    pace INTEGER NOT NULL,
+    shooting INTEGER NOT NULL,
+    passing INTEGER NOT NULL,
+    dribbling INTEGER NOT NULL,
+    defending INTEGER NOT NULL,
+    physical INTEGER NOT NULL,
+    copa_goals INTEGER NOT NULL DEFAULT 0,
+    copa_assists INTEGER NOT NULL DEFAULT 0,
+    copa_matches INTEGER NOT NULL DEFAULT 0,
+    source VARCHAR NOT NULL,
+    snapshot_id VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS user_reports (
@@ -531,16 +552,62 @@ class DuckDBRepository:
         )
         return [_row_to_user_report(row) for row in _rows_to_dicts(cursor)]
 
+    # -- Player ratings ------------------------------------------------------
+    def upsert_players(self, players: list[PlayerRating]) -> int:
+        """Insere ou substitui ratings de jogadores. Retorna a quantidade."""
+        cols = (
+            "player_id", "name", "team_id", "position", "age",
+            "overall", "pace", "shooting", "passing", "dribbling",
+            "defending", "physical", "copa_goals", "copa_assists",
+            "copa_matches", "source", "snapshot_id",
+        )
+        sql = (
+            f"INSERT OR REPLACE INTO player_ratings ({', '.join(cols)}) "
+            f"VALUES ({_placeholders(len(cols))})"
+        )
+        rows = [
+            [p.player_id, p.name, p.team_id, p.position, p.age,
+             p.overall, p.pace, p.shooting, p.passing, p.dribbling,
+             p.defending, p.physical, p.copa_goals, p.copa_assists,
+             p.copa_matches, p.source, p.snapshot_id]
+            for p in players
+        ]
+        self._con.executemany(sql, rows)
+        return len(rows)
+
+    def list_players(
+        self,
+        team_id: str | None = None,
+        position: str | None = None,
+        limit: int = 200,
+    ) -> list[PlayerRating]:
+        """Lista jogadores com filtros opcionais."""
+        sql = "SELECT * FROM player_ratings WHERE 1=1"
+        params: list[object] = []
+        if team_id:
+            sql += " AND team_id = ?"
+            params.append(team_id)
+        if position:
+            sql += " AND position = ?"
+            params.append(position)
+        sql += " ORDER BY overall DESC LIMIT ?"
+        params.append(limit)
+        cursor = self._con.execute(sql, params)
+        return [PlayerRating(**row) for row in _rows_to_dicts(cursor)]
+
+    def top_scorers(self, limit: int = 20) -> list[PlayerRating]:
+        """Top artilheiros da Copa."""
+        cursor = self._con.execute(
+            "SELECT * FROM player_ratings ORDER BY copa_goals DESC, copa_assists DESC LIMIT ?",
+            [limit],
+        )
+        return [PlayerRating(**row) for row in _rows_to_dicts(cursor)]
+
     def count(self, table: str) -> int:
         """Conta linhas de uma tabela conhecida."""
         known = {
-            "teams",
-            "matches",
-            "snapshots",
-            "predictions",
-            "pool_predictions",
-            "pool_results",
-            "user_reports",
+            "teams", "matches", "snapshots", "predictions",
+            "pool_predictions", "pool_results", "user_reports", "player_ratings",
         }
         if table not in known:
             raise ValueError(f"tabela desconhecida: {table}")

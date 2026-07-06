@@ -16,6 +16,7 @@ from copamind.cli.doctor import CheckStatus, has_failures, run_diagnostics
 from copamind.core.config import get_settings
 from copamind.data.ingestion.service import (
     ingest_matches_file,
+    ingest_players,
     ingest_samples,
     ingest_teams_file,
     ingest_worldcup,
@@ -161,6 +162,17 @@ def ingest_worldcup_cmd(
         f"[green]Ingestão worldcup concluída.[/] Times: {result.teams}, "
         f"Partidas: {result.matches}, Snapshot: {result.snapshot_id}"
     )
+
+
+@ingest_app.command("players")
+def ingest_players_cmd(
+    path: str = typer.Argument(..., help="Arquivo JSON com ratings de jogadores."),
+) -> None:
+    """Ingere ratings de jogadores (estilo EA FC) de um arquivo JSON."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        count = ingest_players(repo, path)
+    console.print(f"[green]Ingeridos {count} jogadores.[/]")
 
 
 @ingest_app.command("user-report")

@@ -20,6 +20,8 @@ from copamind.simulation.service import build_default_config, run_simulation
 from copamind.ui.i18n import DEFAULT_LOCALE, Translator, available_locales
 from copamind.ui.tournament import build_bracket_html
 
+_POS_ORDER = {"GK": 0, "CB": 1, "RB": 2, "LB": 3, "CDM": 4, "CM": 5, "CAM": 6, "RW": 7, "LW": 8, "CF": 9, "ST": 10}
+
 
 @st.cache_resource
 def _repo_path() -> str:
@@ -68,6 +70,7 @@ def main() -> None:
             [
                 tr.t("nav_home"),
                 "🏆 Copa 2026",
+                "📊 Estatísticas",
                 tr.t("nav_ranking"),
                 tr.t("nav_team"),
                 tr.t("nav_predict"),
@@ -80,6 +83,8 @@ def main() -> None:
             _render_home(repo, tr)
         elif page == "🏆 Copa 2026":
             _render_copa(repo, tr, locale)
+        elif page == "📊 Estatísticas":
+            _render_stats(repo, tr, locale)
         elif page == tr.t("nav_ranking"):
             _render_ranking(repo, tr, locale)
         elif page == tr.t("nav_team"):
@@ -192,6 +197,137 @@ def _render_group_standings(repo: DuckDBRepository, locale: str) -> None:
                     rows.append({"": f"{emoji} {name}", "J": games, "Pts": pts, "SG": gf - ga})
                 rows.sort(key=lambda r: (-r["Pts"], -r["SG"]))
                 st.dataframe(pd.DataFrame(rows).set_index(""), use_container_width=True, height=178)
+
+
+# ── Estatísticas de jogadores e seleções ──────────────────────────────────────
+def _render_stats(repo: DuckDBRepository, tr: Translator, locale: str) -> None:
+    st.subheader("📊 Estatísticas — Jogadores & Seleções")
+    n_players = repo.count("player_ratings")
+    if n_players == 0:
+        st.info("Sem dados de jogadores. Execute: `copamind ingest players data/samples/copa2026_players.json`")
+        if st.button("▶ Carregar jogadores agora"):
+            from copamind.data.ingestion.service import ingest_players
+            count = ingest_players(repo, "data/samples/copa2026_players.json")
+            st.success(f"{count} jogadores carregados!")
+            st.rerun()
+        return
+
+    tab1, tab2, tab3, tab4 = st.tabs(["🥇 Artilharia", "⭐ Melhores ratings", "🔍 Por seleção", "⚖️ Comparar"])
+
+    with tab1:
+        st.markdown("### 🥇 Artilheiros da Copa 2026")
+        scorers = repo.top_scorers(limit=20)
+        rows = []
+        for p in scorers:
+            t_info = TEAMS.get(p.team_id, {})
+            flag = t_info.get("emoji", "🏳")
+            rows.append({
+                "": f"{flag} {t_info.get('name_pt' if locale == 'pt-BR' else 'name_en', p.team_id)}",
+                "Jogador": p.name,
+                "Pos": p.position,
+                "⚽ Gols": p.copa_goals,
+                "🎯 Assist": p.copa_assists,
+                "🎮 Jogos": p.copa_matches,
+                "OVR": p.overall,
+            })
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    with tab2:
+        st.markdown("### ⭐ Top 20 — Rating Geral (EA FC)")
+        top = repo.list_players(limit=20)
+        rows = []
+        for p in top:
+            t_info = TEAMS.get(p.team_id, {})
+            flag = t_info.get("emoji", "🏳")
+            rows.append({
+                "OVR": p.overall,
+                "": f"{flag}",
+                "Jogador": p.name,
+                "Pos": p.position,
+                "Seleção": t_info.get("name_pt" if locale == "pt-BR" else "name_en", p.team_id),
+                "Idade": p.age,
+                "PAC": p.pace,
+                "SHO": p.shooting,
+                "PAS": p.passing,
+                "DRI": p.dribbling,
+                "DEF": p.defending,
+                "PHY": p.physical,
+            })
+        if rows:
+            df = pd.DataFrame(rows).sort_values("OVR", ascending=False)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+    with tab3:
+        st.markdown("### 🔍 Elenco por seleção")
+        teams = repo.list_teams()
+        options: dict[str, str] = {}
+        for t in teams:
+            t_info = TEAMS.get(t.team_id, {})
+            label = f"{t_info.get('emoji', '🏳')} {t_info.get('name_pt' if locale == 'pt-BR' else 'name_en', t.name)}" if t_info else t.name
+            options[label] = t.team_id
+        selected = st.selectbox("Seleção", sorted(options))
+        team_id = options[selected]
+        players = repo.list_players(team_id=team_id)
+        if not players:
+            st.info("Sem jogadores cadastrados para esta seleção.")
+        else:
+            players_sorted = sorted(players, key=lambda p: _POS_ORDER.get(p.position, 99))
+            rows = [{"Pos": p.position, "Jogador": p.name, "Idade": p.age, "OVR": p.overall,
+                     "PAC": p.pace, "SHO": p.shooting, "PAS": p.passing,
+                     "DRI": p.dribbling, "DEF": p.defending, "PHY": p.physical,
+                     "⚽": p.copa_goals, "🎯": p.copa_assists} for p in players_sorted]
+            df = pd.DataFrame(rows)
+            # rating bar colorida
+            st.dataframe(
+                df.style.background_gradient(subset=["OVR"], cmap="RdYlGn", vmin=60, vmax=99),
+                use_container_width=True, hide_index=True,
+            )
+            # radar estilo EA
+            if len(players_sorted) > 0:
+                best = max(players_sorted, key=lambda p: p.overall)
+                _player_card(best)
+
+    with tab4:
+        st.markdown("### ⚖️ Comparar dois jogadores")
+        all_players = repo.list_players()
+        if len(all_players) < 2:
+            st.info("Sem dados suficientes.")
+        else:
+            names = sorted({p.name for p in all_players})
+            c1, c2 = st.columns(2)
+            p1_name = c1.selectbox("Jogador 1", names, index=0)
+            p2_name = c2.selectbox("Jogador 2", names, index=min(1, len(names) - 1))
+            p1 = next((p for p in all_players if p.name == p1_name), None)
+            p2 = next((p for p in all_players if p.name == p2_name), None)
+            if p1 and p2:
+                attrs = ["overall", "pace", "shooting", "passing", "dribbling", "defending", "physical"]
+                labels = ["OVR", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"]
+                df = pd.DataFrame({
+                    "Atributo": labels,
+                    p1.name: [getattr(p1, a) for a in attrs],
+                    p2.name: [getattr(p2, a) for a in attrs],
+                }).set_index("Atributo")
+                st.dataframe(df, use_container_width=True)
+                st.bar_chart(df)
+
+
+def _player_card(p: object) -> None:
+    """Exibe um mini-card estilo EA FC para um jogador."""
+    t_info = TEAMS.get(p.team_id, {})  # type: ignore[attr-defined]
+    flag = t_info.get("emoji", "🏳")
+    with st.container(border=True):
+        cols = st.columns([1, 3, 1, 1, 1, 1, 1, 1])
+        cols[0].markdown(f"### {p.overall}")  # type: ignore[attr-defined]
+        cols[1].markdown(f"**{p.name}** {flag}  \n`{p.position}` · {p.age} anos")  # type: ignore[attr-defined]
+        for col, label, attr in zip(
+            cols[2:], ["PAC", "SHO", "PAS", "DRI", "DEF", "PHY"],
+            ["pace", "shooting", "passing", "dribbling", "defending", "physical"],
+            strict=True,
+        ):
+            val = getattr(p, attr)  # type: ignore[attr-defined]
+            color = "#19e3c2" if val >= 85 else ("#2f6bff" if val >= 75 else "#8fa3bd")
+            col.markdown(f"<span style='color:{color};font-size:11px'>{label}</span><br><strong>{val}</strong>", unsafe_allow_html=True)
 
 
 # ── Chances de título ─────────────────────────────────────────────────────────

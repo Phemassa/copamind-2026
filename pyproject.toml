@@ -81,7 +81,7 @@ src = ["src", "tests"]
 [tool.ruff.lint.extend-per-file-ignores]
 "apps/*" = ["E501"]
 "src/copamind/ui/*" = ["E501"]
-"scripts/bootstrap_copa2026.py" = ["E501", "E731"]
+"scripts/*" = ["E501", "E731"]
 
 [tool.ruff.lint]
 select = [

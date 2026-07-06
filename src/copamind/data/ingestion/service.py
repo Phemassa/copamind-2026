@@ -13,7 +13,7 @@ from copamind.core.logging import get_logger
 from copamind.data.connectors.openfootball import read_worldcup_file
 from copamind.data.ingestion.loaders import load_matches, load_teams
 from copamind.data.repositories import DuckDBRepository
-from copamind.data.schemas import Snapshot
+from copamind.data.schemas import PlayerRating, Snapshot
 
 logger = get_logger(__name__)
 
@@ -86,3 +86,18 @@ def ingest_worldcup(
     n_matches = repo.upsert_matches(matches)
     logger.info("worldcup_ingested", teams=n_teams, matches=n_matches, path=str(path))
     return IngestionResult(teams=n_teams, matches=n_matches, snapshot_id=snapshot_id)
+
+
+def ingest_players(repo: DuckDBRepository, path: str | Path) -> int:
+    """Ingere ratings de jogadores de um arquivo JSON.
+
+    O arquivo deve conter uma lista de objetos compatíveis com PlayerRating.
+    """
+    import json
+
+    repo.create_schema()
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    players = [PlayerRating.model_validate(p) for p in raw]
+    count = repo.upsert_players(players)
+    logger.info("players_ingested", count=count, path=str(path))
+    return count
