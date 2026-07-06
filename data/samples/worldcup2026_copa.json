@@ -1,0 +1,1643 @@
+{
+  "name": "Copa do Mundo 2026",
+  "rounds": [
+    {
+      "name": "Grupo A - Rodada 1",
+      "matches": [
+        {
+          "num": 1,
+          "date": "2026-06-11",
+          "group": "Group A",
+          "team1": {
+            "name": "México",
+            "code": "MEX"
+          },
+          "team2": {
+            "name": "África do Sul",
+            "code": "RSA"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 2,
+          "date": "2026-06-11",
+          "group": "Group A",
+          "team1": {
+            "name": "Coreia do Sul",
+            "code": "KOR"
+          },
+          "team2": {
+            "name": "Tchéquia",
+            "code": "CZE"
+          },
+          "score1": 2,
+          "score2": 1
+        }
+      ]
+    },
+    {
+      "name": "Grupo B/D - Rodada 1",
+      "matches": [
+        {
+          "num": 3,
+          "date": "2026-06-12",
+          "group": "Group B",
+          "team1": {
+            "name": "Canadá",
+            "code": "CAN"
+          },
+          "team2": {
+            "name": "Bósnia e Herzegovina",
+            "code": "BIH"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 4,
+          "date": "2026-06-12",
+          "group": "Group D",
+          "team1": {
+            "name": "Estados Unidos",
+            "code": "USA"
+          },
+          "team2": {
+            "name": "Paraguai",
+            "code": "PAR"
+          },
+          "score1": 4,
+          "score2": 1
+        }
+      ]
+    },
+    {
+      "name": "Grupo B/C - Rodada 1",
+      "matches": [
+        {
+          "num": 5,
+          "date": "2026-06-13",
+          "group": "Group B",
+          "team1": {
+            "name": "Catar",
+            "code": "QAT"
+          },
+          "team2": {
+            "name": "Suíça",
+            "code": "SUI"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 6,
+          "date": "2026-06-13",
+          "group": "Group C",
+          "team1": {
+            "name": "Brasil",
+            "code": "BRA"
+          },
+          "team2": {
+            "name": "Marrocos",
+            "code": "MAR"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 7,
+          "date": "2026-06-13",
+          "group": "Group C",
+          "team1": {
+            "name": "Haiti",
+            "code": "HAI"
+          },
+          "team2": {
+            "name": "Escócia",
+            "code": "SCO"
+          },
+          "score1": 0,
+          "score2": 1
+        }
+      ]
+    },
+    {
+      "name": "Grupo D/E/F - Rodada 1",
+      "matches": [
+        {
+          "num": 8,
+          "date": "2026-06-14",
+          "group": "Group D",
+          "team1": {
+            "name": "Austrália",
+            "code": "AUS"
+          },
+          "team2": {
+            "name": "Turquia",
+            "code": "TUR"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 9,
+          "date": "2026-06-14",
+          "group": "Group E",
+          "team1": {
+            "name": "Alemanha",
+            "code": "GER"
+          },
+          "team2": {
+            "name": "Curaçao",
+            "code": "CUW"
+          },
+          "score1": 7,
+          "score2": 1
+        },
+        {
+          "num": 10,
+          "date": "2026-06-14",
+          "group": "Group F",
+          "team1": {
+            "name": "Países Baixos",
+            "code": "NED"
+          },
+          "team2": {
+            "name": "Japão",
+            "code": "JPN"
+          },
+          "score1": 2,
+          "score2": 2
+        },
+        {
+          "num": 11,
+          "date": "2026-06-14",
+          "group": "Group E",
+          "team1": {
+            "name": "Costa do Marfim",
+            "code": "CIV"
+          },
+          "team2": {
+            "name": "Equador",
+            "code": "ECU"
+          },
+          "score1": 1,
+          "score2": 0
+        },
+        {
+          "num": 12,
+          "date": "2026-06-14",
+          "group": "Group F",
+          "team1": {
+            "name": "Suécia",
+            "code": "SWE"
+          },
+          "team2": {
+            "name": "Tunísia",
+            "code": "TUN"
+          },
+          "score1": 5,
+          "score2": 1
+        }
+      ]
+    },
+    {
+      "name": "Grupo G/H - Rodada 1",
+      "matches": [
+        {
+          "num": 13,
+          "date": "2026-06-15",
+          "group": "Group H",
+          "team1": {
+            "name": "Espanha",
+            "code": "ESP"
+          },
+          "team2": {
+            "name": "Cabo Verde",
+            "code": "CPV"
+          },
+          "score1": 0,
+          "score2": 0
+        },
+        {
+          "num": 14,
+          "date": "2026-06-15",
+          "group": "Group G",
+          "team1": {
+            "name": "Bélgica",
+            "code": "BEL"
+          },
+          "team2": {
+            "name": "Egito",
+            "code": "EGY"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 15,
+          "date": "2026-06-15",
+          "group": "Group H",
+          "team1": {
+            "name": "Arábia Saudita",
+            "code": "KSA"
+          },
+          "team2": {
+            "name": "Uruguai",
+            "code": "URU"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 16,
+          "date": "2026-06-15",
+          "group": "Group G",
+          "team1": {
+            "name": "Irã",
+            "code": "IRN"
+          },
+          "team2": {
+            "name": "Nova Zelândia",
+            "code": "NZL"
+          },
+          "score1": 2,
+          "score2": 2
+        }
+      ]
+    },
+    {
+      "name": "Grupo I/J - Rodada 1",
+      "matches": [
+        {
+          "num": 17,
+          "date": "2026-06-16",
+          "group": "Group I",
+          "team1": {
+            "name": "França",
+            "code": "FRA"
+          },
+          "team2": {
+            "name": "Senegal",
+            "code": "SEN"
+          },
+          "score1": 3,
+          "score2": 1
+        },
+        {
+          "num": 18,
+          "date": "2026-06-16",
+          "group": "Group I",
+          "team1": {
+            "name": "Iraque",
+            "code": "IRQ"
+          },
+          "team2": {
+            "name": "Noruega",
+            "code": "NOR"
+          },
+          "score1": 1,
+          "score2": 4
+        },
+        {
+          "num": 19,
+          "date": "2026-06-16",
+          "group": "Group J",
+          "team1": {
+            "name": "Argentina",
+            "code": "ARG"
+          },
+          "team2": {
+            "name": "Argélia",
+            "code": "ALG"
+          },
+          "score1": 3,
+          "score2": 0
+        }
+      ]
+    },
+    {
+      "name": "Grupo J/K/L - Rodada 1",
+      "matches": [
+        {
+          "num": 20,
+          "date": "2026-06-17",
+          "group": "Group J",
+          "team1": {
+            "name": "Áustria",
+            "code": "AUT"
+          },
+          "team2": {
+            "name": "Jordânia",
+            "code": "JOR"
+          },
+          "score1": 3,
+          "score2": 1
+        },
+        {
+          "num": 21,
+          "date": "2026-06-17",
+          "group": "Group K",
+          "team1": {
+            "name": "Portugal",
+            "code": "POR"
+          },
+          "team2": {
+            "name": "RD Congo",
+            "code": "COD"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 22,
+          "date": "2026-06-17",
+          "group": "Group L",
+          "team1": {
+            "name": "Inglaterra",
+            "code": "ENG"
+          },
+          "team2": {
+            "name": "Croácia",
+            "code": "CRO"
+          },
+          "score1": 4,
+          "score2": 2
+        },
+        {
+          "num": 23,
+          "date": "2026-06-17",
+          "group": "Group L",
+          "team1": {
+            "name": "Gana",
+            "code": "GHA"
+          },
+          "team2": {
+            "name": "Panamá",
+            "code": "PAN"
+          },
+          "score1": 1,
+          "score2": 0
+        },
+        {
+          "num": 24,
+          "date": "2026-06-17",
+          "group": "Group K",
+          "team1": {
+            "name": "Uzbequistão",
+            "code": "UZB"
+          },
+          "team2": {
+            "name": "Colômbia",
+            "code": "COL"
+          },
+          "score1": 1,
+          "score2": 3
+        }
+      ]
+    },
+    {
+      "name": "Grupo A/B - Rodada 2",
+      "matches": [
+        {
+          "num": 25,
+          "date": "2026-06-18",
+          "group": "Group A",
+          "team1": {
+            "name": "Tchéquia",
+            "code": "CZE"
+          },
+          "team2": {
+            "name": "África do Sul",
+            "code": "RSA"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 26,
+          "date": "2026-06-18",
+          "group": "Group B",
+          "team1": {
+            "name": "Suíça",
+            "code": "SUI"
+          },
+          "team2": {
+            "name": "Bósnia e Herzegovina",
+            "code": "BIH"
+          },
+          "score1": 4,
+          "score2": 1
+        },
+        {
+          "num": 27,
+          "date": "2026-06-18",
+          "group": "Group B",
+          "team1": {
+            "name": "Canadá",
+            "code": "CAN"
+          },
+          "team2": {
+            "name": "Catar",
+            "code": "QAT"
+          },
+          "score1": 6,
+          "score2": 0
+        },
+        {
+          "num": 28,
+          "date": "2026-06-18",
+          "group": "Group A",
+          "team1": {
+            "name": "México",
+            "code": "MEX"
+          },
+          "team2": {
+            "name": "Coreia do Sul",
+            "code": "KOR"
+          },
+          "score1": 1,
+          "score2": 0
+        }
+      ]
+    },
+    {
+      "name": "Grupo C/D - Rodada 2",
+      "matches": [
+        {
+          "num": 29,
+          "date": "2026-06-19",
+          "group": "Group D",
+          "team1": {
+            "name": "Estados Unidos",
+            "code": "USA"
+          },
+          "team2": {
+            "name": "Austrália",
+            "code": "AUS"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 30,
+          "date": "2026-06-19",
+          "group": "Group C",
+          "team1": {
+            "name": "Escócia",
+            "code": "SCO"
+          },
+          "team2": {
+            "name": "Marrocos",
+            "code": "MAR"
+          },
+          "score1": 0,
+          "score2": 1
+        },
+        {
+          "num": 31,
+          "date": "2026-06-19",
+          "group": "Group C",
+          "team1": {
+            "name": "Brasil",
+            "code": "BRA"
+          },
+          "team2": {
+            "name": "Haiti",
+            "code": "HAI"
+          },
+          "score1": 3,
+          "score2": 0
+        },
+        {
+          "num": 32,
+          "date": "2026-06-19",
+          "group": "Group D",
+          "team1": {
+            "name": "Turquia",
+            "code": "TUR"
+          },
+          "team2": {
+            "name": "Paraguai",
+            "code": "PAR"
+          },
+          "score1": 0,
+          "score2": 1
+        }
+      ]
+    },
+    {
+      "name": "Grupo E/F - Rodada 2",
+      "matches": [
+        {
+          "num": 33,
+          "date": "2026-06-20",
+          "group": "Group F",
+          "team1": {
+            "name": "Países Baixos",
+            "code": "NED"
+          },
+          "team2": {
+            "name": "Suécia",
+            "code": "SWE"
+          },
+          "score1": 5,
+          "score2": 1
+        },
+        {
+          "num": 34,
+          "date": "2026-06-20",
+          "group": "Group E",
+          "team1": {
+            "name": "Alemanha",
+            "code": "GER"
+          },
+          "team2": {
+            "name": "Costa do Marfim",
+            "code": "CIV"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 35,
+          "date": "2026-06-20",
+          "group": "Group E",
+          "team1": {
+            "name": "Equador",
+            "code": "ECU"
+          },
+          "team2": {
+            "name": "Curaçao",
+            "code": "CUW"
+          },
+          "score1": 0,
+          "score2": 0
+        }
+      ]
+    },
+    {
+      "name": "Grupo F/G/H - Rodada 2",
+      "matches": [
+        {
+          "num": 36,
+          "date": "2026-06-21",
+          "group": "Group F",
+          "team1": {
+            "name": "Tunísia",
+            "code": "TUN"
+          },
+          "team2": {
+            "name": "Japão",
+            "code": "JPN"
+          },
+          "score1": 0,
+          "score2": 4
+        },
+        {
+          "num": 37,
+          "date": "2026-06-21",
+          "group": "Group H",
+          "team1": {
+            "name": "Espanha",
+            "code": "ESP"
+          },
+          "team2": {
+            "name": "Arábia Saudita",
+            "code": "KSA"
+          },
+          "score1": 4,
+          "score2": 0
+        },
+        {
+          "num": 38,
+          "date": "2026-06-21",
+          "group": "Group G",
+          "team1": {
+            "name": "Bélgica",
+            "code": "BEL"
+          },
+          "team2": {
+            "name": "Irã",
+            "code": "IRN"
+          },
+          "score1": 0,
+          "score2": 0
+        },
+        {
+          "num": 39,
+          "date": "2026-06-21",
+          "group": "Group H",
+          "team1": {
+            "name": "Uruguai",
+            "code": "URU"
+          },
+          "team2": {
+            "name": "Cabo Verde",
+            "code": "CPV"
+          },
+          "score1": 2,
+          "score2": 2
+        },
+        {
+          "num": 40,
+          "date": "2026-06-21",
+          "group": "Group G",
+          "team1": {
+            "name": "Nova Zelândia",
+            "code": "NZL"
+          },
+          "team2": {
+            "name": "Egito",
+            "code": "EGY"
+          },
+          "score1": 1,
+          "score2": 3
+        }
+      ]
+    },
+    {
+      "name": "Grupo I/J - Rodada 2",
+      "matches": [
+        {
+          "num": 41,
+          "date": "2026-06-22",
+          "group": "Group J",
+          "team1": {
+            "name": "Argentina",
+            "code": "ARG"
+          },
+          "team2": {
+            "name": "Áustria",
+            "code": "AUT"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 42,
+          "date": "2026-06-22",
+          "group": "Group I",
+          "team1": {
+            "name": "França",
+            "code": "FRA"
+          },
+          "team2": {
+            "name": "Iraque",
+            "code": "IRQ"
+          },
+          "score1": 3,
+          "score2": 0
+        },
+        {
+          "num": 43,
+          "date": "2026-06-22",
+          "group": "Group I",
+          "team1": {
+            "name": "Noruega",
+            "code": "NOR"
+          },
+          "team2": {
+            "name": "Senegal",
+            "code": "SEN"
+          },
+          "score1": 3,
+          "score2": 2
+        },
+        {
+          "num": 44,
+          "date": "2026-06-22",
+          "group": "Group J",
+          "team1": {
+            "name": "Jordânia",
+            "code": "JOR"
+          },
+          "team2": {
+            "name": "Argélia",
+            "code": "ALG"
+          },
+          "score1": 1,
+          "score2": 2
+        }
+      ]
+    },
+    {
+      "name": "Grupo K/L - Rodada 2",
+      "matches": [
+        {
+          "num": 45,
+          "date": "2026-06-23",
+          "group": "Group K",
+          "team1": {
+            "name": "Portugal",
+            "code": "POR"
+          },
+          "team2": {
+            "name": "Uzbequistão",
+            "code": "UZB"
+          },
+          "score1": 5,
+          "score2": 0
+        },
+        {
+          "num": 46,
+          "date": "2026-06-23",
+          "group": "Group L",
+          "team1": {
+            "name": "Inglaterra",
+            "code": "ENG"
+          },
+          "team2": {
+            "name": "Gana",
+            "code": "GHA"
+          },
+          "score1": 0,
+          "score2": 0
+        },
+        {
+          "num": 47,
+          "date": "2026-06-23",
+          "group": "Group L",
+          "team1": {
+            "name": "Panamá",
+            "code": "PAN"
+          },
+          "team2": {
+            "name": "Croácia",
+            "code": "CRO"
+          },
+          "score1": 0,
+          "score2": 1
+        },
+        {
+          "num": 48,
+          "date": "2026-06-23",
+          "group": "Group K",
+          "team1": {
+            "name": "Colômbia",
+            "code": "COL"
+          },
+          "team2": {
+            "name": "RD Congo",
+            "code": "COD"
+          },
+          "score1": 1,
+          "score2": 0
+        }
+      ]
+    },
+    {
+      "name": "Grupo A/B/C - Rodada 3",
+      "matches": [
+        {
+          "num": 49,
+          "date": "2026-06-24",
+          "group": "Group B",
+          "team1": {
+            "name": "Suíça",
+            "code": "SUI"
+          },
+          "team2": {
+            "name": "Canadá",
+            "code": "CAN"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 50,
+          "date": "2026-06-24",
+          "group": "Group B",
+          "team1": {
+            "name": "Bósnia e Herzegovina",
+            "code": "BIH"
+          },
+          "team2": {
+            "name": "Catar",
+            "code": "QAT"
+          },
+          "score1": 3,
+          "score2": 1
+        },
+        {
+          "num": 51,
+          "date": "2026-06-24",
+          "group": "Group C",
+          "team1": {
+            "name": "Marrocos",
+            "code": "MAR"
+          },
+          "team2": {
+            "name": "Haiti",
+            "code": "HAI"
+          },
+          "score1": 4,
+          "score2": 2
+        },
+        {
+          "num": 52,
+          "date": "2026-06-24",
+          "group": "Group C",
+          "team1": {
+            "name": "Escócia",
+            "code": "SCO"
+          },
+          "team2": {
+            "name": "Brasil",
+            "code": "BRA"
+          },
+          "score1": 0,
+          "score2": 3
+        },
+        {
+          "num": 53,
+          "date": "2026-06-24",
+          "group": "Group A",
+          "team1": {
+            "name": "África do Sul",
+            "code": "RSA"
+          },
+          "team2": {
+            "name": "Coreia do Sul",
+            "code": "KOR"
+          },
+          "score1": 1,
+          "score2": 0
+        },
+        {
+          "num": 54,
+          "date": "2026-06-24",
+          "group": "Group A",
+          "team1": {
+            "name": "Tchéquia",
+            "code": "CZE"
+          },
+          "team2": {
+            "name": "México",
+            "code": "MEX"
+          },
+          "score1": 0,
+          "score2": 3
+        }
+      ]
+    },
+    {
+      "name": "Grupo D/E/F - Rodada 3",
+      "matches": [
+        {
+          "num": 55,
+          "date": "2026-06-25",
+          "group": "Group E",
+          "team1": {
+            "name": "Curaçao",
+            "code": "CUW"
+          },
+          "team2": {
+            "name": "Costa do Marfim",
+            "code": "CIV"
+          },
+          "score1": 0,
+          "score2": 2
+        },
+        {
+          "num": 56,
+          "date": "2026-06-25",
+          "group": "Group E",
+          "team1": {
+            "name": "Equador",
+            "code": "ECU"
+          },
+          "team2": {
+            "name": "Alemanha",
+            "code": "GER"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 57,
+          "date": "2026-06-25",
+          "group": "Group F",
+          "team1": {
+            "name": "Tunísia",
+            "code": "TUN"
+          },
+          "team2": {
+            "name": "Países Baixos",
+            "code": "NED"
+          },
+          "score1": 1,
+          "score2": 3
+        },
+        {
+          "num": 58,
+          "date": "2026-06-25",
+          "group": "Group F",
+          "team1": {
+            "name": "Japão",
+            "code": "JPN"
+          },
+          "team2": {
+            "name": "Suécia",
+            "code": "SWE"
+          },
+          "score1": 1,
+          "score2": 1
+        },
+        {
+          "num": 59,
+          "date": "2026-06-25",
+          "group": "Group D",
+          "team1": {
+            "name": "Turquia",
+            "code": "TUR"
+          },
+          "team2": {
+            "name": "Estados Unidos",
+            "code": "USA"
+          },
+          "score1": 3,
+          "score2": 2
+        },
+        {
+          "num": 60,
+          "date": "2026-06-25",
+          "group": "Group D",
+          "team1": {
+            "name": "Paraguai",
+            "code": "PAR"
+          },
+          "team2": {
+            "name": "Austrália",
+            "code": "AUS"
+          },
+          "score1": 0,
+          "score2": 0
+        }
+      ]
+    },
+    {
+      "name": "Grupo G/H/I - Rodada 3",
+      "matches": [
+        {
+          "num": 61,
+          "date": "2026-06-26",
+          "group": "Group I",
+          "team1": {
+            "name": "Noruega",
+            "code": "NOR"
+          },
+          "team2": {
+            "name": "França",
+            "code": "FRA"
+          },
+          "score1": 1,
+          "score2": 4
+        },
+        {
+          "num": 62,
+          "date": "2026-06-26",
+          "group": "Group I",
+          "team1": {
+            "name": "Senegal",
+            "code": "SEN"
+          },
+          "team2": {
+            "name": "Iraque",
+            "code": "IRQ"
+          },
+          "score1": 5,
+          "score2": 0
+        },
+        {
+          "num": 63,
+          "date": "2026-06-26",
+          "group": "Group H",
+          "team1": {
+            "name": "Cabo Verde",
+            "code": "CPV"
+          },
+          "team2": {
+            "name": "Arábia Saudita",
+            "code": "KSA"
+          },
+          "score1": 0,
+          "score2": 0
+        },
+        {
+          "num": 64,
+          "date": "2026-06-26",
+          "group": "Group H",
+          "team1": {
+            "name": "Uruguai",
+            "code": "URU"
+          },
+          "team2": {
+            "name": "Espanha",
+            "code": "ESP"
+          },
+          "score1": 0,
+          "score2": 1
+        },
+        {
+          "num": 65,
+          "date": "2026-06-26",
+          "group": "Group G",
+          "team1": {
+            "name": "Nova Zelândia",
+            "code": "NZL"
+          },
+          "team2": {
+            "name": "Bélgica",
+            "code": "BEL"
+          },
+          "score1": 1,
+          "score2": 5
+        },
+        {
+          "num": 66,
+          "date": "2026-06-26",
+          "group": "Group G",
+          "team1": {
+            "name": "Egito",
+            "code": "EGY"
+          },
+          "team2": {
+            "name": "Irã",
+            "code": "IRN"
+          },
+          "score1": 1,
+          "score2": 1
+        }
+      ]
+    },
+    {
+      "name": "Grupo J/K/L - Rodada 3",
+      "matches": [
+        {
+          "num": 67,
+          "date": "2026-06-27",
+          "group": "Group L",
+          "team1": {
+            "name": "Panamá",
+            "code": "PAN"
+          },
+          "team2": {
+            "name": "Inglaterra",
+            "code": "ENG"
+          },
+          "score1": 0,
+          "score2": 2
+        },
+        {
+          "num": 68,
+          "date": "2026-06-27",
+          "group": "Group L",
+          "team1": {
+            "name": "Croácia",
+            "code": "CRO"
+          },
+          "team2": {
+            "name": "Gana",
+            "code": "GHA"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 69,
+          "date": "2026-06-27",
+          "group": "Group K",
+          "team1": {
+            "name": "Colômbia",
+            "code": "COL"
+          },
+          "team2": {
+            "name": "Portugal",
+            "code": "POR"
+          },
+          "score1": 0,
+          "score2": 0
+        },
+        {
+          "num": 70,
+          "date": "2026-06-27",
+          "group": "Group K",
+          "team1": {
+            "name": "RD Congo",
+            "code": "COD"
+          },
+          "team2": {
+            "name": "Uzbequistão",
+            "code": "UZB"
+          },
+          "score1": 3,
+          "score2": 1
+        },
+        {
+          "num": 71,
+          "date": "2026-06-27",
+          "group": "Group J",
+          "team1": {
+            "name": "Argélia",
+            "code": "ALG"
+          },
+          "team2": {
+            "name": "Áustria",
+            "code": "AUT"
+          },
+          "score1": 3,
+          "score2": 3
+        },
+        {
+          "num": 72,
+          "date": "2026-06-27",
+          "group": "Group J",
+          "team1": {
+            "name": "Jordânia",
+            "code": "JOR"
+          },
+          "team2": {
+            "name": "Argentina",
+            "code": "ARG"
+          },
+          "score1": 1,
+          "score2": 3
+        }
+      ]
+    },
+    {
+      "name": "Segunda rodada (Round of 32)",
+      "matches": [
+        {
+          "num": 73,
+          "date": "2026-06-28",
+          "team1": {
+            "name": "África do Sul",
+            "code": "RSA"
+          },
+          "team2": {
+            "name": "Canadá",
+            "code": "CAN"
+          },
+          "score1": 0,
+          "score2": 1
+        },
+        {
+          "num": 74,
+          "date": "2026-06-29",
+          "team1": {
+            "name": "Brasil",
+            "code": "BRA"
+          },
+          "team2": {
+            "name": "Japão",
+            "code": "JPN"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 75,
+          "date": "2026-06-29",
+          "team1": {
+            "name": "Alemanha",
+            "code": "GER"
+          },
+          "team2": {
+            "name": "Paraguai",
+            "code": "PAR"
+          },
+          "score": {
+            "ft": [
+              1,
+              1
+            ],
+            "p": [
+              3,
+              4
+            ]
+          }
+        },
+        {
+          "num": 76,
+          "date": "2026-06-29",
+          "team1": {
+            "name": "Países Baixos",
+            "code": "NED"
+          },
+          "team2": {
+            "name": "Marrocos",
+            "code": "MAR"
+          },
+          "score": {
+            "ft": [
+              1,
+              1
+            ],
+            "p": [
+              2,
+              3
+            ]
+          }
+        },
+        {
+          "num": 77,
+          "date": "2026-06-30",
+          "team1": {
+            "name": "Costa do Marfim",
+            "code": "CIV"
+          },
+          "team2": {
+            "name": "Noruega",
+            "code": "NOR"
+          },
+          "score1": 1,
+          "score2": 2
+        },
+        {
+          "num": 78,
+          "date": "2026-06-30",
+          "team1": {
+            "name": "França",
+            "code": "FRA"
+          },
+          "team2": {
+            "name": "Suécia",
+            "code": "SWE"
+          },
+          "score1": 3,
+          "score2": 0
+        },
+        {
+          "num": 79,
+          "date": "2026-06-30",
+          "team1": {
+            "name": "México",
+            "code": "MEX"
+          },
+          "team2": {
+            "name": "Equador",
+            "code": "ECU"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 80,
+          "date": "2026-07-01",
+          "team1": {
+            "name": "Inglaterra",
+            "code": "ENG"
+          },
+          "team2": {
+            "name": "RD Congo",
+            "code": "COD"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 81,
+          "date": "2026-07-01",
+          "team1": {
+            "name": "Bélgica",
+            "code": "BEL"
+          },
+          "team2": {
+            "name": "Senegal",
+            "code": "SEN"
+          },
+          "score1": 3,
+          "score2": 2
+        },
+        {
+          "num": 82,
+          "date": "2026-07-01",
+          "team1": {
+            "name": "Estados Unidos",
+            "code": "USA"
+          },
+          "team2": {
+            "name": "Bósnia e Herzegovina",
+            "code": "BIH"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 83,
+          "date": "2026-07-02",
+          "team1": {
+            "name": "Espanha",
+            "code": "ESP"
+          },
+          "team2": {
+            "name": "Áustria",
+            "code": "AUT"
+          },
+          "score1": 3,
+          "score2": 0
+        },
+        {
+          "num": 84,
+          "date": "2026-07-02",
+          "team1": {
+            "name": "Portugal",
+            "code": "POR"
+          },
+          "team2": {
+            "name": "Croácia",
+            "code": "CRO"
+          },
+          "score1": 2,
+          "score2": 1
+        },
+        {
+          "num": 85,
+          "date": "2026-07-02",
+          "team1": {
+            "name": "Suíça",
+            "code": "SUI"
+          },
+          "team2": {
+            "name": "Argélia",
+            "code": "ALG"
+          },
+          "score1": 2,
+          "score2": 0
+        },
+        {
+          "num": 86,
+          "date": "2026-07-03",
+          "team1": {
+            "name": "Austrália",
+            "code": "AUS"
+          },
+          "team2": {
+            "name": "Egito",
+            "code": "EGY"
+          },
+          "score": {
+            "ft": [
+              1,
+              1
+            ],
+            "p": [
+              2,
+              4
+            ]
+          }
+        },
+        {
+          "num": 87,
+          "date": "2026-07-03",
+          "team1": {
+            "name": "Argentina",
+            "code": "ARG"
+          },
+          "team2": {
+            "name": "Cabo Verde",
+            "code": "CPV"
+          },
+          "score1": 3,
+          "score2": 2
+        },
+        {
+          "num": 88,
+          "date": "2026-07-03",
+          "team1": {
+            "name": "Colômbia",
+            "code": "COL"
+          },
+          "team2": {
+            "name": "Gana",
+            "code": "GHA"
+          },
+          "score1": 1,
+          "score2": 0
+        }
+      ]
+    },
+    {
+      "name": "Oitavas de final (Round of 16)",
+      "matches": [
+        {
+          "num": 89,
+          "date": "2026-07-04",
+          "team1": {
+            "name": "Canadá",
+            "code": "CAN"
+          },
+          "team2": {
+            "name": "Marrocos",
+            "code": "MAR"
+          },
+          "score1": 0,
+          "score2": 3
+        },
+        {
+          "num": 90,
+          "date": "2026-07-04",
+          "team1": {
+            "name": "Paraguai",
+            "code": "PAR"
+          },
+          "team2": {
+            "name": "França",
+            "code": "FRA"
+          },
+          "score1": 0,
+          "score2": 1
+        },
+        {
+          "num": 91,
+          "date": "2026-07-05",
+          "team1": {
+            "name": "Brasil",
+            "code": "BRA"
+          },
+          "team2": {
+            "name": "Noruega",
+            "code": "NOR"
+          },
+          "score1": 1,
+          "score2": 2
+        },
+        {
+          "num": 92,
+          "date": "2026-07-05",
+          "team1": {
+            "name": "México",
+            "code": "MEX"
+          },
+          "team2": {
+            "name": "Inglaterra",
+            "code": "ENG"
+          },
+          "score1": 2,
+          "score2": 3
+        },
+        {
+          "num": 93,
+          "date": "2026-07-06",
+          "team1": {
+            "name": "Portugal",
+            "code": "POR"
+          },
+          "team2": {
+            "name": "Espanha",
+            "code": "ESP"
+          }
+        },
+        {
+          "num": 94,
+          "date": "2026-07-06",
+          "team1": {
+            "name": "Estados Unidos",
+            "code": "USA"
+          },
+          "team2": {
+            "name": "Bélgica",
+            "code": "BEL"
+          }
+        },
+        {
+          "num": 95,
+          "date": "2026-07-07",
+          "team1": {
+            "name": "Argentina",
+            "code": "ARG"
+          },
+          "team2": {
+            "name": "Egito",
+            "code": "EGY"
+          }
+        },
+        {
+          "num": 96,
+          "date": "2026-07-07",
+          "team1": {
+            "name": "Suíça",
+            "code": "SUI"
+          },
+          "team2": {
+            "name": "Colômbia",
+            "code": "COL"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quartas de final",
+      "matches": [
+        {
+          "num": 97,
+          "date": "2026-07-09",
+          "team1": {
+            "name": "França",
+            "code": "FRA"
+          },
+          "team2": {
+            "name": "Marrocos",
+            "code": "MAR"
+          }
+        },
+        {
+          "num": 98,
+          "date": "2026-07-10",
+          "team1": {
+            "name": "A definir",
+            "code": "TBD"
+          },
+          "team2": {
+            "name": "A definir",
+            "code": "TBD2"
+          }
+        },
+        {
+          "num": 99,
+          "date": "2026-07-11",
+          "team1": {
+            "name": "Noruega",
+            "code": "NOR"
+          },
+          "team2": {
+            "name": "Inglaterra",
+            "code": "ENG"
+          }
+        },
+        {
+          "num": 100,
+          "date": "2026-07-11",
+          "team1": {
+            "name": "A definir",
+            "code": "TBD3"
+          },
+          "team2": {
+            "name": "A definir",
+            "code": "TBD4"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Semifinais",
+      "matches": [
+        {
+          "num": 101,
+          "date": "2026-07-14",
+          "team1": {
+            "name": "A definir",
+            "code": "TBD5"
+          },
+          "team2": {
+            "name": "A definir",
+            "code": "TBD6"
+          }
+        },
+        {
+          "num": 102,
+          "date": "2026-07-15",
+          "team1": {
+            "name": "A definir",
+            "code": "TBD7"
+          },
+          "team2": {
+            "name": "A definir",
+            "code": "TBD8"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Final",
+      "matches": [
+        {
+          "num": 103,
+          "date": "2026-07-18",
+          "team1": {
+            "name": "A definir",
+            "code": "TBD9"
+          },
+          "team2": {
+            "name": "A definir",
+            "code": "TBD10"
+          }
+        },
+        {
+          "num": 104,
+          "date": "2026-07-19",
+          "team1": {
+            "name": "A definir",
+            "code": "TBD11"
+          },
+          "team2": {
+            "name": "A definir",
+            "code": "TBD12"
+          }
+        }
+      ]
+    }
+  ]
+}

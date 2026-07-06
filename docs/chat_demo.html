@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CopaMind 2026 — Chat demo</title>
+  <style>
+    :root { --bg:#0f1117; --panel:#1a1d27; --border:#2d3244; --txt:#e8edf6; --muted:#7a8aaa; --cyan:#19e3c2; --blue:#4895ff; --red:#e55; --green:#29d97d; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--txt); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; font-size:15px; }
+    .root { max-width:1400px; margin:0 auto; display:flex; height:100vh; }
+    aside { width:260px; padding:18px 16px; border-right:1px solid var(--border); display:flex; flex-direction:column; gap:6px; }
+    aside .logo { font-size:20px; font-weight:700; margin-bottom:10px; }
+    aside .nav { padding:8px 12px; border-radius:8px; cursor:pointer; font-size:14px; color:var(--muted); }
+    aside .nav.active { background:var(--panel); color:var(--txt); }
+    aside .disclaimer { margin-top:auto; font-size:12px; color:var(--muted); padding:10px 12px; border-top:1px solid var(--border); line-height:1.5; }
+    main { flex:1; padding:28px 36px; overflow-y:auto; }
+    h1 { margin:0 0 4px; font-size:26px; }
+    .sub { color:var(--muted); margin:0 0 24px; font-size:14px; }
+    h3 { margin:0 0 14px; font-size:18px; }
+    .selectors { display:flex; gap:16px; margin-bottom:14px; }
+    .sel-group { flex:1; }
+    .sel-group label { display:block; color:var(--muted); font-size:13px; margin-bottom:6px; }
+    .sel-group select { width:100%; background:var(--panel); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:10px 12px; font-size:14px; }
+    .q-group { margin-bottom:16px; }
+    .q-group label { color:var(--muted); font-size:13px; display:block; margin-bottom:6px; }
+    .q-group input { width:100%; background:var(--panel); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:10px 12px; font-size:14px; }
+    .boxes { display:flex; flex-direction:column; gap:12px; margin-top:20px; }
+    .box { background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+    .box-head { display:flex; align-items:center; gap:10px; padding:12px 16px; cursor:pointer; }
+    .box-head .tag { font-weight:600; font-size:14px; }
+    .box-head .model { color:var(--muted); font-size:13px; }
+    .box-head .badge { margin-left:auto; font-size:12px; padding:3px 10px; border-radius:20px; }
+    .badge.high { background:rgba(41,217,125,.12); color:var(--green); border:1px solid rgba(41,217,125,.25); }
+    .badge.medium { background:rgba(72,149,255,.12); color:var(--blue); border:1px solid rgba(72,149,255,.25); }
+    .box-body { padding:0 16px 16px; border-top:1px solid var(--border); }
+    .box-body p { margin:12px 0 0; line-height:1.6; }
+    .claim { font-size:13px; color:var(--muted); padding:6px 10px; background:rgba(255,255,255,.04); border-radius:6px; margin:8px 0 0; }
+    .claim strong { color:var(--cyan); }
+    .box.audit .badge { background:rgba(25,227,194,.1); color:var(--cyan); border:1px solid rgba(25,227,194,.25); }
+    .verdict { font-size:13px; padding:5px 10px; border-radius:6px; margin:8px 0 0; }
+    .verdict.supported { background:rgba(41,217,125,.1); color:var(--green); }
+    .verdict.partial { background:rgba(255,200,50,.1); color:#f5c842; }
+    .consensus { background:linear-gradient(135deg,rgba(41,217,125,.08),rgba(72,149,255,.08)); border:1px solid rgba(41,217,125,.3); border-radius:12px; padding:16px; margin-top:12px; }
+    .consensus h4 { margin:0 0 8px; color:var(--green); }
+    .consensus p { margin:0; line-height:1.6; }
+    .prob { display:flex; gap:12px; margin-top:14px; }
+    .prob-item { flex:1; text-align:center; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
+    .prob-item .pct { font-size:22px; font-weight:700; }
+    .prob-item .lbl { font-size:12px; color:var(--muted); margin-top:2px; }
+    .prob-item.home .pct { color:var(--blue); }
+    .prob-item.draw .pct { color:var(--muted); }
+    .prob-item.away .pct { color:var(--green); }
+  </style>
+</head>
+<body>
+<div class="root">
+  <aside>
+    <div class="logo">⚽ CopaMind 2026</div>
+    <div class="nav">Visão geral</div>
+    <div class="nav">Chances de título</div>
+    <div class="nav">Análise de seleção</div>
+    <div class="nav">Previsão de partida</div>
+    <div class="nav">Bolão de IAs</div>
+    <div class="nav active">Chat (IAs)</div>
+    <div class="disclaimer">As probabilidades são experimentais e educacionais e não representam garantia de resultado.</div>
+  </aside>
+  <main>
+    <h1>⚽ CopaMind 2026</h1>
+    <p class="sub">Inteligência esportiva local para a Copa 2026</p>
+    <h3>💬 Chat com IAs locais</h3>
+    <div class="selectors">
+      <div class="sel-group"><label>Mandante</label><select><option>Nortlândia</option></select></div>
+      <div class="sel-group"><label>Visitante</label><select><option>Sudria</option></select></div>
+    </div>
+    <div class="q-group"><label>Pergunta</label><input value="Quem tem mais chance de vencer e por quê?" /></div>
+
+    <div class="prob">
+      <div class="prob-item home"><div class="pct">43,2%</div><div class="lbl">Nortlândia (mandante)</div></div>
+      <div class="prob-item draw"><div class="pct">26,1%</div><div class="lbl">Empate</div></div>
+      <div class="prob-item away"><div class="pct">30,7%</div><div class="lbl">Sudria (visitante)</div></div>
+    </div>
+
+    <div class="boxes">
+      <!-- Box 1 — Analista -->
+      <div class="box">
+        <div class="box-head">
+          <span class="tag">🔵 Analista</span>
+          <span class="model">google/gemma-4-12b-qat</span>
+          <span class="badge high">Alta confiança</span>
+        </div>
+        <div class="box-body">
+          <p>A Nortlândia apresenta vantagem na sequência recente, com 3 vitórias nos últimos 5 jogos e Elo de 1562 contra 1501 da Sudria. O mando de campo adiciona +65 pontos ao Elo efetivo, resultando em probabilidade de vitória de 43,2% pelo ensemble estatístico.</p>
+          <div class="claim"><strong>claim:</strong> Nortlândia venceu 3 dos últimos 5 jogos — <span style="color:#4895ff">evid: match:M-015, match:M-017, match:M-019</span></div>
+          <div class="claim"><strong>claim:</strong> Elo Nortlândia (1562) &gt; Sudria (1501) — <span style="color:#4895ff">evid: elo:T-NTL, elo:T-SDR</span></div>
+        </div>
+      </div>
+      <!-- Box 2 — Challenger -->
+      <div class="box">
+        <div class="box-head">
+          <span class="tag">🟣 Segunda opinião</span>
+          <span class="model">google/gemma-4-12b-qat</span>
+          <span class="badge medium">Confiança média</span>
+        </div>
+        <div class="box-body">
+          <p>Concordo com a análise estatística: Nortlândia é favorita, mas a diferença é modesta. A Sudria marcou mais gols como visitante (média 1,4) do que como mandante, o que reduz a vantagem de campo. O placar mais provável é 1×0 para a Nortlândia.</p>
+          <div class="claim"><strong>claim:</strong> Sudria marcou 1,4 gols/jogo como visitante — <span style="color:#4895ff">evid: form:T-SDR</span></div>
+        </div>
+      </div>
+      <!-- Box 3 — Auditor -->
+      <div class="box audit">
+        <div class="box-head">
+          <span class="tag">🔍 Auditor</span>
+          <span class="model">google/gemma-4-12b-qat</span>
+          <span class="badge">Verificação de evidências</span>
+        </div>
+        <div class="box-body">
+          <div class="verdict supported">✅ Nortlândia venceu 3 dos últimos 5 — SUPORTADO (match:M-015, M-017, M-019)</div>
+          <div class="verdict supported">✅ Elo Nortlândia &gt; Sudria — SUPORTADO (elo:T-NTL, elo:T-SDR)</div>
+          <div class="verdict partial">⚠️ Média de gols como visitante — PARCIALMENTE SUPORTADO (amostra pequena: 4 jogos)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="consensus">
+      <h4>🏆 Consenso final</h4>
+      <p><strong>Favorito:</strong> Nortlândia (43,2%) · Ensemble: Elo 40% + Poisson 60% · Snapshot: sample-2026-07-06<br />
+      Os dois modelos concordaram no favorito. O auditor confirmou os claims principais. Incerteza: amostra pequena de jogos da Sudria como visitante.</p>
+    </div>
+  </main>
+</div>
+</body>
+</html>
