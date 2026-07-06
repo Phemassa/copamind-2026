@@ -1,4 +1,7 @@
-"""CopaMind 2026 — Dashboard
+"""Script auxiliar: escreve o app.py do CopaMind 2026."""
+# Execute: python scripts/write_app.py
+
+APP = r'''"""CopaMind 2026 — Dashboard
 Páginas: Seleções | Jogadores | Estatísticas | Bolão das LLMs
 """
 from __future__ import annotations
@@ -271,7 +274,7 @@ text-transform:uppercase">{ds}</span>
         st.rerun()
     if exist: _pred_cards(exist,h,a)
     else: st.caption("Clique em '▶ Palpites ML' para gerar previsões.")
-    with st.expander("📝 Registrar placar"):
+    with st.expander(f"📝 Registrar placar"):
         with st.form(f"r_{match.match_id}"):
             r1,r2,r3=st.columns([3,1,3])
             r1.markdown(f"**{h['emoji']} {h['name']}**")
@@ -419,3 +422,8 @@ def main():
 
 if __name__=="__main__":
     main()
+'''
+
+with open("apps/streamlit/app.py", "w", encoding="utf-8") as f:
+    f.write(APP)
+print(f"Written: {len(APP)} chars")
