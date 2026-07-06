@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from copamind.api.dependencies import get_repository
 from copamind.data.repositories import DuckDBRepository
 from copamind.data.schemas import Match, Team
+from copamind.features.service import TeamAnalysis, analyze_team
 
 router = APIRouter(tags=["data"])
 
@@ -28,6 +29,18 @@ def get_team(team_id: str, repo: RepoDep) -> Team:
     if team is None:
         raise HTTPException(status_code=404, detail="team not found")
     return team
+
+
+@router.get("/teams/{team_id}/form", response_model=TeamAnalysis)
+def team_form(
+    team_id: str,
+    repo: RepoDep,
+    decay_lambda: Annotated[float, Query(ge=0)] = 0.0,
+) -> TeamAnalysis:
+    """Retorna o rating Elo e a forma recente (janelas 5/10/15) de uma seleção."""
+    if repo.get_team(team_id) is None:
+        raise HTTPException(status_code=404, detail="team not found")
+    return analyze_team(repo, team_id, decay_lambda=decay_lambda)
 
 
 @router.get("/teams/{team_id}/last-matches", response_model=list[Match])

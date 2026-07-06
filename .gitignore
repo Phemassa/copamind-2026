@@ -63,5 +63,5 @@ qdrant_storage/
 .DS_Store
 Thumbs.db
 
-# Relatórios de teste
+# RelatÃ³rios de teste
 junit.xml

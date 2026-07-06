@@ -16,6 +16,7 @@ from copamind.data.ingestion.service import (
     ingest_teams_file,
 )
 from copamind.data.repositories import DuckDBRepository
+from copamind.features.service import build_elo
 
 app = typer.Typer(
     name="copamind",
@@ -29,6 +30,9 @@ app.add_typer(api_app, name="api")
 
 ingest_app = typer.Typer(help="Comandos de ingestão de dados.")
 app.add_typer(ingest_app, name="ingest")
+
+train_app = typer.Typer(help="Comandos de treino/cálculo de modelos.")
+app.add_typer(train_app, name="train")
 
 console = Console()
 
@@ -111,6 +115,24 @@ def ingest_file(
             console.print("[red]entity deve ser 'teams' ou 'matches'.[/]")
             raise typer.Exit(code=1)
     console.print(f"[green]Ingeridos {count} registros de '{entity}'.[/]")
+
+
+@train_app.command("elo")
+def train_elo() -> None:
+    """Calcula os ratings Elo a partir das partidas finalizadas na base."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        elo = build_elo(repo)
+        teams = repo.list_teams()
+
+    table = Table(title="Ratings Elo")
+    table.add_column("Seleção", style="bold")
+    table.add_column("Elo", justify="right")
+    ranked = sorted(teams, key=lambda t: elo.rating(t.team_id), reverse=True)
+    for team in ranked:
+        table.add_row(team.name, f"{elo.rating(team.team_id):.1f}")
+    console.print(table)
 
 
 if __name__ == "__main__":

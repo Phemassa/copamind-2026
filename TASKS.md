@@ -51,14 +51,15 @@ Objetivo: modelo de dados, persistência e ingestão reproduzível com linhagem.
 Objetivo: ML é o motor de probabilidades (o LLM nunca sobrescreve). Dividido em E3a (rápido) e E3b (avançado).
 
 ### E3a — Baseline rápido
-#### H3.1 — Elo
-- [ ] Rating com decaimento temporal, mando, importância, diferença de gols
-- [ ] Saídas: rating atual, probabilidade esperada, histórico
-- [ ] Reprodutível por seed/config
-#### H3.2 — Forma recente
-- [ ] Janelas 5/10/15 jogos e 365/730 dias
-- [ ] Ajuste por adversário (Elo, ranking, confederação, local, importância)
-- [ ] Testes de leakage dedicados
+#### H3.1 — Elo ✅
+- [x] Rating com mando, importância e diferença de gols (decaimento temporal aplicado à forma)
+- [x] Saídas: rating atual, probabilidade esperada, histórico
+- [x] Reprodutível e independente da ordem de entrada
+#### H3.2 — Forma recente ✅ (parcial)
+- [x] Janelas 5/10/15 jogos (com decaimento temporal opcional)
+- [ ] Janelas por dias (365/730) — futuro
+- [ ] Ajuste por adversário (Elo, ranking, confederação, local) — E3b/feature engineering
+- [x] Testes de leakage dedicados (`as_of`)
 
 ### E3b — Avançado
 #### H3.3 — Poisson / Dixon-Coles

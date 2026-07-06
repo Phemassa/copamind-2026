@@ -5,6 +5,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 ## [Unreleased]
 
 ### Adicionado
+- **Épico E3a (Elo + forma recente):** sistema de rating Elo determinístico (mando, importância, multiplicador por diferença de gols, histórico, `win_probability`); features de forma por janelas 5/10/15 com decaimento temporal opcional; serviço `analyze_team` (Elo + forma sem leakage); rota `GET /teams/{id}/form`; comando `copamind train elo`; método `list_finished_matches` (cronológico, anti-leakage). 47 testes verdes.
 - **Épico E1 (Dados & Ingestão) concluído:** schemas Pydantic (Team, Coach, Player, Match, Snapshot) com linhagem; repositório DuckDB idempotente + CRUD; importadores JSON/CSV com validação e deduplicação; validação tabular Pandera; dataset sintético (`scripts/download_sample_data.py`); CLI `copamind ingest sample|file`; rotas `GET /teams`, `/teams/{id}`, `/teams/{id}/last-matches`, `/matches`; filtro anti-leakage `as_of` em `get_last_matches`. 32 testes verdes.
 - **Épico E0 (Fundação) concluído:** pacote `src/copamind`, configuração (`pydantic-settings`), logging estruturado (`structlog`), API FastAPI com `/health` e `/ready`, CLI Typer com `copamind doctor`/`version`/`api serve`, Docker Compose do Qdrant, pre-commit, CI (GitHub Actions), README bilíngue-ready, LICENSE MIT. Ruff/mypy/pytest verdes (10 testes).
 - Documento de planejamento consolidado (`MASTER_PLAN` §37 — Addendum v2).

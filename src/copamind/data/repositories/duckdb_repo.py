@@ -218,6 +218,21 @@ class DuckDBRepository:
         cursor = self._con.execute(sql, params)
         return [Match(**row) for row in _rows_to_dicts(cursor)]
 
+    def list_finished_matches(self, *, as_of: datetime | None = None) -> list[Match]:
+        """Lista partidas finalizadas em ordem cronológica crescente.
+
+        Ideal para processar ratings (Elo). Se ``as_of`` for informado,
+        considera apenas dados disponíveis até esse instante (anti-leakage).
+        """
+        sql = f"SELECT {', '.join(_MATCH_COLUMNS)} FROM matches WHERE status = ?"
+        params: list[Any] = [str(MatchStatus.finished)]
+        if as_of is not None:
+            sql += " AND available_at <= ?"
+            params.append(as_of)
+        sql += " ORDER BY match_date ASC, match_id ASC"
+        cursor = self._con.execute(sql, params)
+        return [Match(**row) for row in _rows_to_dicts(cursor)]
+
     def get_last_matches(
         self,
         team_id: str,
