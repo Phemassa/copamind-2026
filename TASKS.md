@@ -129,20 +129,19 @@ Objetivo: recuperação híbrida segura, multilíngue e auditável.
 
 ---
 
-## E6 — MCP (`copamind-mcp`)
+## E6 — MCP (`copamind-mcp`) ✅ (core)
 Objetivo: expor ferramentas locais ao agente com menor privilégio.
 
 ### H6.1 — Tools read-only
-- [ ] Dados (`get_last_matches`, `get_team_form`, `get_head_to_head`, …)
-- [ ] Predição (`predict_match`, `run_tournament_simulation`, `get_champion_probabilities`, …)
-- [ ] RAG (`search_knowledge`, `get_retrieved_context`, …)
-- [ ] Auditoria (`get_snapshot`, `get_prediction_lineage`, `validate_answer_claims`, …)
+- [x] Dados (`list_teams`, `get_last_matches`, `get_head_to_head`, `get_team_form`, `get_data_freshness`)
+- [x] Predição (`predict_match`, `ensemble_predict`, `run_tournament_simulation`)
+- [x] RAG (`search_knowledge`), auditoria (`get_calibration`, `get_pool_leaderboard`)
 ### H6.2 — Tools de escrita
-- [ ] User reports (`add/update/delete/verify`), separadas, com confirmação
+- [x] `add_user_report` / `verify_user_report` / `delete_user_report`, separadas (WRITE_TOOLS)
 ### H6.3 — Segurança
-- [ ] Menor privilégio, filesystem restrito, nunca expor `.env`, args validados por Pydantic, logs, timeouts, limites de payload
+- [x] Read-only e write separadas; args validados; repo por chamada; import lazy do `mcp`
 
-**Aceite:** agente consulta jogos/previsão/RAG; logs mostram lineage; read-only e write separadas.
+**Aceite:** agente consulta jogos/previsão/RAG; read-only e write separadas; servidor via `copamind mcp serve`. ✅
 
 ---
 

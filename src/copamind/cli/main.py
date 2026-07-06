@@ -59,6 +59,9 @@ app.add_typer(llm_app, name="llm")
 rag_app = typer.Typer(help="Comandos de RAG.")
 app.add_typer(rag_app, name="rag")
 
+mcp_app = typer.Typer(help="Comandos do servidor MCP.")
+app.add_typer(mcp_app, name="mcp")
+
 console = Console()
 
 _STATUS_STYLE = {
@@ -166,6 +169,14 @@ def rag_index() -> None:
         repo.create_schema()
         indexed = service.index_user_reports(repo)
     console.print(f"[green]Indexados {indexed} chunks.[/] Total: {service.count()}")
+
+
+@mcp_app.command("serve")
+def mcp_serve() -> None:
+    """Sobe o servidor MCP `copamind-mcp` (stdio). Requer o extra `mcp`."""
+    from copamind.mcp.server import create_server
+
+    create_server().run()
 
 
 @train_app.command("elo")
