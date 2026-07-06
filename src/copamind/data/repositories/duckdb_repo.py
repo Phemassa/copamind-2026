@@ -13,7 +13,15 @@ from typing import Any, Self
 
 import duckdb
 
-from copamind.data.schemas import Match, MatchStatus, Prediction, Snapshot, Team
+from copamind.data.schemas import (
+    Match,
+    MatchStatus,
+    PoolPrediction,
+    PoolResult,
+    Prediction,
+    Snapshot,
+    Team,
+)
 
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -71,6 +79,28 @@ CREATE TABLE IF NOT EXISTS predictions (
     expected_away_goals DOUBLE NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS pool_predictions (
+    prediction_id VARCHAR PRIMARY KEY,
+    predictor_name VARCHAR NOT NULL,
+    match_id VARCHAR NOT NULL,
+    snapshot_id VARCHAR NOT NULL,
+    home_team_id VARCHAR NOT NULL,
+    away_team_id VARCHAR NOT NULL,
+    prob_home DOUBLE NOT NULL,
+    prob_draw DOUBLE NOT NULL,
+    prob_away DOUBLE NOT NULL,
+    predicted_home_goals INTEGER NOT NULL,
+    predicted_away_goals INTEGER NOT NULL,
+    locked_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pool_results (
+    match_id VARCHAR PRIMARY KEY,
+    home_score INTEGER NOT NULL,
+    away_score INTEGER NOT NULL,
+    recorded_at TIMESTAMP NOT NULL
+);
 """
 
 _TEAM_COLUMNS = (
@@ -121,6 +151,23 @@ _PREDICTION_COLUMNS = (
     "expected_away_goals",
     "created_at",
 )
+
+_POOL_PREDICTION_COLUMNS = (
+    "prediction_id",
+    "predictor_name",
+    "match_id",
+    "snapshot_id",
+    "home_team_id",
+    "away_team_id",
+    "prob_home",
+    "prob_draw",
+    "prob_away",
+    "predicted_home_goals",
+    "predicted_away_goals",
+    "locked_at",
+)
+
+_POOL_RESULT_COLUMNS = ("match_id", "home_score", "away_score", "recorded_at")
 
 
 def _placeholders(n: int) -> str:
@@ -337,9 +384,76 @@ class DuckDBRepository:
         ).fetchone()
         return str(result[0]) if result else None
 
+    # -- Bolão de IAs (E11) --------------------------------------------------
+    def insert_pool_prediction(self, prediction: PoolPrediction) -> None:
+        """Insere um palpite imutável do bolão.
+
+        Raises:
+            ValueError: se já existir palpite deste preditor para a partida
+                (palpites são travados e não podem ser sobrescritos).
+        """
+        existing = self._con.execute(
+            "SELECT 1 FROM pool_predictions WHERE prediction_id = ?",
+            [prediction.prediction_id],
+        ).fetchone()
+        if existing is not None:
+            raise ValueError(f"palpite já travado: {prediction.prediction_id}")
+        sql = (
+            f"INSERT INTO pool_predictions ({', '.join(_POOL_PREDICTION_COLUMNS)}) "
+            f"VALUES ({_placeholders(len(_POOL_PREDICTION_COLUMNS))})"
+        )
+        self._con.execute(
+            sql,
+            [
+                prediction.prediction_id,
+                prediction.predictor_name,
+                prediction.match_id,
+                prediction.snapshot_id,
+                prediction.home_team_id,
+                prediction.away_team_id,
+                prediction.prob_home,
+                prediction.prob_draw,
+                prediction.prob_away,
+                prediction.predicted_home_goals,
+                prediction.predicted_away_goals,
+                prediction.locked_at,
+            ],
+        )
+
+    def pool_prediction_exists(self, prediction_id: str) -> bool:
+        """Indica se um palpite específico já foi travado."""
+        row = self._con.execute(
+            "SELECT 1 FROM pool_predictions WHERE prediction_id = ?", [prediction_id]
+        ).fetchone()
+        return row is not None
+
+    def list_pool_predictions(self) -> list[PoolPrediction]:
+        """Lista todos os palpites do bolão."""
+        cursor = self._con.execute(
+            f"SELECT {', '.join(_POOL_PREDICTION_COLUMNS)} FROM pool_predictions"
+        )
+        return [PoolPrediction(**row) for row in _rows_to_dicts(cursor)]
+
+    def upsert_pool_result(self, result: PoolResult) -> None:
+        """Insere ou substitui o resultado real de uma partida do bolão."""
+        sql = (
+            f"INSERT OR REPLACE INTO pool_results ({', '.join(_POOL_RESULT_COLUMNS)}) "
+            f"VALUES ({_placeholders(len(_POOL_RESULT_COLUMNS))})"
+        )
+        self._con.execute(
+            sql,
+            [result.match_id, result.home_score, result.away_score, result.recorded_at],
+        )
+
+    def list_pool_results(self) -> list[PoolResult]:
+        """Lista os resultados registrados do bolão."""
+        cursor = self._con.execute(f"SELECT {', '.join(_POOL_RESULT_COLUMNS)} FROM pool_results")
+        return [PoolResult(**row) for row in _rows_to_dicts(cursor)]
+
     def count(self, table: str) -> int:
         """Conta linhas de uma tabela conhecida."""
-        if table not in {"teams", "matches", "snapshots", "predictions"}:
+        known = {"teams", "matches", "snapshots", "predictions", "pool_predictions", "pool_results"}
+        if table not in known:
             raise ValueError(f"tabela desconhecida: {table}")
         result = self._con.execute(f"SELECT count(*) FROM {table}").fetchone()
         return int(result[0]) if result else 0

@@ -147,3 +147,37 @@ class Prediction(BaseModel):
     expected_home_goals: float = Field(ge=0)
     expected_away_goals: float = Field(ge=0)
     created_at: datetime
+
+
+class PoolPrediction(BaseModel):
+    """Palpite imutável do Bolão de IAs (MASTER_PLAN §37.10, E11).
+
+    Travado antes do apito com `snapshot_id` + `locked_at`; não deve ser
+    alterado após criado (garante ausência de vazamento e reprodutibilidade).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    prediction_id: str = Field(min_length=1)
+    predictor_name: str = Field(min_length=1)
+    match_id: str = Field(min_length=1)
+    snapshot_id: str = Field(min_length=1)
+    home_team_id: str = Field(min_length=1)
+    away_team_id: str = Field(min_length=1)
+    prob_home: float = Field(ge=0, le=1)
+    prob_draw: float = Field(ge=0, le=1)
+    prob_away: float = Field(ge=0, le=1)
+    predicted_home_goals: int = Field(ge=0)
+    predicted_away_goals: int = Field(ge=0)
+    locked_at: datetime
+
+
+class PoolResult(BaseModel):
+    """Resultado real de uma partida do bolão."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    match_id: str = Field(min_length=1)
+    home_score: int = Field(ge=0)
+    away_score: int = Field(ge=0)
+    recorded_at: datetime

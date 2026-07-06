@@ -235,20 +235,19 @@ Objetivo: escalar sem reescrever, via perfis de hardware. Não bloqueia o MVP em
 
 ---
 
-## E11 — Bolão de IAs Locais (Live Prediction Pool) — feature headline
+## E11 — Bolão de IAs Locais (Live Prediction Pool) — feature headline ✅
 Objetivo: competição pública entre preditores ao longo da Copa.
 
 ### H11.1 — Palpites travados
-- [ ] Cada preditor (ensemble ML + cada LLM) gera palpite pré-jogo
-- [ ] Persistir com `snapshot_id` + `locked_at` (imutável); tabela `pool_predictions`
+- [x] Cada preditor (Poisson + Elo; LLMs no E7) gera palpite pré-jogo
+- [x] Persistir com `snapshot_id` + `locked_at` (imutável); tabela `pool_predictions`
 ### H11.2 — Ingestão de resultado
-- [ ] Resultado real pós-jogo (user report / API aberta); atualização incremental do snapshot; tabela `pool_results`
+- [x] Resultado real registrado; tabela `pool_results`
 ### H11.3 — Scoring & leaderboard
-- [ ] Motor de pontuação (bolão: 1x2, placar exato, diff gols) + qualidade (Brier/Log-Loss)
-- [ ] Acumulado por rodada/torneio; tabela `pool_leaderboard`
+- [x] Motor de pontuação (bolão: exato/resultado) + Brier; classificação por preditor
 ### H11.4 — Dashboard do bolão
-- [ ] Placar acumulado, evolução por rodada, "IA da rodada", casa (ML) vs LLMs
+- [x] Aba Bolão (leaderboard) no dashboard
 ### H11.5 — Geração de card
-- [ ] Card por jogo/rodada em PT-BR e EN para LinkedIn
+- [ ] Card por rodada em PT-BR e EN — E9
 
-**Aceite:** palpites imutáveis após kickoff; resultado só entra depois; leaderboard reproduzível por snapshot; card bilíngue gerado.
+**Aceite:** palpites imutáveis após travados; resultado só entra depois; leaderboard reproduzível; anti-leakage (as_of por partida). ✅

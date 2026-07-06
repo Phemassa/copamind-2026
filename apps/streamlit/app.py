@@ -14,6 +14,7 @@ from copamind.ui.dashboard import (
     championship_table,
     database_status,
     match_prediction_view,
+    pool_leaderboard_view,
     team_analysis_view,
 )
 from copamind.ui.i18n import DEFAULT_LOCALE, Translator, available_locales
@@ -58,6 +59,7 @@ def main() -> None:
                 tr.t("nav_ranking"),
                 tr.t("nav_team"),
                 tr.t("nav_predict"),
+                tr.t("nav_pool"),
             ],
         )
 
@@ -69,6 +71,8 @@ def main() -> None:
             _render_team(repo, tr)
         elif page == tr.t("nav_predict"):
             _render_predict(repo, tr)
+        elif page == tr.t("nav_pool"):
+            _render_pool(repo, tr)
 
     st.sidebar.divider()
     st.sidebar.info(tr.t("disclaimer"))
@@ -138,6 +142,30 @@ def _render_predict(repo: DuckDBRepository, tr: Translator) -> None:
         score = pred["most_likely_score"]
         st.write(f"{tr.t('most_likely_score')}: {score[0]}-{score[1]}")
         st.write(f"{tr.t('over25')}: {pred['prob_over_2_5']:.1%}")
+
+
+def _render_pool(repo: DuckDBRepository, tr: Translator) -> None:
+    st.subheader(f"🏆 {tr.t('pool_title')}")
+    if st.button(tr.t("pool_run")):
+        rows = pool_leaderboard_view(repo)
+        if not rows:
+            st.info(tr.t("pool_empty"))
+            return
+        frame = pd.DataFrame(rows)
+        frame = frame.rename(
+            columns={
+                "predictor_name": tr.t("predictor"),
+                "predictions": tr.t("pool_predictions"),
+                "total_points": tr.t("pool_points"),
+                "exact_scores": tr.t("pool_exact"),
+                "correct_results": tr.t("pool_correct"),
+                "mean_brier": tr.t("pool_brier"),
+            }
+        )
+        st.dataframe(frame.set_index(tr.t("predictor")), use_container_width=True)
+        st.bar_chart(frame.set_index(tr.t("predictor"))[tr.t("pool_points")])
+    else:
+        st.info(tr.t("pool_empty"))
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from typing import Any
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import analyze_team
 from copamind.models.poisson.service import predict_match
+from copamind.pool.service import run_backtest
 from copamind.simulation.service import build_default_config, run_simulation
 
 
@@ -68,3 +69,9 @@ def match_prediction_view(
     """Previsão 1x2 e gols esperados para um confronto (sem persistir)."""
     prediction = predict_match(repo, home_id, away_id, neutral_venue=neutral_venue, persist=False)
     return prediction.model_dump()
+
+
+def pool_leaderboard_view(repo: DuckDBRepository) -> list[dict[str, Any]]:
+    """Roda o bolão sobre o histórico e retorna a classificação dos preditores."""
+    summary = run_backtest(repo)
+    return [standing.model_dump() for standing in summary.standings]

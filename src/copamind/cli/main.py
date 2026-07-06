@@ -22,6 +22,7 @@ from copamind.data.ingestion.service import (
 from copamind.data.repositories import DuckDBRepository
 from copamind.features.service import build_elo
 from copamind.models.poisson.service import build_poisson
+from copamind.pool.service import run_backtest
 from copamind.simulation.service import build_default_config, run_simulation
 
 app = typer.Typer(
@@ -42,6 +43,9 @@ app.add_typer(train_app, name="train")
 
 ui_app = typer.Typer(help="Comandos da interface.")
 app.add_typer(ui_app, name="ui")
+
+pool_app = typer.Typer(help="Comandos do Bolão de IAs.")
+app.add_typer(pool_app, name="pool")
 
 console = Console()
 
@@ -202,6 +206,31 @@ def ui_serve(
         [sys.executable, "-m", "streamlit", "run", str(app_path), "--server.port", str(port)],
         check=True,
     )
+
+
+@pool_app.command("run")
+def pool_run() -> None:
+    """Roda o Bolão de IAs sobre o histórico e exibe a classificação."""
+    settings = get_settings()
+    with DuckDBRepository(settings.duckdb_path) as repo:
+        repo.create_schema()
+        summary = run_backtest(repo)
+
+    table = Table(title=f"Bolão de IAs ({summary.matches_evaluated} partidas avaliadas)")
+    table.add_column("Preditor", style="bold")
+    table.add_column("Palpites", justify="right")
+    table.add_column("Pontos", justify="right")
+    table.add_column("Placar exato", justify="right")
+    table.add_column("Brier médio", justify="right")
+    for standing in summary.standings:
+        table.add_row(
+            standing.predictor_name,
+            str(standing.predictions),
+            str(standing.total_points),
+            str(standing.exact_scores),
+            f"{standing.mean_brier:.3f}",
+        )
+    console.print(table)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from copamind import __version__
 from copamind.api.routes import (
     data_router,
     health_router,
+    pool_router,
     predictions_router,
     simulations_router,
 )
@@ -34,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(data_router)
     app.include_router(predictions_router)
     app.include_router(simulations_router)
+    app.include_router(pool_router)
 
     return app
 
