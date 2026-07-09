@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709133142-4de25a6a",
+  "phase": "round_of_16",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 8,
+  "total_calls": 8,
+  "updated_at": "2026-07-09T13:42:05.703572+00:00",
+  "current_match_index": 8,
+  "total_matches": 8,
+  "current_match_label": "Suíça x Colômbia",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "mistralai/devstral-small-2-2512",
+  "current_sample_index": 1,
+  "elapsed_seconds": 620.4,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T13:31:45.293913+00:00"
+}

@@ -1,131 +1,213 @@
-"""Bracket visual da Copa 2026 em HTML (tema escuro/verde-ciano)."""
+"""Bracket dinamico da Copa 2026 para o portal Streamlit."""
 
 from __future__ import annotations
 
-from copamind.data.connectors.flags import TEAMS
+from collections.abc import Iterable, Mapping
+from datetime import datetime
+from html import escape
 
-# ── resultados R16 conhecidos (06/07/2026) ──────────────────────────────────
-R16_RESULTS = {
-    89: ("T-MAR", "T-CAN", "3-0"),
-    90: ("T-FRA", "T-PAR", "1-0"),
-    91: ("T-NOR", "T-BRA", "2-1"),
-    92: ("T-ENG", "T-MEX", "3-2"),
-    93: None,  # hoje 15:00
-    94: None,  # hoje 20:00
-    95: None,  # amanhã
-    96: None,  # amanhã
+from copamind.data.fifa_stats import flag_url, team_label
+from copamind.data.schemas import Match, MatchStatus
+
+KNOCKOUT_STAGES = (
+    "round_of_32",
+    "round_of_16",
+    "quarterfinal",
+    "semifinal",
+    "third_place",
+    "final",
+)
+
+STAGE_LABELS = {
+    "round_of_32": "32 avos",
+    "round_of_16": "Oitavas",
+    "quarterfinal": "Quartas",
+    "semifinal": "Semifinal",
+    "third_place": "3o lugar",
+    "final": "Final",
 }
 
-# quartas confirmadas
-QF_CONFIRMED = {
-    97: ("T-FRA", "T-MAR"),
-    99: ("T-NOR", "T-ENG"),
+EXPECTED_SLOTS = {
+    "round_of_32": 16,
+    "round_of_16": 8,
+    "quarterfinal": 4,
+    "semifinal": 2,
+    "third_place": 1,
+    "final": 1,
 }
 
 
-def _flag_img(team_id: str, w: int = 24) -> str:
-    iso = TEAMS.get(team_id, {}).get("iso2", "")
-    if not iso:
-        return ""
-    return f'<img src="https://flagcdn.com/w{w}/{iso}.png" width="{w}" style="vertical-align:middle;border-radius:2px" />'
-
-
-def _name(team_id: str) -> str:
-    t = TEAMS.get(team_id)
-    if t is None:
-        return "A definir"
-    return t["name_pt"]
-
-
-def _match_cell(
-    home_id: str | None, away_id: str | None, result: str | None = None, highlight: str = ""
+def build_bracket_html(
+    matches: Iterable[Match] | None = None,
+    *,
+    consensus_by_match: Mapping[str, str] | None = None,
 ) -> str:
-    if home_id is None:
-        home_html = '<span style="color:#4e6080">A definir</span>'
-    else:
-        home_html = f"{_flag_img(home_id)} <strong>{_name(home_id)}</strong>"
+    """Gera uma chave mata-mata baseada nas partidas locais."""
+    grouped: dict[str, list[Match]] = {stage: [] for stage in KNOCKOUT_STAGES}
+    for match in matches or []:
+        stage = str(match.stage)
+        if stage in grouped:
+            grouped[stage].append(match)
+    for items in grouped.values():
+        items.sort(key=lambda item: (item.match_date, item.match_id))
 
-    if away_id is None:
-        away_html = '<span style="color:#4e6080">A definir</span>'
-    else:
-        away_html = f"{_flag_img(away_id)} <strong>{_name(away_id)}</strong>"
-
-    score_html = (
-        f'<span style="color:#19e3c2;font-weight:700;font-size:18px">{result}</span>'
-        if result
-        else '<span style="color:#4e6080;font-size:13px">Aguardando</span>'
-    )
-    border = f"border-color:{highlight}" if highlight else "border-color:#1f2f42"
-    return f"""
-      <div style="background:#0f1826;{border};border-width:1px;border-style:solid;border-radius:10px;padding:10px 14px;min-width:210px;margin:4px 0">
-        <div style="color:#e8f0f8;margin-bottom:4px">{home_html}</div>
-        <div style="text-align:center;margin:4px 0">{score_html}</div>
-        <div style="color:#e8f0f8">{away_html}</div>
-      </div>"""
-
-
-def build_bracket_html() -> str:
-    """Gera o HTML completo do bracket da Copa 2026."""
-
-    # R16 — lado superior (MAR, FRA, NOR, ENG avançaram; POR/ESP, USA/BEL pendentes)
-    r16_upper = [
-        _match_cell("T-CAN", "T-MAR", "0-3"),
-        _match_cell("T-PAR", "T-FRA", "0-1"),
-        _match_cell("T-BRA", "T-NOR", "1-2"),
-        _match_cell("T-MEX", "T-ENG", "2-3"),
+    columns = [
+        _column(stage, grouped[stage], consensus_by_match or {})
+        for stage in KNOCKOUT_STAGES
+        if grouped[stage] or stage in {"round_of_32", "round_of_16", "quarterfinal", "semifinal", "final"}
     ]
-    r16_lower = [
-        _match_cell("T-POR", "T-ESP", None, "#2f6bff"),
-        _match_cell("T-USA", "T-BEL", None, "#2f6bff"),
-        _match_cell("T-ARG", "T-EGY", None, "#e5a020"),
-        _match_cell("T-SUI", "T-COL", None, "#e5a020"),
-    ]
-
-    # QF
-    qf1 = _match_cell("T-FRA", "T-MAR", None)
-    qf2_home = _match_cell(None, None)  # POR/ESP
-    qf3 = _match_cell("T-NOR", "T-ENG", None)
-    qf4_home = _match_cell(None, None)  # ARG/EGY ou SUI/COL
-
-    # Legend
-    def legend_item(color: str, text: str) -> str:
-        return f'<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px"><span style="width:12px;height:12px;background:{color};border-radius:3px;flex-shrink:0"></span>{text}</span>'
-
-    legend = (
-        legend_item("#19e3c2", "Resultado confirmado")
-        + legend_item("#2f6bff", "Hoje")
-        + legend_item("#e5a020", "Amanhã")
-    )
-
-    def col(title: str, *cells: str) -> str:
-        return f"""
-        <div style="display:flex;flex-direction:column;gap:4px;min-width:240px">
-          <div style="color:#19e3c2;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;text-align:center">{title}</div>
-          {"".join(cells)}
-        </div>"""
-
     return f"""
 <style>
-  .bracket-root {{
-    background: #070b12;
-    color: #e8f0f8;
-    font-family: system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    font-size: 14px;
-    padding: 20px;
-    border-radius: 12px;
+  .cm-bracket {{
+    background:#071018;
+    border:1px solid #1b3240;
+    border-radius:8px;
+    color:#e8f4f1;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;
+    padding:18px;
   }}
-  .bracket-title {{ font-size: 20px; font-weight: 700; margin-bottom: 6px; }}
-  .bracket-legend {{ color: #8fa3bd; font-size: 13px; margin-bottom: 20px; }}
-  .bracket-flow {{ display: flex; gap: 24px; align-items: flex-start; overflow-x: auto; }}
+  .cm-bracket-head {{
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:flex-end;
+    margin-bottom:16px;
+  }}
+  .cm-bracket-title {{font-size:20px;font-weight:800;line-height:1.2}}
+  .cm-bracket-sub {{color:#94a8b3;font-size:13px;margin-top:4px}}
+  .cm-bracket-flow {{
+    display:flex;
+    gap:16px;
+    overflow-x:auto;
+    padding-bottom:6px;
+  }}
+  .cm-bracket-col {{
+    min-width:232px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }}
+  .cm-bracket-col h3 {{
+    color:#38d6a5;
+    font-size:12px;
+    letter-spacing:0;
+    margin:0 0 2px;
+    text-transform:uppercase;
+  }}
+  .cm-bracket-card {{
+    background:#0d1a24;
+    border:1px solid #203747;
+    border-radius:8px;
+    padding:10px;
+    min-height:124px;
+  }}
+  .cm-bracket-card.finished {{border-color:#38d6a5}}
+  .cm-bracket-card.scheduled {{border-color:#57a7ff}}
+  .cm-bracket-team {{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    color:#edf7f4;
+    font-size:14px;
+    min-height:28px;
+  }}
+  .cm-bracket-team span:first-child {{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    min-width:0;
+  }}
+  .cm-bracket-team b {{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:148px;
+  }}
+  .cm-bracket-team img {{width:22px;height:22px;border-radius:50%;object-fit:cover}}
+  .cm-bracket-score {{font-weight:800;color:#38d6a5}}
+  .cm-bracket-meta {{
+    border-top:1px solid #203747;
+    color:#94a8b3;
+    font-size:12px;
+    margin-top:8px;
+    padding-top:8px;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }}
+  .cm-bracket-empty {{color:#536775}}
 </style>
-<div class="bracket-root">
-  <div class="bracket-title">⚽ Copa do Mundo 2026 — Bracket</div>
-  <div class="bracket-legend">{legend}</div>
-  <div class="bracket-flow">
-    {col("Oitavas (sup.)", *r16_upper)}
-    {col("Quartas (sup.)", qf1, "<br>", qf3)}
-    {col("Oitavas (inf.)", *r16_lower)}
-    {col("Quartas (inf.)", qf2_home, "<br>", qf4_home)}
-    {col("Semi / Final", _match_cell(None, None), "<br>", _match_cell(None, None), "<br><br>", _match_cell(None, None))}
+<div class="cm-bracket">
+  <div class="cm-bracket-head">
+    <div>
+      <div class="cm-bracket-title">Chave mata-mata CopaMind</div>
+      <div class="cm-bracket-sub">Dados locais sincronizados da FIFA, com consenso das LLMs quando houver.</div>
+    </div>
   </div>
-</div>"""
+  <div class="cm-bracket-flow">{"".join(columns)}</div>
+</div>
+"""
+
+
+def _column(stage: str, matches: list[Match], consensus_by_match: Mapping[str, str]) -> str:
+    slots = max(EXPECTED_SLOTS.get(stage, len(matches)), len(matches))
+    cards = [
+        _match_card(matches[index], consensus_by_match)
+        if index < len(matches)
+        else _empty_card(stage, index)
+        for index in range(slots)
+    ]
+    return f"""
+<section class="cm-bracket-col">
+  <h3>{escape(STAGE_LABELS.get(stage, stage))}</h3>
+  {"".join(cards)}
+</section>
+"""
+
+
+def _match_card(match: Match, consensus_by_match: Mapping[str, str]) -> str:
+    status_class = "finished" if match.status is MatchStatus.finished else "scheduled"
+    consensus = consensus_by_match.get(match.match_id)
+    meta = [_date_label(match.match_date), f"Status: {_status_label(match)}"]
+    if consensus:
+        meta.append(f"LLM: {consensus}")
+    return f"""
+<article class="cm-bracket-card {status_class}">
+  {_team_row(match.home_team_id, match.home_score)}
+  {_team_row(match.away_team_id, match.away_score)}
+  <div class="cm-bracket-meta">{"".join(f"<span>{escape(item)}</span>" for item in meta)}</div>
+</article>
+"""
+
+
+def _empty_card(stage: str, index: int) -> str:
+    return f"""
+<article class="cm-bracket-card">
+  <div class="cm-bracket-team cm-bracket-empty"><span>A definir</span><span>-</span></div>
+  <div class="cm-bracket-team cm-bracket-empty"><span>A definir</span><span>-</span></div>
+  <div class="cm-bracket-meta"><span>{escape(STAGE_LABELS.get(stage, stage))} #{index + 1}</span></div>
+</article>
+"""
+
+
+def _team_row(team_id: str, score: int | None) -> str:
+    score_html = "-" if score is None else str(score)
+    return f"""
+<div class="cm-bracket-team">
+  <span><img src="{escape(flag_url(team_id))}" alt="" /><b>{escape(team_label(team_id))}</b></span>
+  <span class="cm-bracket-score">{escape(score_html)}</span>
+</div>
+"""
+
+
+def _date_label(value: datetime) -> str:
+    return value.strftime("%d/%m/%Y %H:%M") if value else "Data a definir"
+
+
+def _status_label(match: Match) -> str:
+    if match.status is MatchStatus.finished:
+        return "finalizado"
+    if match.status is MatchStatus.cancelled:
+        return "cancelado"
+    return "agendado"

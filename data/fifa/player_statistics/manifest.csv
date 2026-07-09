@@ -1,0 +1,9 @@
+﻿aba;story_type;season_id;rankings;paginas_ranking;linhas;colunas;arquivo
+O Artilheiro;gcp_top_scorer;285023;5;245;1962;22;data/fifa/player_statistics/o_artilheiro.csv
+Ataque;gcp_attack;285023;11;467;2079;35;data/fifa/player_statistics/ataque.csv
+Distribuição;gcp_distribution;285023;8;392;1813;28;data/fifa/player_statistics/distribuicao.csv
+Defesa;gcp_defending;285023;5;221;1813;22;data/fifa/player_statistics/defesa.csv
+Disciplina;gcp_discipline;285023;6;294;1813;24;data/fifa/player_statistics/disciplina.csv
+Goleiro;gcp_goalkeeping;285023;3;9;145;18;data/fifa/player_statistics/goleiro.csv
+Movimentação;gcp_movement;285023;10;490;1813;32;data/fifa/player_statistics/movimentacao.csv
+Físico;gcp_physical;285023;4;196;1813;20;data/fifa/player_statistics/fisico.csv

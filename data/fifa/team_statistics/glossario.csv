@@ -1,0 +1,50 @@
+﻿aba;story_type;metric;description
+Ataque;gct_attack;Goals;Os gols se referem ao número de vezes que uma equipe ou um jogador conseguiu colocar a bola dentro da rede do adversário. Essa métrica é usada para determinar o resultado do jogo.
+Ataque;gct_attack;Assists;Um jogador que, independentemente da intenção, foi o último a tocar na bola antes de um companheiro marcar o gol. Uma assistência será concedida quando uma ação de distribuição intencional da bola atingir o destino pretendido, independentemente de qualquer toque do adversário.
+Ataque;gct_attack;Attempts At Goal;As finalizações representam o total de chutes (tanto certos quanto errados) dados por uma equipe ou um jogador, incluindo os que forem interceptados pelos defensores ou defendidos pelo goleiro.
+Ataque;gct_attack;Attempts On Target;As finalizações certas são um subconjunto do total de finalizações que terminam entre as traves e o travessão, incluindo as que resultam em gols ou exigem a defesa do goleiro para evitar um gol.
+Ataque;gct_attack;Attempt At Goal Conv. Rate (%);A porcentagem de finalizações de um jogador que resulta em gols.
+Ataque;gct_attack;xG;Modelo estatístico que estima a probabilidade de uma determinada finalização resultar em um gol, com base em fatores como o local e tipo da finalização, tipo de assistência e pressão defensiva.
+Ataque;gct_attack;xG Efficiency (%);"Medida de eficiência das finalizações, calculada dividindo os ""Gols"" pelos ""Gols Esperados"" (GE) e que indica a capacidade de uma equipe de converter chances em gols em relação à qualidade dessas chances."
+Ataque;gct_attack;Goals Conceded;Os gols sofridos indicam o total de gols que uma equipe permitiu que seu adversário marcasse. 
+Ataque;gct_attack;Corners;Os escanteios são um tipo de jogada de bola parada concedida a uma equipe que está atacando quando a bola cruza completamente a linha de fundo, por fora das traves, após ter sido tocada pela última vez por um jogador adversário.
+Ataque;gct_attack;Possession Control;A posse de bola mostra a porcentagem de tempo que cada equipe está no controle da bola, assim como um terceiro estado que mostra quando a bola está em disputa. A bola está em disputa quando nenhuma das equipes a tem sob controle.
+Distribuição;gct_distribution;Passes;Os passes se referem à transferência deliberada da bola de um jogador para outro da mesma equipe.
+Distribuição;gct_distribution;Passing Accuracy;"A porcentagem de passes certos diz respeito aos passes dados com sucesso em relação ao total de tentativas de passes, indicando a precisão de um jogador ou de uma equipe ao passar a bola.
+"
+Distribuição;gct_distribution;Crosses;Os cruzamentos são tipos específicos de distribuições de bola feitas a partir das laterais do campo e que visam a área penal do adversário, normalmente com a intenção de criar chances de gol.
+Distribuição;gct_distribution;Crossing Accuracy;A porcentagem de cruzamentos certos se refere aos cruzamentos feitos com sucesso ― isto é, aqueles que alcançam o companheiro de equipe pretendido ― em relação ao total de tentativas de cruzamentos.
+Distribuição;gct_distribution;Defensive Linebreaks Attempted;O número de tentativas de distribuição de bola ou ações com o objetivo de penetrar na linha defensiva do adversário, normalmente com a intenção de desorganizar a forma coletiva da outra equipe ou de criar chances de gol.
+Distribuição;gct_distribution;Defensive Linebreaks Acc (%);Porcentagem de tentativas bem-sucedidas de rupturas da linha defensiva.
+Distribuição;gct_distribution;Switches of Play Completed;O número de mudanças de direção do jogo bem-sucedidas que chegam ao companheiro pretendido no lado oposto do campo. A bola deve atravessar dois corredores verticais do campo.
+Distribuição;gct_distribution;Switches of Play Acc (%);A porcentagem de mudanças de direção do jogo bem-sucedidas.
+Defesa;gct_defending;Forced Turnovers;Situações em que um jogador ou uma equipe força o adversário a perder a posse de bola devido a ações como pressão exercida, desarmes ou interceptações.
+Defesa;gct_defending;Ball Recovery Time;O tempo que leva para que uma equipe recupere a posse depois de perder a bola, indicando a eficiência da sua pressão.
+Defesa;gct_defending;Own Goals;Os gols contra ocorrem quando um jogador, inadvertidamente, envia a bola para dentro da rede da sua própria equipe, fazendo com que um gol seja concedido para a equipe adversária.
+Defesa;gct_defending;Defensive Pressures Applied;O total de ações de pressão realizadas por um jogador ou equipe na tentativa de disputar a bola com o adversário que a conduzia e recuperar a posse.
+Defesa;gct_defending;Defensive Pressures Directly Applied;Pressões defensivas que ocorrem diretamente sobre o adversário que tem a posse da bola, com o objetivo de forçar erros ou a perda da bola ao disputá-la fisicamente.
+Disciplina;gct_discipline;Fouls Against; O número de faltas que um jogador ou uma equipe comete contra o adversário.
+Disciplina;gct_discipline;Fouls For; O número de faltas sofridas por um jogador ou uma equipe.
+Disciplina;gct_discipline;Yellow Cards;Advertências oficiais feitas pelo árbitro por condutas incorretas, registradas e monitoradas para fins disciplinares.
+Disciplina;gct_discipline;Red Cards;Expulsões diretas por infrações graves, que resultam na saída imediata do jogador e na impossibilidade de que ele continue disputando a partida.
+Disciplina;gct_discipline;Indirect Red Cards;As expulsões resultantes do acúmulo de dois cartões amarelos no mesmo jogo.
+Disciplina;gct_discipline;Offsides;Situações em que um jogador é punido por estar em posição de impedimento quando participa ativamente da jogada no momento em que a bola é passada para ele.
+Goleiro;gct_goalkeeping;Clean Sheets;Jogos em que a meta de uma equipe não é vazada. Essa métrica é normalmente usada para avaliar o desempenho da defesa e do goleiro.
+Goleiro;gct_goalkeeping;Goals Conceded;Os gols sofridos indicam o total de gols que uma equipe permitiu que seu adversário marcasse. 
+Goleiro;gct_goalkeeping;Goalkeeper Goal Preventions;O total de ações bem-sucedidas do goleiro que impedem que um gol seja marcado, incluindo qualquer finalização bloqueada ou desviada pelo goleiro usando qualquer parte do corpo permitida pelas regras.
+Goleiro;gct_goalkeeping;Goalkeeper Actions Inside the Penalty Area;Todas as intervenções defensivas feitas pelo goleiro dentro da própria área penal, incluindo defesas e bolas agarradas ou afastadas com um soco.
+Goleiro;gct_goalkeeping;Goalkeeper Actions Outside the Penalty Area;Todas as intervenções defensivas feitas pelo goleiro fora da sua área penal, que com frequência envolvem desarmes ou bolas afastadas.
+Movimentação;gct_movement;Offers To Receive;É quando um jogador faz um sinal ativo, muda a postura corporal ou faz um movimento claro para receber a bola de um companheiro. 
+Movimentação;gct_movement;Offers In Behind;É quando um jogador faz um sinal ativo, muda a postura corporal ou faz um movimento claro para receber a bola atrás da linha defensiva adversária.
+Movimentação;gct_movement;Offers In Between;É quando um jogador faz um sinal ativo, muda a postura corporal ou faz um movimento claro para receber a bola dentro da forma coletiva ou entre os blocos do adversário.
+Movimentação;gct_movement;Offers In Front;É quando um jogador faz um sinal ativo, muda a postura corporal ou faz um movimento claro para receber a bola na frente da forma coletiva do adversário.
+Movimentação;gct_movement;Offers Inside Team Shape;É quando um jogador faz um sinal ativo, muda a postura corporal ou faz um movimento claro para receber a bola dentro da forma coletiva do adversário.
+Movimentação;gct_movement;Offers Outside Team Shape;É quando um jogador faz um sinal ativo, muda a postura corporal ou faz um movimento claro para receber a bola fora da forma coletiva do adversário.
+Movimentação;gct_movement;Receptions In Behind;Bolas recebidas com sucesso atrás da última linha defensiva do adversário, indicando a criação de uma ameaça.
+Movimentação;gct_movement;Receptions Between Midfield And Defensive Line;Bolas recebidas com sucesso no espaço entre as linhas defensiva e de meio-campo do adversário, facilitando o avanço vertical da bola em direção ao gol.
+Movimentação;gct_movement;Receptions Under Pressure;Situações em que um jogador recebe a bola enquanto é pressionado ou disputa ativamente a bola com um adversário.
+Físico;gct_physical;Average Speed (km/h);A velocidade média de corrida de um jogador ao longo de uma partida, normalmente medida em km/h.
+Físico;gct_physical;High Speed Running;Corridas de alta intensidade feitas por um jogador que excedem um limite de velocidade definido. Essa métrica é usada para medir o esforço físico.
+Físico;gct_physical;Sprints;Movimentos explosivos em alta velocidade, geralmente medidos acima do limite estabelecido para uma arrancada.
+Físico;gct_physical;Top Speed (km/h);A maior velocidade alcançada por um jogador durante a partida. Vale para um único jogador ou para a equipe coletivamente. 
+Físico;gct_physical;Total Distance (km);A distância acumulada que um jogador percorre durante uma partida, registrada em metros ou quilômetros, em todas as velocidades e intensidades. Vale para um único jogador ou para a equipe coletivamente. 

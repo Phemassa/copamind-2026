@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709150706-3ea82599",
+  "phase": "round_of_16",
+  "status": "running",
+  "total_samples": 1,
+  "message": "Executando bytedance/seed-oss-36b em Canadá x Marrocos.",
+  "percent": 0.0,
+  "completed_calls": 0,
+  "total_calls": 8,
+  "updated_at": "2026-07-09T15:07:09.868912+00:00",
+  "current_match_index": 1,
+  "total_matches": 8,
+  "current_match_label": "Canadá x Marrocos",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "bytedance/seed-oss-36b",
+  "current_sample_index": 1,
+  "elapsed_seconds": 0.0,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T15:07:09.838156+00:00"
+}

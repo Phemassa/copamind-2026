@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709021108-c54d1e03",
+  "phase": "quarterfinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 30,
+  "total_calls": 30,
+  "updated_at": "2026-07-09T03:00:44.595431+00:00",
+  "current_match_index": 2,
+  "total_matches": 2,
+  "current_match_label": "Argentina x Suíça",
+  "current_model_index": 29,
+  "total_models": 29,
+  "current_model_id": "google/gemma-4-12b-qat",
+  "current_sample_index": 1,
+  "elapsed_seconds": 2973.1,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T02:11:11.480915+00:00"
+}

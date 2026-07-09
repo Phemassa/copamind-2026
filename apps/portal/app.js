@@ -1,0 +1,3053 @@
+const PHASE_LABELS = {
+  group: "Grupos",
+  round_of_32: "16 avos",
+  round_of_16: "Oitavas",
+  quarterfinal: "Quartas",
+  semifinal: "Semifinais",
+  third_place: "3o lugar",
+  final: "Final",
+};
+const API_BASE = "http://localhost:8000";
+const RUN_POLL_MS = 10000;
+const PROGRESS_POLL_MS = 2000;
+const RUN_TIMEOUT_MS = 15 * 60 * 1000;
+const BULK_PHASES = ["round_of_16", "quarterfinal", "semifinal", "third_place", "final"];
+const STATIC_ASSETS = [
+  "../../docs/assets/banner.png",
+  "../../docs/assets/copamind_2026.png",
+  "../../docs/assets/fundo_clean1.png",
+  "../../docs/assets/fundo_taca.png",
+  "../../docs/assets/icon.png",
+];
+
+let state = null;
+let activePhase = "round_of_16";
+let activeView = "bolao";
+let activePlayerTeam = "all";
+let activePlayerRanking = "top20";
+let activeCapturePhase = null;
+let activeTournamentStage = "group";
+const runningRuns = new Map();
+const recoveredProgressBatches = new Set();
+
+document.getElementById("refresh-data").addEventListener("click", () => loadData(true));
+document.querySelectorAll("[data-export-static]").forEach((button) => {
+  button.addEventListener("click", exportStaticSite);
+});
+document.getElementById("context-note-form")?.addEventListener("submit", saveContextNote);
+document.getElementById("btn-extract-url")?.addEventListener("click", extractFromUrl);
+document.querySelectorAll(".main-nav button").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeView = button.dataset.view || "bolao";
+    renderMainNav();
+  });
+});
+document.querySelectorAll("[data-home-view]").forEach((button) => {
+  button.addEventListener("click", () => {
+    activeView = button.dataset.homeView || "bolao";
+    renderMainNav();
+    document.querySelector(`[data-section="${cssEscape(activeView)}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+});
+loadData();
+
+async function loadData(cacheBust = false) {
+  if (window.COPAMIND_EMBEDDED_DATA) {
+    state = window.COPAMIND_EMBEDDED_DATA;
+    activePhase = (state.phases || []).find((phase) => phase.key === activePhase)?.key
+      || state.phases?.[0]?.key
+      || "round_of_16";
+    activeCapturePhase = activeCapturePhase || defaultCapturePhase();
+    reconcileRunningRuns();
+    renderAll();
+    return;
+  }
+  const suffix = cacheBust ? `?t=${Date.now()}` : "";
+  const response = await fetch(`data/copamind.json${suffix}`);
+  if (!response.ok) {
+    renderMissingData();
+    return;
+  }
+  state = await response.json();
+  activePhase = (state.phases || []).find((phase) => phase.key === activePhase)?.key
+    || state.phases?.[0]?.key
+    || "round_of_16";
+  activeCapturePhase = activeCapturePhase || defaultCapturePhase();
+  reconcileRunningRuns();
+  renderAll();
+  recoverLatestBulkProgress().catch(() => {});
+}
+
+function renderMissingData() {
+  document.getElementById("generated-at").textContent = "sem snapshot";
+  document.getElementById("phase-tabs").innerHTML = "";
+  document.getElementById("matches-list").innerHTML = empty("Snapshot nao encontrado. Rode scripts/export_portal_data.py.");
+  document.getElementById("llm-card-grid").innerHTML = "";
+}
+
+function renderAll() {
+  renderMainNav();
+  renderSummary();
+  renderPhaseTabs();
+  renderPhaseHeader();
+  renderMatches();
+  renderModels();
+  renderRanking();
+  renderBenchmark();
+  renderLinkedInCaptures();
+  renderContextInputs();
+  renderTournament();
+  renderTeamDashboard();
+  renderPlayersDashboard();
+  renderGuide();
+  document.getElementById("generated-at").textContent = `Snapshot: ${formatDateTime(state.generated_at)}`;
+}
+
+function renderMainNav() {
+  document.querySelectorAll(".main-nav button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === activeView);
+  });
+  document.querySelectorAll(".view-section").forEach((section) => {
+    section.classList.toggle("is-hidden", section.dataset.section !== activeView);
+  });
+}
+
+function renderSummary() {
+  const summary = state.summary || {};
+  const sync = state.sync_status || {};
+  setText("kpi-matches", summary.matches ?? "-");
+  setText("kpi-models", (state.models || []).filter((model) => !model.is_combo).length);
+  setText("kpi-features", sync.feature_snapshots ?? 0);
+  setText("kpi-predictions", summary.predictions ?? 0);
+}
+
+function renderPhaseTabs() {
+  const phases = state.phases || [];
+  document.getElementById("phase-tabs").innerHTML = phases.map((phase) => `
+    <button class="${phase.key === activePhase ? "active" : ""}" type="button" data-phase="${escapeAttr(phase.key)}">
+      ${escapeHtml(phase.label)}
+      <span>${phase.match_count} jogos</span>
+    </button>
+  `).join("");
+  document.querySelectorAll("#phase-tabs button").forEach((button) => {
+    button.addEventListener("click", () => {
+      activePhase = button.dataset.phase;
+      renderPhaseTabs();
+      renderPhaseHeader();
+      renderMatches();
+      renderModels();
+      recoverLatestBulkProgress().catch(() => {});
+    });
+  });
+}
+
+function renderPhaseHeader() {
+  const phase = currentPhase();
+  const runOverview = phaseRunOverview(activePhase);
+  setText("active-phase-title", phase?.label || phaseLabel(activePhase));
+  setText("phase-context", phase?.context || "Dados atuais da FIFA + historico disponivel antes da partida.");
+  setText(
+    "phase-stats",
+    `${phase?.finished_count || 0}/${phase?.match_count || 0} finalizados | `
+      + `${phase?.models_count || 0} modelos com palpites`
+      + (runOverview ? ` | ${runOverview.valid}/${runOverview.total} LLMs válidas | ${runOverview.invalid} com JSON inválido` : "")
+  );
+}
+
+function phaseRunOverview(phaseKey) {
+  const rows = (state.phase_model_run_status || []).filter((item) => item.phase === phaseKey);
+  if (!rows.length) return null;
+  return {
+    total: rows.length,
+    valid: rows.filter((item) => Number(item.valid_runs || 0) > 0).length,
+    invalid: rows.filter((item) => Number(item.runs || 0) > 0 && Number(item.valid_runs || 0) === 0).length,
+    jsonInvalid: rows.filter((item) => dominantRunIssue(item) === "json_invalid").length,
+    lmstudioError: rows.filter((item) => dominantRunIssue(item) === "lmstudio_error").length,
+  };
+}
+
+function renderMatches() {
+  const matches = matchesForPhase(activePhase);
+  const featuresByMatch = Object.fromEntries((state.feature_snapshots || []).map((item) => [item.match_id, item]));
+  const projected = matches.length ? [] : projectedMatchesForPhase(activePhase, "combo");
+  document.getElementById("matches-list").innerHTML = matches.map((match) => matchCard(match, featuresByMatch[match.match_id])).join("")
+    || projected.map(projectedMatchCard).join("")
+    || empty("Sem jogos cadastrados nesta fase.");
+}
+
+function matchCard(match, feature) {
+  const score = matchScore(match);
+  const markers = matchMarkers(match);
+  const baseline = feature?.baseline;
+  const baselineText = baseline?.available
+    ? `${pct(baseline.prob_home)} / ${pct(baseline.prob_draw)} / ${pct(baseline.prob_away)}`
+    : "baseline aguardando historico";
+  return `
+    <article class="match-card">
+      <div class="match-teams">
+        ${teamLine(match.home, match.home_flag_url, match.home_score)}
+        <div class="versus">${score}</div>
+        ${teamLine(match.away, match.away_flag_url, match.away_score)}
+      </div>
+      <div class="match-meta">
+        <span>${formatDateTime(match.date)}</span>
+        <span>${statusLabel(match.status)}${markers ? ` | ${escapeHtml(markers)}` : ""}</span>
+      </div>
+      <div class="baseline-row">
+        <span>ML baseline</span>
+        <strong>${escapeHtml(baselineText)}</strong>
+      </div>
+    </article>`;
+}
+
+function teamLine(name, flagUrl, score) {
+  return `
+    <div class="team-line">
+      <img src="${escapeAttr(flagUrl || "")}" alt="" />
+      <strong>${escapeHtml(name || "A definir")}</strong>
+      <span>${score ?? ""}</span>
+    </div>`;
+}
+
+function renderModels() {
+  renderModelActions();
+  const scoresByModel = Object.fromEntries(
+    (state.phase_model_scores || [])
+      .filter((score) => score.phase === activePhase)
+      .map((score) => [score.model_id, score])
+  );
+  const predictionsByModel = Object.fromEntries(
+    (state.phase_predictions_by_model || [])
+      .filter((item) => item.phase === activePhase)
+      .map((item) => [item.model_id, item.predictions || []])
+  );
+  const runStatusByModel = Object.fromEntries(
+    (state.phase_model_run_status || [])
+      .filter((item) => item.phase === activePhase)
+      .map((item) => [item.model_id, item])
+  );
+  const cards = (state.models || [])
+    .filter((model) => !model.is_combo || scoresByModel[model.model_id] || predictionsByModel[model.model_id])
+    .sort((a, b) => {
+      const scoreA = scoresByModel[a.model_id] || {};
+      const scoreB = scoresByModel[b.model_id] || {};
+      return (b.is_combo ? 1 : 0) - (a.is_combo ? 1 : 0)
+        || accuracyValue(scoreB) - accuracyValue(scoreA)
+        || (scoreB.points || 0) - (scoreA.points || 0)
+        || a.display_name.localeCompare(b.display_name);
+    });
+  document.getElementById("llm-card-grid").innerHTML = cards.map((model) => {
+    return modelCard(
+      model,
+      scoresByModel[model.model_id],
+      modelRowsForPhase(
+        activePhase,
+        model.model_id,
+        predictionsByModel[model.model_id] || [],
+        runStatusByModel[model.model_id]
+      ),
+      runStatusByModel[model.model_id]
+    );
+  }).join("") || empty("Sem palpites nesta fase. Use o Admin para processar a fase com LLMs e exporte o snapshot.");
+  document.querySelectorAll("[data-run-model]").forEach((button) => {
+    button.addEventListener("click", () => runModelPhase(button.dataset.runModel));
+  });
+  document.querySelectorAll("[data-reset-model]").forEach((button) => {
+    button.addEventListener("click", () => resetLLMHistory({ phase: activePhase, modelId: button.dataset.resetModel }));
+  });
+}
+
+function renderModelActions() {
+  const canRunAll = canRunAllModelsForPhase();
+  const phase = currentPhase();
+  const pendingResults = pendingPhaseMatches(activePhase).length;
+  const projected = projectedMatchesForPhase(activePhase, "combo").length;
+  const bulkRun = runningRuns.get(runKey(activePhase, "__all__"));
+  const runOverview = phaseRunOverview(activePhase);
+  const gaps = phaseExecutionGaps(activePhase);
+  const runButtonLabel = bulkRun
+    ? "Executando fase..."
+    : gaps.missingCalls
+      ? "Executar LLMs faltantes"
+      : runOverview?.invalid
+        ? "Tudo processado (há erros)"
+      : "Executar todas as LLMs da fase";
+  const runHint = canRunAll
+    ? gaps.missingCalls
+      ? `Executa ${gaps.missingCalls} chamadas ainda nao processadas em ${phase?.label || phaseLabel(activePhase)}.`
+      : `Executa todos os modelos ativos para ${phase?.label || phaseLabel(activePhase)}.`
+    : runOverview?.invalid
+      ? "Tudo ja foi processado. Para tentar novamente os modelos com erro, use Reset modelo ou Reset fase."
+      : "Disponivel quando houver jogos oficiais, chamadas faltantes ou chave projetada.";
+  const statusBits = [`${pendingResults} jogos sem resultado oficial`, `${projected} projetados`];
+  if (gaps.missingCalls) statusBits.push(`${gaps.missingCalls} chamadas nao processadas`);
+  if (runOverview) {
+    statusBits.push(`${runOverview.valid}/${runOverview.total} LLMs válidas`);
+    if (runOverview.jsonInvalid) statusBits.push(`${runOverview.jsonInvalid} com JSON inválido`);
+    if (runOverview.lmstudioError) statusBits.push(`${runOverview.lmstudioError} com erro LM Studio`);
+  }
+  document.getElementById("model-actions").innerHTML = `
+    <div class="model-actions-main">
+      <div>
+        <strong>Controle do agente</strong>
+        <span>${escapeHtml(statusBits.join(" | "))}</span>
+      </div>
+      ${bulkRun?.progress ? bulkProgressPanel(bulkRun.progress) : ""}
+    </div>
+    <div class="model-action-buttons">
+      <button type="button" id="run-all-models" ${canRunAll && !bulkRun ? "" : "disabled"} title="${escapeAttr(runHint)}">
+        ${escapeHtml(runButtonLabel)}
+      </button>
+      <button type="button" id="reset-phase-history" title="Limpa chamadas e palpites das LLMs nesta fase.">
+        Reset fase
+      </button>
+      <button type="button" id="reset-all-history" class="danger-button" title="Limpa todo o historico de chamadas/palpites das LLMs.">
+        Reset geral
+      </button>
+    </div>`;
+  document.getElementById("run-all-models").addEventListener("click", runAllModelsForPhase);
+  document.getElementById("reset-phase-history").addEventListener("click", () => resetLLMHistory({ phase: activePhase }));
+  document.getElementById("reset-all-history").addEventListener("click", () => resetLLMHistory({}));
+}
+
+function modelCard(model, score, predictions, runStatus) {
+  const telemetry = model.telemetry || {};
+  const accuracy = score?.accuracy == null ? null : Math.round(score.accuracy * 100);
+  const jsonRate = telemetry.json_rate == null ? "-" : `${Math.round(telemetry.json_rate * 100)}%`;
+  const fallbackAvatar = avatarForModel(model);
+  const avatar = model.image_url || fallbackAvatar;
+  const phaseRunLabel = phaseRunSummary(score, predictions, runStatus);
+  return `
+    <article class="llm-card ${model.is_combo ? "combo-card" : ""}">
+      <div class="llm-card-head">
+        <img class="model-avatar" src="${escapeAttr(avatar)}" alt="" onerror="this.onerror=null;this.src='${escapeAttr(fallbackAvatar)}';" />
+        <div class="llm-title">
+          <strong title="${escapeAttr(model.model_id)}">${escapeHtml(model.display_name || model.model_id)}</strong>
+          <span>${escapeHtml(model.family || "local")} | ${escapeHtml(model.model_class || "chat")} | ${escapeHtml(phaseRunLabel)}</span>
+        </div>
+        <div class="accuracy-score">
+          <strong>${accuracy == null ? "Aguardando" : `${accuracy}%`}</strong>
+          <span>${accuracy == null ? "resultado" : "assertividade"}</span>
+        </div>
+      </div>
+      <div class="llm-metrics">
+        <div><span>Pontos</span><strong>${score?.points ?? 0}</strong></div>
+        <div><span>LM Studio</span><strong>${model.available === false ? "offline" : "ativo"}</strong></div>
+        <div><span>JSON válido</span><strong>${jsonRate}</strong></div>
+        <div><span>Lat. média</span><strong>${num(telemetry.avg_latency_ms, 0)} ms</strong></div>
+        <div><span>Tokens/s</span><strong>${num(telemetry.avg_tokens_per_second, 1)}</strong></div>
+        <div><span>Brier fase</span><strong>${score?.brier_avg == null ? "aguarda" : num(score.brier_avg, 3)}</strong></div>
+        <div><span>Rodadas</span><strong>${telemetry.rounds ?? 0}</strong></div>
+      </div>
+      ${model.is_combo ? "" : modelActionRow(model)}
+      <div class="prediction-list">
+        ${predictions.map(predictionRow).join("") || emptyPrediction("Sem palpites nesta fase.")}
+      </div>
+    </article>`;
+}
+
+function phaseRunSummary(score, predictions, runStatus) {
+  const runs = Number(runStatus?.runs || 0);
+  if (runs) {
+    const valid = Number(runStatus?.valid_runs || 0);
+    const invalid = runIssueSummary(runStatus);
+    return `${valid}/${runs} JSON válidos${invalid ? ` | ${invalid}` : ""}`;
+  }
+  const predicted = Number(score?.predictions || predictions.filter((item) => item.has_prediction !== false).length || 0);
+  if (predicted) return `${predicted} palpites`;
+  return `${predictions.length || 0} jogos`;
+}
+
+function runIssueSummary(runStatus) {
+  const counts = runStatus?.error_counts || {};
+  const pieces = [];
+  if (counts.lmstudio_error) pieces.push(`${counts.lmstudio_error} erro LM Studio`);
+  if (counts.json_invalid) pieces.push(`${counts.json_invalid} JSON inválido`);
+  if (counts.context_error) pieces.push(`${counts.context_error} contexto/tokens`);
+  const other = Number(counts.other_error || 0);
+  if (other) pieces.push(`${other} outros erros`);
+  return pieces.join(" | ");
+}
+
+function dominantRunIssue(runStatus) {
+  const counts = runStatus?.error_counts || {};
+  const entries = Object.entries(counts).sort((a, b) => Number(b[1]) - Number(a[1]));
+  return entries[0]?.[0] || (Number(runStatus?.invalid_runs || 0) ? "json_invalid" : "");
+}
+
+function modelActionRow(model) {
+  return `
+    <div class="card-action-row">
+      ${runModelButton(model)}
+      <button
+        class="reset-model-button"
+        type="button"
+        data-reset-model="${escapeAttr(model.model_id)}"
+        title="Limpa chamadas, rodadas e palpites deste modelo nesta fase."
+      >
+        Reset modelo
+      </button>
+    </div>`;
+}
+
+function runModelButton(model) {
+  const phase = currentPhase();
+  const officialMatches = matchesForPhase(activePhase).length;
+  const projectedMatches = projectedMatchesForPhase(activePhase, model.model_id).length;
+  const canRun = officialMatches > 0 || projectedMatches > 0;
+  const running = runningRuns.has(runKey(activePhase, model.model_id));
+  const label = running ? "Rodando... atualizando" : canRun ? "Executar IA nesta fase" : "Aguardando chave";
+  return `
+    <button
+      class="run-model-button ${running ? "is-running" : ""}"
+      type="button"
+      data-run-model="${escapeAttr(model.model_id)}"
+      ${canRun && !running ? "" : "disabled"}
+      title="${canRun ? "Dispara o agente local via API CopaMind. Em fases sem chave oficial, usa confronto projetado." : "Ainda nao ha dados suficientes para projetar esta fase."}"
+    >
+      ${escapeHtml(label)}
+    </button>`;
+}
+
+function renderRanking() {
+  if (!state) return;
+  renderRankingSummary();
+  renderRankingTable();
+  renderPhaseScoreboard();
+  renderWinnerForecast();
+  renderTeamTitleRanking();
+}
+
+function renderRankingSummary() {
+  const rows = rankingRows();
+  const scored = rows.filter((row) => row.scored > 0).length;
+  const votes = allValidPredictions().length;
+  const best = rows.find((row) => row.scored > 0);
+  document.getElementById("ranking-summary").innerHTML = `
+    <div><span>Modelos</span><strong>${rows.filter((row) => !row.is_combo).length}</strong></div>
+    <div><span>Com score</span><strong>${scored}</strong></div>
+    <div><span>Palpites LLM</span><strong>${votes}</strong></div>
+    <div><span>Lider</span><strong>${escapeHtml(best?.display_name || "Aguardando")}</strong></div>`;
+}
+
+function renderRankingTable() {
+  const rows = rankingRows();
+  document.getElementById("ranking-table").innerHTML = `
+    <div class="ranking-table">
+      <div class="ranking-table-head">
+        <span>#</span><span>Modelo</span><span>Pontos</span><span>Acerto</span><span>Jogos</span><span>JSON</span><span>Lat.</span><span>Tok/s</span><span>Brier</span>
+      </div>
+      ${rows.map((row, index) => `
+        <div class="ranking-table-row ${row.is_combo ? "combo-row" : ""}">
+          <span>${index + 1}</span>
+          <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
+          <span>${row.points}</span>
+          <span>${row.scored ? pct(row.accuracy) : "aguarda"}</span>
+          <span>${row.scored || row.predictions}</span>
+          <span>${row.json_rate == null ? "-" : `${Math.round(row.json_rate * 100)}%`}</span>
+          <span>${num(row.avg_latency_ms, 0)} ms</span>
+          <span>${num(row.avg_tokens_per_second, 1)}</span>
+          <span>${row.brier_avg == null ? "-" : num(row.brier_avg, 3)}</span>
+        </div>
+      `).join("")}
+    </div>`;
+}
+
+function renderPhaseScoreboard() {
+  const rows = rankingRows().slice(0, 18);
+  const phases = state.phases || [];
+  document.getElementById("phase-scoreboard").innerHTML = `
+    <div class="phase-score-grid">
+      ${rows.map((row) => `
+        <article class="phase-score-card">
+          <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
+          <div>
+            ${phases.map((phase) => {
+              const score = row.phase_scores[phase.key];
+              return `
+                <span>
+                  <em>${escapeHtml(phase.label)}</em>
+                  <b>${score ? `${score.points} pts` : "-"}</b>
+                  <small>${score?.scored ? pct(score.accuracy) : "aguarda"}</small>
+                </span>`;
+            }).join("")}
+          </div>
+        </article>
+      `).join("") || empty("Aguardando modelos.")}
+    </div>`;
+}
+
+function renderWinnerForecast() {
+  const phases = ["quarterfinal", "semifinal", "third_place", "final"];
+  document.getElementById("winner-forecast").innerHTML = `
+    <div class="winner-forecast-list">
+      ${phases.map((phase) => forecastPhaseCard(phase)).join("")}
+    </div>`;
+}
+
+function forecastPhaseCard(phase) {
+  const allVotes = winnerVotesForPhase(phase);
+  const votes = allVotes.slice(0, 5);
+  const voteTotal = allVotes.reduce((sum, row) => sum + row.votes, 0);
+  const officialWinners = officialWinnersForPhase(phase);
+  return `
+    <article class="forecast-card">
+      <div>
+        <strong>${escapeHtml(phaseLabel(phase))}</strong>
+        <span>${officialWinners.length ? `${officialWinners.length} classificados reais` : `top ${votes.length} de ${voteTotal} votos LLM`}</span>
+      </div>
+      ${votes.map((row) => teamVoteLine(row, officialWinners)).join("") || emptyPrediction("Aguardando palpites da fase.")}
+    </article>`;
+}
+
+function renderTeamTitleRanking() {
+  const rows = teamTitleRows().slice(0, 16);
+  document.getElementById("team-title-ranking").innerHTML = `
+    <div class="team-title-list">
+      ${rows.map((row, index) => `
+        <div class="team-title-row ${row.eliminated ? "is-eliminated" : ""}">
+          <span>${index + 1}</span>
+          <img src="${escapeAttr(row.flag_url || "")}" alt="" />
+          <strong>${escapeHtml(row.name)}</strong>
+          <em>${escapeHtml(row.status)}</em>
+          <b>${pct(row.chance)}</b>
+          <small>${row.votes} votos | perfil ${pct(row.profile)}</small>
+        </div>
+      `).join("")}
+    </div>`;
+}
+
+function rankingRows() {
+  const phaseScores = state.phase_model_scores || [];
+  const scoreMap = {};
+  for (const score of phaseScores) {
+    const id = String(score.model_id);
+    scoreMap[id] ||= {};
+    scoreMap[id][score.phase] = score;
+  }
+  return (state.models || [])
+    .map((model) => {
+      const phases = scoreMap[model.model_id] || {};
+      const phaseList = Object.values(phases);
+      const scored = phaseList.reduce((sum, item) => sum + Number(item.scored || 0), 0);
+      const points = phaseList.reduce((sum, item) => sum + Number(item.points || 0), 0);
+      const weightedAccuracy = scored
+        ? phaseList.reduce((sum, item) => sum + Number(item.accuracy || 0) * Number(item.scored || 0), 0) / scored
+        : null;
+      const brierValues = phaseList.map((item) => item.brier_avg).filter((value) => value != null);
+      const brier = brierValues.length
+        ? brierValues.reduce((sum, value) => sum + Number(value), 0) / brierValues.length
+        : null;
+      return {
+        model_id: model.model_id,
+        display_name: model.display_name || model.model_id,
+        is_combo: Boolean(model.is_combo),
+        points,
+        scored,
+        predictions: phaseList.reduce((sum, item) => sum + Number(item.predictions || 0), 0),
+        accuracy: weightedAccuracy,
+        brier_avg: brier,
+        exact: phaseList.reduce((sum, item) => sum + Number(item.exact_hits || 0), 0),
+        json_rate: model.telemetry?.json_rate,
+        avg_latency_ms: model.telemetry?.avg_latency_ms,
+        avg_tokens_per_second: model.telemetry?.avg_tokens_per_second,
+        phase_scores: phases,
+      };
+    })
+    .sort((a, b) => (
+      Number(b.is_combo) - Number(a.is_combo)
+      || b.points - a.points
+      || accuracySortValue(b.accuracy) - accuracySortValue(a.accuracy)
+      || b.exact - a.exact
+      || brierSortValue(a.brier_avg) - brierSortValue(b.brier_avg)
+      || a.display_name.localeCompare(b.display_name)
+    ));
+}
+
+function allValidPredictions() {
+  return (state.phase_predictions_by_model || [])
+    .flatMap((item) => (item.predictions || []).map((prediction) => ({
+      ...prediction,
+      model_id: item.model_id,
+    })))
+    .filter((prediction) => prediction.has_prediction !== false);
+}
+
+function renderBenchmark() {
+  if (!state) return;
+  const rows = benchmarkRows();
+  renderBenchmarkSummary(rows);
+  renderBenchmarkTable(rows);
+  renderBenchmarkGuidance(rows);
+}
+
+function renderBenchmarkSummary(rows) {
+  const currentRows = rows.filter((row) => !row.archived);
+  const runs = currentRows.reduce((sum, row) => sum + row.runs, 0);
+  const valid = currentRows.reduce((sum, row) => sum + row.valid_runs, 0);
+  const invalid = currentRows.reduce((sum, row) => sum + row.invalid_runs, 0);
+  const best = currentRows.find((row) => row.runs > 0);
+  const fastest = currentRows
+    .filter((row) => row.avg_tokens_per_second != null)
+    .sort((a, b) => b.avg_tokens_per_second - a.avg_tokens_per_second)[0];
+  document.getElementById("benchmark-summary").innerHTML = `
+    <div><span>Modelos atuais</span><strong>${currentRows.length}</strong></div>
+    <div><span>Chamadas</span><strong>${runs}</strong></div>
+    <div><span>JSON valido</span><strong>${runs ? Math.round(valid / runs * 100) : 0}%</strong></div>
+    <div><span>Invalidas</span><strong>${invalid}</strong></div>
+    <div><span>Melhor benchmark</span><strong>${escapeHtml(best?.display_name || "Aguardando")}</strong></div>
+    <div><span>Mais rapido</span><strong>${escapeHtml(fastest?.display_name || "Aguardando")}</strong></div>`;
+}
+
+function renderBenchmarkTable(rows) {
+  document.getElementById("benchmark-table").innerHTML = `
+    <div class="benchmark-table">
+      <div class="benchmark-table-head">
+        <span>#</span><span>Modelo</span><span>Bench</span><span>Bolao</span><span>JSON</span><span>Chamadas</span><span>Lat.</span><span>Tok/s</span><span>Uso</span><span>Orientacao</span>
+      </div>
+      ${rows.map((row, index) => `
+        <div class="benchmark-table-row ${row.archived ? "archived-row" : ""}">
+          <span>${index + 1}</span>
+          <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
+          <b>${num(row.benchmark_score, 0)}</b>
+          <span>${row.scored ? `${row.points} pts / ${pct(row.accuracy)}` : "sem score"}</span>
+          <span>${row.runs ? `${Math.round(row.json_rate * 100)}%` : "-"}</span>
+          <span>${row.valid_runs}/${row.runs}</span>
+          <span>${num(row.avg_latency_ms, 0)} ms</span>
+          <span>${num(row.avg_tokens_per_second, 1)}</span>
+          <em>${escapeHtml(row.ease_label)}</em>
+          <small>${escapeHtml(row.recommendation)}</small>
+        </div>
+      `).join("") || empty("Sem dados de benchmark ainda. Rode uma fase com LLMs e exporte o snapshot.")}
+    </div>`;
+}
+
+function renderBenchmarkGuidance(rows) {
+  const invalidRows = rows.filter((row) => row.invalid_runs > 0 && !row.archived);
+  const jsonInvalid = invalidRows.filter((row) => row.dominant_issue === "json_invalid").length;
+  const lmstudioError = invalidRows.filter((row) => row.dominant_issue === "lmstudio_error").length;
+  const contextError = invalidRows.filter((row) => row.dominant_issue === "context_error").length;
+  document.getElementById("benchmark-guidance").innerHTML = `
+    <div class="benchmark-issue-grid">
+      <div><span>JSON/schema</span><strong>${jsonInvalid}</strong></div>
+      <div><span>LM Studio</span><strong>${lmstudioError}</strong></div>
+      <div><span>Contexto</span><strong>${contextError}</strong></div>
+    </div>
+    <article>
+      <h4>Perfil de teste recomendado</h4>
+      <p>Para os modelos que nao obedecem JSON: Temperature 0.0-0.2, Top P 0.80-0.90, Top K 10-20, Structured Output ligado quando o modelo aceitar, Preserve Thinking desligado e Reasoning Parsing ligado somente para modelos que usam &lt;think&gt;.</p>
+    </article>
+    <article>
+      <h4>Como comparar de forma justa</h4>
+      <p>Rode o mesmo jogo/fase com todos os modelos, samples = 1, mesma temperatura do agente e depois uma rodada retry-invalidos com o perfil JSON. O benchmark final deve guardar a configuracao usada em cada rodada.</p>
+    </article>
+    <article>
+      <h4>O que a nota mede</h4>
+      <p>Ela combina score do bolao, taxa de JSON valido, velocidade, latencia e disponibilidade. Assim um modelo pode ser bom no palpite, mas perder pontos se for dificil de operar.</p>
+    </article>`;
+}
+
+function benchmarkRows() {
+  const scoreRows = rankingRows().filter((row) => !row.is_combo);
+  const scoreByModel = Object.fromEntries(scoreRows.map((row) => [row.model_id, row]));
+  const modelById = Object.fromEntries((state.models || [])
+    .filter((model) => !model.is_combo)
+    .map((model) => [model.model_id, model]));
+  const runGroups = {};
+  for (const run of state.llm?.runs || []) {
+    const modelId = String(run.model_id || "");
+    if (!modelId || modelId === "combo") continue;
+    const group = runGroups[modelId] ||= {
+      runs: 0,
+      valid_runs: 0,
+      invalid_runs: 0,
+      latency_values: [],
+      speed_values: [],
+      prompt_tokens: [],
+      completion_tokens: [],
+      errors: {},
+    };
+    group.runs += 1;
+    if (run.valid) group.valid_runs += 1;
+    else {
+      group.invalid_runs += 1;
+      const issue = runErrorType(run.error || "");
+      group.errors[issue] = (group.errors[issue] || 0) + 1;
+    }
+    if (run.latency_ms != null) group.latency_values.push(Number(run.latency_ms));
+    if (run.prompt_tokens != null) group.prompt_tokens.push(Number(run.prompt_tokens));
+    if (run.completion_tokens != null) {
+      group.completion_tokens.push(Number(run.completion_tokens));
+      if (Number(run.latency_ms) > 0) {
+        group.speed_values.push(Number(run.completion_tokens) / (Number(run.latency_ms) / 1000));
+      }
+    }
+  }
+  const ids = new Set([...Object.keys(modelById), ...Object.keys(runGroups), ...Object.keys(scoreByModel)]);
+  return [...ids].map((modelId) => {
+    const model = modelById[modelId] || {};
+    const score = scoreByModel[modelId] || {};
+    const runs = runGroups[modelId] || {};
+    const validRuns = Number(runs.valid_runs || model.telemetry?.valid_runs || 0);
+    const totalRuns = Number(runs.runs || model.telemetry?.runs || 0);
+    const invalidRuns = Math.max(0, totalRuns - validRuns);
+    const jsonRate = totalRuns ? validRuns / totalRuns : null;
+    const speed = avg(runs.speed_values) ?? model.telemetry?.avg_tokens_per_second ?? null;
+    const latency = avg(runs.latency_values) ?? model.telemetry?.avg_latency_ms ?? null;
+    const dominantIssueValue = dominantIssueFromCounts(runs.errors || {});
+    const row = {
+      model_id: modelId,
+      display_name: model.display_name || score.display_name || modelId,
+      archived: !modelById[modelId],
+      available: model.available !== false,
+      points: Number(score.points || 0),
+      scored: Number(score.scored || 0),
+      accuracy: score.accuracy ?? null,
+      brier_avg: score.brier_avg ?? null,
+      runs: totalRuns,
+      valid_runs: validRuns,
+      invalid_runs: invalidRuns,
+      json_rate: jsonRate,
+      avg_latency_ms: latency,
+      avg_tokens_per_second: speed,
+      avg_prompt_tokens: avg(runs.prompt_tokens),
+      avg_completion_tokens: avg(runs.completion_tokens),
+      dominant_issue: dominantIssueValue,
+    };
+    row.benchmark_score = benchmarkScore(row);
+    row.ease_label = easeLabel(row);
+    row.recommendation = recommendationForBenchmark(row);
+    return row;
+  }).sort((a, b) => (
+    b.benchmark_score - a.benchmark_score
+    || Number(b.json_rate || 0) - Number(a.json_rate || 0)
+    || b.points - a.points
+    || a.display_name.localeCompare(b.display_name)
+  ));
+}
+
+function benchmarkScore(row) {
+  if (!row.runs && !row.scored) return 0;
+  const json = row.json_rate == null ? 0 : row.json_rate * 40;
+  const bolao = Math.min(25, Number(row.points || 0) * 2.5);
+  const accuracy = row.accuracy == null ? 0 : row.accuracy * 15;
+  const speed = row.avg_tokens_per_second == null ? 0 : Math.min(12, row.avg_tokens_per_second / 2);
+  const latency = row.avg_latency_ms == null ? 0 : Math.max(0, 8 - row.avg_latency_ms / 30000);
+  const available = row.archived || row.available === false ? 0 : 5;
+  return Math.max(0, Math.min(100, json + bolao + accuracy + speed + latency + available));
+}
+
+function easeLabel(row) {
+  if (row.archived) return "fora da lista";
+  if (!row.runs) return "sem teste";
+  if (row.json_rate >= 0.95 && row.invalid_runs === 0) return "pronto";
+  if (row.json_rate >= 0.75) return "bom com ajuste";
+  if (row.dominant_issue === "lmstudio_error") return "corrigir ambiente";
+  if (row.dominant_issue === "context_error") return "reduzir contexto";
+  if (row.dominant_issue === "json_invalid") return "testar JSON";
+  return "instavel";
+}
+
+function recommendationForBenchmark(row) {
+  if (row.archived) return "Modelo com historico, mas fora da lista atual.";
+  if (!row.runs) return "Executar uma fase curta antes de comparar.";
+  if (row.dominant_issue === "lmstudio_error") return "Ver carregamento, contexto e suporte a response_format/schema.";
+  if (row.dominant_issue === "context_error") return "Aumentar Context Length ou usar prompt enxuto.";
+  if (row.dominant_issue === "json_invalid") return "Usar perfil producao: temp 0.0-0.2 e Structured Output.";
+  if (row.json_rate >= 0.95) return "Config atual serve como baseline.";
+  return "Rodar retry-invalidos com perfil JSON.";
+}
+
+function dominantIssueFromCounts(counts) {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return "none";
+  return entries.sort((a, b) => Number(b[1]) - Number(a[1]))[0][0];
+}
+
+function runErrorType(error) {
+  const lowered = String(error || "").toLowerCase();
+  if (lowered.includes("lm studio") || lowered.includes("bad request") || lowered.includes("http")) return "lmstudio_error";
+  if (lowered.includes("context") || lowered.includes("token")) return "context_error";
+  if (lowered.includes("json")) return "json_invalid";
+  return "other_error";
+}
+
+function renderLinkedInCaptures() {
+  if (!state) return;
+  const phase = currentCapturePhase();
+  renderLinkedInPhaseTabs(phase);
+  const rows = linkedInRows(phase);
+  const phaseInfo = (state.phases || []).find((item) => item.key === phase);
+  const validPredictions = rows.reduce((sum, r) => sum + r.predictions.length, 0);
+  const bestJson = rows.filter((r) => r.json_rate === 1).length;
+  document.getElementById("linkedin-summary").innerHTML = `
+    <div><span>Fase</span><strong>${escapeHtml(phaseInfo?.label || phaseLabel(phase))}</strong></div>
+    <div><span>Modelos validos</span><strong>${rows.length}</strong></div>
+    <div><span>Palpites</span><strong>${validPredictions}</strong></div>
+    <div><span>JSON 100%</span><strong>${bestJson}</strong></div>`;
+  if (!rows.length) {
+    document.getElementById("linkedin-capture-grid").innerHTML = empty("Nenhum palpite valido nesta fase ainda. Rode os modelos e exporte o snapshot.");
+    return;
+  }
+  // Collect match order
+  const matchOrder = [];
+  const seen = new Set();
+  rows.forEach((row) => row.predictions.forEach((pred) => {
+    const key = pred.match_id || `${pred.home}x${pred.away}`;
+    if (!seen.has(key)) { seen.add(key); matchOrder.push({ ...pred, _key: key }); }
+  }));
+  // Compute avg win % per match across all LLMs
+  const matchStats = {};
+  matchOrder.forEach((m) => {
+    const preds = rows
+      .map((row) => (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key))
+      .filter((p) => p && (p.prob_home || 0) + (p.prob_away || 0) > 0);
+    if (preds.length) {
+      const avgHome = preds.reduce((s, p) => s + p.prob_home / (p.prob_home + p.prob_away), 0) / preds.length;
+      matchStats[m._key] = { home: Math.round(avgHome * 100), away: Math.round((1 - avgHome) * 100) };
+    }
+  });
+  // Header: jogo | modelo1 | modelo2 | ...
+  const modelHead = rows.map((row) => `
+    <th class="resumo-model-header-th">
+      <img src="${escapeAttr(row.image_url || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
+      <div class="resumo-model-name">${escapeHtml(row.display_name)}</div>
+    </th>`).join("");
+  // Body: one row per match
+  const body = matchOrder.map((m) => {
+    const stats = matchStats[m._key];
+    const cells = rows.map((row) => {
+      const pred = (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key);
+      if (!pred) return `<td class="resumo-cell resumo-empty">—</td>`;
+      const side = predictedSide(pred);
+      const baseScore = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
+      let penLine = "";
+      let ext = "";
+      if (pred.goes_to_penalties && pred.penalty_winner && pred.penalty_winner !== "none") {
+        const hp = pred.penalty_winner === "home" ? 4 : 3;
+        const ap = pred.penalty_winner === "away" ? 4 : 3;
+        penLine = `<small class="resumo-pen">(${hp}–${ap})</small>`;
+      } else if (pred.goes_to_extra_time) {
+        ext = " P";
+      }
+      const winner = side === "home" ? shortTeamName(pred.home) : side === "away" ? shortTeamName(pred.away) : "EMP";
+      return `<td class="resumo-cell resumo-${escapeAttr(side)}">
+        <b>${escapeHtml(baseScore)}</b>${penLine}<span>${escapeHtml(winner)}${ext}</span>
+      </td>`;
+    }).join("");
+    return `<tr>
+      <td class="resumo-match-td">
+        <div class="resumo-team-row"><b>${escapeHtml(shortTeamName(m.home))}</b>${stats ? `<em>${stats.home}%</em>` : ""}</div>
+        <small>×</small>
+        <div class="resumo-team-row"><b>${escapeHtml(shortTeamName(m.away))}</b>${stats ? `<em>${stats.away}%</em>` : ""}</div>
+      </td>
+      ${cells}
+    </tr>`;
+  }).join("");
+  document.getElementById("linkedin-capture-grid").innerHTML = `
+    <div class="resumo-table-wrapper">
+      <table class="resumo-table">
+        <thead><tr><th class="resumo-game-header-th"></th>${modelHead}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
+function shortTeamName(name) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return parts[0].length <= 8 ? parts[0] : parts[0].slice(0, 3).toUpperCase();
+}
+
+function renderLinkedInPhaseTabs(selectedPhase) {
+  const phases = (state.phases || []).filter((phase) => linkedInRows(phase.key).length > 0);
+  document.getElementById("linkedin-phase-tabs").innerHTML = phases.map((phase) => `
+    <button class="${phase.key === selectedPhase ? "active" : ""}" type="button" data-linkedin-phase="${escapeAttr(phase.key)}">
+      ${escapeHtml(phase.label)}
+    </button>
+  `).join("");
+  document.querySelectorAll("[data-linkedin-phase]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeCapturePhase = button.dataset.linkedinPhase;
+      renderLinkedInCaptures();
+    });
+  });
+}
+
+function linkedInRows(phase) {
+  const scoreByModel = Object.fromEntries(
+    (state.phase_model_scores || [])
+      .filter((item) => item.phase === phase)
+      .map((item) => [item.model_id, item])
+  );
+  const statusByModel = Object.fromEntries(
+    (state.phase_model_run_status || [])
+      .filter((item) => item.phase === phase)
+      .map((item) => [item.model_id, item])
+  );
+  const modelById = Object.fromEntries((state.models || []).map((model) => [model.model_id, model]));
+  return (state.phase_predictions_by_model || [])
+    .filter((item) => item.phase === phase && item.model_id !== "combo")
+    .map((item) => {
+      const predictions = (item.predictions || []).filter(isValidPrediction);
+      if (!predictions.length) return null;
+      const score = scoreByModel[item.model_id] || {};
+      const status = statusByModel[item.model_id] || {};
+      const model = modelById[item.model_id] || {};
+      const runs = Number(status.runs || model.telemetry?.runs || predictions.length || 0);
+      const validRuns = Number(status.valid_runs || predictions.length || 0);
+      return {
+        model_id: item.model_id,
+        display_name: model.display_name || item.display_name || item.model_id,
+        family: model.family || "",
+        image_url: model.image_url || "",
+        predictions,
+        points: Number(score.points || 0),
+        scored: Number(score.scored || 0),
+        accuracy: score.accuracy ?? null,
+        json_rate: runs ? validRuns / runs : 1,
+        avg_latency_ms: model.telemetry?.avg_latency_ms,
+        avg_tokens_per_second: model.telemetry?.avg_tokens_per_second,
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (
+      b.points - a.points
+      || Number(b.json_rate || 0) - Number(a.json_rate || 0)
+      || Number(b.avg_tokens_per_second || 0) - Number(a.avg_tokens_per_second || 0)
+      || a.display_name.localeCompare(b.display_name)
+    ));
+}
+
+function linkedInModelCard(row) {
+  return `
+    <article class="linkedin-model-card">
+      <div class="linkedin-model-head">
+        <img src="${escapeAttr(row.image_url || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
+        <div>
+          <span>${escapeHtml(row.family || "modelo local")}</span>
+          <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
+        </div>
+        <em>${row.scored ? `${row.points} pts` : "previsao"}</em>
+      </div>
+      <div class="linkedin-model-metrics">
+        <span>JSON ${pct(row.json_rate)}</span>
+        <span>${row.scored ? `Acerto ${pct(row.accuracy)}` : `${row.predictions.length} palpites`}</span>
+        <span>${num(row.avg_tokens_per_second, 1)} tok/s</span>
+      </div>
+      <div class="linkedin-predictions">
+        ${row.predictions.map(linkedInPredictionLine).join("")}
+      </div>
+    </article>`;
+}
+
+function linkedInPredictionLine(prediction) {
+  const winner = predictedWinnerLabel(prediction);
+  const confidence = prediction.confidence == null ? "" : ` | conf. ${pct(prediction.confidence)}`;
+  const markers = [
+    prediction.goes_to_extra_time ? "prorrogacao" : "",
+    prediction.goes_to_penalties ? "penaltis" : "",
+  ].filter(Boolean).join(" + ");
+  return `
+    <div class="linkedin-prediction-line">
+      <div>
+        <strong>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</strong>
+        <span>${escapeHtml(winner)}${confidence}</span>
+      </div>
+      <b>${predictionScore(prediction)}</b>
+      ${markers ? `<em>${escapeHtml(markers)}</em>` : ""}
+    </div>`;
+}
+
+function isValidPrediction(prediction) {
+  return prediction
+    && prediction.has_prediction !== false
+    && prediction.predicted_home_goals != null
+    && prediction.predicted_away_goals != null
+    && prediction.status !== "invalid";
+}
+
+function predictedWinnerLabel(prediction) {
+  const side = predictedSide(prediction);
+  if (side === "home") return prediction.home || "Mandante";
+  if (side === "away") return prediction.away || "Visitante";
+  return "Empate no tempo normal";
+}
+
+function predictionScore(prediction) {
+  const home = prediction.predicted_home_goals ?? "-";
+  const away = prediction.predicted_away_goals ?? "-";
+  if (prediction.goes_to_penalties && prediction.penalty_winner && prediction.penalty_winner !== "none") {
+    const homePen = prediction.penalty_winner === "home" ? 4 : 3;
+    const awayPen = prediction.penalty_winner === "away" ? 4 : 3;
+    return `${home} (${homePen}) - ${away} (${awayPen})`;
+  }
+  return `${home} - ${away}`;
+}
+
+function currentCapturePhase() {
+  const phase = activeCapturePhase || defaultCapturePhase();
+  activeCapturePhase = phase;
+  return phase;
+}
+
+function defaultCapturePhase() {
+  const phases = state?.phases || [];
+  const withPredictions = phases.find((phase) => (
+    (state.phase_predictions_by_model || []).some((item) => (
+      item.phase === phase.key
+      && item.model_id !== "combo"
+      && (item.predictions || []).some(isValidPrediction)
+    ))
+  ));
+  return withPredictions?.key || activePhase || phases[0]?.key || "quarterfinal";
+}
+
+function renderContextInputs() {
+  if (!state) return;
+  renderContextInputOptions();
+  renderContextNotesList();
+}
+
+function renderContextInputOptions() {
+  const phaseSelect = document.getElementById("note-phase");
+  const teamSelect = document.getElementById("note-team");
+  const availableInput = document.getElementById("note-available-at");
+  if (!phaseSelect || !teamSelect) return;
+  const phaseOptions = (state.phases || []).map((phase) => `
+    <option value="${escapeAttr(phase.key)}">${escapeHtml(phase.label)}</option>
+  `).join("");
+  const teamOptions = (state.teams || [])
+    .slice()
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    .map((team) => `<option value="${escapeAttr(team.team_id)}">${escapeHtml(team.name)}</option>`)
+    .join("");
+  if (phaseSelect.dataset.rendered !== phaseOptions) {
+    phaseSelect.innerHTML = phaseOptions;
+    phaseSelect.value = activePhase;
+    phaseSelect.dataset.rendered = phaseOptions;
+  }
+  if (teamSelect.dataset.rendered !== teamOptions) {
+    teamSelect.innerHTML = teamOptions;
+    teamSelect.dataset.rendered = teamOptions;
+  }
+  if (availableInput && !availableInput.value) {
+    availableInput.value = localDateTimeValue(new Date());
+  }
+}
+
+function renderContextNotesList() {
+  const container = document.getElementById("context-notes-list");
+  if (!container) return;
+  const notes = (state.context_notes || []).slice().sort((a, b) => (
+    Number(Boolean(b.active)) - Number(Boolean(a.active))
+    || String(b.available_at || "").localeCompare(String(a.available_at || ""))
+  ));
+  container.innerHTML = notes.map((note) => `
+    <article class="context-note-card ${note.active ? "" : "is-inactive"}">
+      <div>
+        <span>${escapeHtml(note.phase_label || phaseLabel(note.phase))} | ${escapeHtml(note.team_name || note.team_id)}</span>
+        <strong>${escapeHtml(note.title)}</strong>
+        <p>${escapeHtml(note.note_text)}</p>
+      </div>
+      <dl>
+        <div><dt>Tipo</dt><dd>${escapeHtml(noteTypeLabel(note.note_type))}</dd></div>
+        <div><dt>Impacto</dt><dd>${escapeHtml(impactLabel(Object.keys(note.impact || {})[0]))}</dd></div>
+        <div><dt>Disponivel</dt><dd>${formatDateTime(note.available_at)}</dd></div>
+        <div><dt>Peso</dt><dd>${pct(note.weight)}</dd></div>
+      </dl>
+      <div class="context-note-actions">
+        <span>${note.active ? "ativa" : "inativa"} | fonte: ${escapeHtml(note.source || "manual")}</span>
+        ${note.active ? `<button type="button" data-delete-context-note="${escapeAttr(note.note_id)}">Desativar</button>` : ""}
+      </div>
+    </article>
+  `).join("") || empty("Nenhum input contextual cadastrado ainda.");
+  document.querySelectorAll("[data-delete-context-note]").forEach((button) => {
+    button.addEventListener("click", () => deactivateContextNote(button.dataset.deleteContextNote));
+  });
+}
+
+async function extractFromUrl() {
+  const url = document.getElementById("note-source-url")?.value.trim();
+  const phase = document.getElementById("note-phase")?.value;
+  const teamId = document.getElementById("note-team")?.value;
+  if (!url) { setContextNoteStatus("Cole uma URL no campo antes de extrair."); return; }
+  if (!phase || !teamId) { setContextNoteStatus("Selecione fase e selecao antes de extrair."); return; }
+  const btn = document.getElementById("btn-extract-url");
+  if (btn) { btn.disabled = true; btn.textContent = "Extraindo..."; }
+  setContextNoteStatus("Buscando URL e chamando LLM...");
+  try {
+    const response = await fetch(`${API_BASE}/pool/context-notes/extract`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, phase, team_id: teamId }),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    if (data.note_type) document.getElementById("note-type").value = data.note_type;
+    if (data.title) document.getElementById("note-title").value = data.title;
+    if (data.note_text) document.getElementById("note-text").value = data.note_text;
+    if (data.impact_key) document.getElementById("note-impact").value = data.impact_key;
+    if (data.confidence != null) document.getElementById("note-confidence").value = data.confidence;
+    if (data.weight != null) document.getElementById("note-weight").value = data.weight;
+    if (data.source) document.getElementById("note-source").value = data.source;
+    if (data.available_at) {
+      try { document.getElementById("note-available-at").value = localDateTimeValue(new Date(data.available_at)); } catch (_) {}
+    }
+    setContextNoteStatus("Formulario preenchido pela LLM. Revise e salve.");
+  } catch (error) {
+    setContextNoteStatus(`Erro na extracao: ${error.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Extrair de URL"; }
+  }
+}
+
+async function saveContextNote(event) {
+  event.preventDefault();
+  const status = document.getElementById("context-note-status");
+  setContextNoteStatus("Salvando input...");
+  const impactKey = document.getElementById("note-impact")?.value || "manual_context";
+  const availableAt = document.getElementById("note-available-at")?.value;
+  const payload = {
+    phase: document.getElementById("note-phase")?.value,
+    team_id: document.getElementById("note-team")?.value,
+    note_type: document.getElementById("note-type")?.value || "team_news",
+    title: document.getElementById("note-title")?.value.trim(),
+    note_text: document.getElementById("note-text")?.value.trim(),
+    impact: {
+      [impactKey]: true,
+      label: impactLabel(impactKey),
+    },
+    source: document.getElementById("note-source")?.value.trim() || "manual",
+    source_url: document.getElementById("note-source-url")?.value.trim() || null,
+    confidence: Number(document.getElementById("note-confidence")?.value || 0.75),
+    weight: Number(document.getElementById("note-weight")?.value || 0.7),
+    available_at: availableAt ? new Date(availableAt).toISOString() : null,
+  };
+  if (!payload.phase || !payload.team_id || !payload.title || !payload.note_text) {
+    setContextNoteStatus("Preencha fase, selecao, titulo e nota.");
+    return;
+  }
+  try {
+    const response = await fetch(`${API_BASE}/pool/context-notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    document.getElementById("note-title").value = "";
+    document.getElementById("note-text").value = "";
+    document.getElementById("note-source-url").value = "";
+    setContextNoteStatus("Input salvo e exportacao do portal solicitada.");
+    setTimeout(() => loadData(true).catch(() => {}), 1200);
+  } catch (error) {
+    console.error(error);
+    if (status) status.textContent = "Nao consegui salvar. Confirme se a API esta ativa.";
+  }
+}
+
+async function deactivateContextNote(noteId) {
+  if (!noteId) return;
+  setContextNoteStatus("Desativando input...");
+  try {
+    const response = await fetch(`${API_BASE}/pool/context-notes/${encodeURIComponent(noteId)}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    setContextNoteStatus("Input desativado.");
+    setTimeout(() => loadData(true).catch(() => {}), 1200);
+  } catch (error) {
+    console.error(error);
+    setContextNoteStatus("Nao consegui desativar. Confirme se a API esta ativa.");
+  }
+}
+
+function setContextNoteStatus(message) {
+  const status = document.getElementById("context-note-status");
+  if (status) status.textContent = message;
+}
+
+function noteTypeLabel(value) {
+  return {
+    team_news: "Noticia",
+    rotation: "Rotacao",
+    injury: "Lesao",
+    tactical: "Tatica",
+    morale: "Moral",
+    travel: "Desgaste/viagem",
+  }[value] || value || "-";
+}
+
+function impactLabel(value) {
+  return {
+    recent_form_downweight: "Reduz peso da forma recente",
+    physical_load_positive: "Melhora leitura de desgaste",
+    injury_negative: "Impacto negativo por lesao",
+    tactical_positive: "Impacto tatico positivo",
+    volatility_up: "Aumenta incerteza",
+  }[value] || value || "Contexto manual";
+}
+
+function renderTournament() {
+  const container = document.getElementById("tournament-dashboard");
+  if (!container || !state) return;
+  const tournament = state.tournament || {};
+  const matches = tournament.matches || state.matches || [];
+  const stageOrder = (tournament.stage_order || ["group", "round_of_32", "round_of_16", "quarterfinal"])
+    .filter((stage) => stage === "group" || matches.some((match) => match.stage === stage));
+  if (!stageOrder.includes(activeTournamentStage)) {
+    activeTournamentStage = stageOrder[0] || "group";
+  }
+  const stageMatches = matches
+    .filter((match) => activeTournamentStage === "group" ? match.stage === "group" : match.stage === activeTournamentStage)
+    .sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+  container.innerHTML = `
+    <div class="tournament-tabs">
+      ${stageOrder.map((stage) => `
+        <button class="${stage === activeTournamentStage ? "active" : ""}" type="button" data-tournament-stage="${escapeAttr(stage)}">
+          ${escapeHtml(tournamentStageLabel(stage))}
+        </button>
+      `).join("")}
+    </div>
+    ${activeTournamentStage === "group" ? tournamentGroupsView(tournament.groups || []) : ""}
+    <div class="section-title tournament-match-title">
+      <p>${escapeHtml(tournamentStageLabel(activeTournamentStage))}</p>
+      <h3>Partidas</h3>
+    </div>
+    <div class="tournament-match-grid">
+      ${stageMatches.map(tournamentMatchCard).join("") || empty("Sem partidas cadastradas para esta etapa.")}
+    </div>`;
+  document.querySelectorAll("[data-tournament-stage]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeTournamentStage = button.dataset.tournamentStage || "group";
+      renderTournament();
+    });
+  });
+}
+
+function tournamentGroupsView(groups) {
+  if (!groups.length) return empty("Classificacao de grupos ainda nao exportada.");
+  return `
+    <div class="groups-grid">
+      ${groups.map((group) => `
+        <article class="group-table-card">
+          <h4>${escapeHtml(group.label || `Grupo ${group.group}`)}</h4>
+          <div class="group-table">
+            <div class="group-table-head">
+              <span>#</span><span>Selecao</span><span>Pts</span><span>PJ</span><span>SG</span><span>GM</span>
+            </div>
+            ${(group.rows || []).map((row) => `
+              <div class="group-table-row ${Number(row.rank) <= 2 ? "qualified-row" : ""}">
+                <span>${row.rank}</span>
+                <span><img src="${escapeAttr(row.flag_url || "")}" alt="" />${escapeHtml(row.team)}</span>
+                <strong>${row.pts}</strong>
+                <span>${row.pj}</span>
+                <span>${row.sg}</span>
+                <span>${row.gm}</span>
+              </div>
+            `).join("")}
+          </div>
+        </article>
+      `).join("")}
+    </div>`;
+}
+
+function tournamentMatchCard(match) {
+  const score = matchScore(match);
+  const markers = matchMarkers(match);
+  return `
+    <article class="tournament-match-card">
+      <div class="match-teams">
+        ${teamLine(match.home, match.home_flag_url, match.home_score)}
+        <div class="versus">${score}</div>
+        ${teamLine(match.away, match.away_flag_url, match.away_score)}
+      </div>
+      <div class="match-meta">
+        <span>${formatDateTime(match.date)}</span>
+        <span>${escapeHtml(statusLabel(match.status))}${markers ? ` | ${escapeHtml(markers)}` : ""}</span>
+      </div>
+    </article>`;
+}
+
+function tournamentStageLabel(stage) {
+  return (state.tournament?.stage_labels || {})[stage] || phaseLabel(stage);
+}
+
+function winnerVotesForPhase(phase) {
+  const votes = {};
+  for (const prediction of allValidPredictions().filter((item) => item.phase === phase)) {
+    const side = predictedSide(prediction);
+    const teamId = side === "away" ? prediction.away_team_id : prediction.home_team_id;
+    if (!teamId) continue;
+    votes[teamId] ||= { team_id: teamId, votes: 0 };
+    votes[teamId].votes += 1;
+  }
+  const total = Object.values(votes).reduce((sum, row) => sum + row.votes, 0);
+  return Object.values(votes)
+    .map((row) => ({ ...teamRef(row.team_id), votes: row.votes, share: total ? row.votes / total : 0 }))
+    .sort((a, b) => b.votes - a.votes || teamProfile(b) - teamProfile(a));
+}
+
+function officialWinnersForPhase(phase) {
+  return matchesForPhase(phase)
+    .map((match) => {
+      const winner = actualWinner(match);
+      if (!winner) return null;
+      return winner === "home" ? match.home_team_id : match.away_team_id;
+    })
+    .filter(Boolean);
+}
+
+function teamVoteLine(row, officialWinners) {
+  const official = officialWinners.includes(row.team_id);
+  return `
+    <div class="team-vote-line ${official ? "is-official" : ""}">
+      <img src="${escapeAttr(row.flag_url || "")}" alt="" />
+      <span>${escapeHtml(row.name)}</span>
+      <strong>${row.votes} votos</strong>
+      <em>${pct(row.share)}</em>
+    </div>`;
+}
+
+function teamTitleRows() {
+  const teamVotes = {};
+  for (const phase of ["quarterfinal", "semifinal", "third_place", "final"]) {
+    for (const row of winnerVotesForPhase(phase)) {
+      teamVotes[row.team_id] = (teamVotes[row.team_id] || 0) + row.votes;
+    }
+  }
+  const eliminated = eliminatedTeamIds();
+  const maxVotes = Math.max(1, ...Object.values(teamVotes));
+  return (state.teams || [])
+    .map((team) => {
+      const profile = Number(team.analytics?.indexes?.champion_profile_score || 0);
+      const votes = teamVotes[team.team_id] || 0;
+      const isEliminated = eliminated.has(team.team_id);
+      const voteScore = votes / maxVotes;
+      const chance = isEliminated ? profile * 0.08 : Math.min(1, voteScore * 0.68 + profile * 0.32);
+      return {
+        team_id: team.team_id,
+        name: team.name,
+        flag_url: team.flag_url,
+        votes,
+        profile,
+        chance,
+        eliminated: isEliminated,
+        status: isEliminated ? "eliminada" : teamStatus(team.team_id),
+      };
+    })
+    .sort((a, b) => Number(a.eliminated) - Number(b.eliminated) || b.chance - a.chance || b.votes - a.votes || b.profile - a.profile);
+}
+
+function eliminatedTeamIds() {
+  const ids = new Set();
+  for (const match of state.matches || []) {
+    const winner = actualWinner(match);
+    if (!winner) continue;
+    ids.add(winner === "home" ? match.away_team_id : match.home_team_id);
+  }
+  return ids;
+}
+
+function teamStatus(teamId) {
+  const next = (state.matches || []).find((match) => (
+    (match.home_team_id === teamId || match.away_team_id === teamId)
+    && (match.status !== "finished" || match.home_score == null || match.away_score == null)
+  ));
+  return next ? phaseLabel(next.stage) : "viva / projetada";
+}
+
+function teamProfile(team) {
+  return Number(team?.analytics?.indexes?.champion_profile_score || 0);
+}
+
+function accuracySortValue(value) {
+  return value == null ? -1 : Number(value);
+}
+
+function brierSortValue(value) {
+  return value == null ? 999 : Number(value);
+}
+
+async function runModelPhase(modelId) {
+  const phase = activePhase;
+  const key = runKey(phase, modelId);
+  const previousPredictionCount = countModelPhasePredictions(phase, modelId);
+  const previousSnapshot = state?.generated_at || "";
+  runningRuns.set(key, {
+    phase,
+    modelId,
+    previousPredictionCount,
+    previousSnapshot,
+    startedAt: Date.now(),
+    timer: null,
+  });
+  renderModels();
+  const button = document.querySelector(`[data-run-model="${cssEscape(modelId)}"]`);
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Iniciando...";
+  }
+  try {
+    const response = await fetch(`${API_BASE}/pool/llm/phase/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phase,
+        model_id: modelId,
+        samples: 1,
+        include_heavy: true,
+        finished_only: false,
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    startRunPolling(key);
+    if (button) button.textContent = "Rodando... atualizando";
+  } catch (error) {
+    stopRunPolling(key);
+    if (button) {
+      button.disabled = false;
+      button.textContent = "API offline";
+      button.title = "Inicie a API: uvicorn copamind.api.app:app --reload --port 8000";
+    }
+  }
+}
+
+async function runAllModelsForPhase() {
+  if (!canRunAllModelsForPhase()) return;
+  const button = document.getElementById("run-all-models");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Iniciando batch...";
+  }
+  try {
+    const response = await fetch(`${API_BASE}/pool/llm/phase/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phase: activePhase,
+        samples: 1,
+        include_heavy: true,
+        finished_only: false,
+      }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    startBulkPolling(activePhase, payload.batch_id);
+  } catch (error) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "API offline";
+    }
+  }
+}
+
+async function resetLLMHistory({ phase = null, modelId = null }) {
+  const scope = modelId ? "este modelo nesta fase" : phase ? "esta fase" : "todo o historico das LLMs";
+  if (!window.confirm(`Resetar ${scope}?`)) return;
+  const previousSnapshot = state?.generated_at || "";
+  try {
+    const response = await fetch(`${API_BASE}/pool/llm/reset`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phase, model_id: modelId }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await loadData(true);
+    pollSnapshotAfterReset(previousSnapshot);
+  } catch (error) {
+    window.alert("Nao consegui resetar. Confirme se a API esta ativa na porta 8000.");
+  }
+}
+
+function pollSnapshotAfterReset(previousSnapshot) {
+  let attempts = 0;
+  const timer = setInterval(async () => {
+    attempts += 1;
+    try {
+      await loadData(true);
+      const changed = String(state?.generated_at || "") !== String(previousSnapshot || "");
+      if (changed || attempts >= 12) clearInterval(timer);
+    } catch (_error) {
+      if (attempts >= 12) clearInterval(timer);
+    }
+  }, 1000);
+}
+
+function modelRowsForPhase(phase, modelId, predictions, runStatus) {
+  const hasInvalidRuns = Number(runStatus?.invalid_runs || 0) > 0;
+  const issue = dominantRunIssue(runStatus);
+  if (predictions.length) {
+    return predictions.map((prediction) => {
+      if (prediction.has_prediction !== false || !hasInvalidRuns) return prediction;
+      return {
+        ...prediction,
+        status: issue === "lmstudio_error" ? "lmstudio_error" : "invalid_prediction",
+        projection_note: issue === "lmstudio_error"
+          ? "LM Studio nao carregou/aceitou o modelo"
+          : "executou, mas retornou JSON invalido",
+      };
+    });
+  }
+  const projected = projectedMatchesForPhase(phase, modelId);
+  const rows = projected.length ? projected : matchesForPhase(phase);
+  const invalidOnly = Number(runStatus?.runs || 0) > 0 && Number(runStatus?.valid_runs || 0) === 0;
+  return rows.map((match) => ({
+    has_prediction: false,
+    is_projection: Boolean(match.status === "projected"),
+    home: match.home,
+    away: match.away,
+    match_date: match.date,
+    status: invalidOnly ? issue === "lmstudio_error" ? "lmstudio_error" : "invalid_prediction" : "missing_prediction",
+    projection_note: invalidOnly
+      ? issue === "lmstudio_error"
+        ? "LM Studio nao carregou/aceitou o modelo"
+        : "executou, mas retornou JSON invalido"
+      : match.note || "jogo oficial sem palpite deste modelo",
+  }));
+}
+
+function renderTeamDashboard() {
+  const teams = (state.teams || [])
+    .filter((team) => team.analytics?.indexes)
+    .sort((a, b) => {
+      const scoreA = a.analytics?.indexes?.champion_profile_score ?? 0;
+      const scoreB = b.analytics?.indexes?.champion_profile_score ?? 0;
+      return scoreB - scoreA || String(a.name).localeCompare(String(b.name));
+    });
+  document.getElementById("teams-dashboard").innerHTML = teams.map(teamCard).join("")
+    || empty("Sem analytics de seleções. Exporte o snapshot novamente.");
+}
+
+function renderPlayersDashboard() {
+  renderPlayerControls();
+  const rows = filteredPlayers().slice(0, 20);
+  document.getElementById("players-dashboard").innerHTML = rows.map(playerCard).join("")
+    || empty("Sem jogadores para este filtro. Atualize/exporte os dados FIFA.");
+}
+
+function renderPlayerControls() {
+  const teamSelect = document.getElementById("player-team-filter");
+  const rankingSelect = document.getElementById("player-ranking-filter");
+  if (!teamSelect || !rankingSelect) return;
+  const teams = [...(state.teams || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const phaseOptions = (state.phases || []).map((phase) => ({
+    key: `phase:${phase.key}`,
+    label: `${phase.label} - selecoes da fase`,
+    disabled: phaseTeams(phase.key).size === 0,
+  }));
+  const teamOptions = [
+    `<option value="all">Todas as selecoes</option>`,
+    ...teams.map((team) => `<option value="${escapeAttr(team.team_id)}">${escapeHtml(team.name)}</option>`),
+  ].join("");
+  const rankingOptions = [
+    `<option value="top20">Top 20 geral</option>`,
+    `<option value="golden_boot">Chuteira de Ouro - gols</option>`,
+    ...phaseOptions.map((phase) => `
+      <option value="${escapeAttr(phase.key)}" ${phase.disabled ? "disabled" : ""}>
+        ${escapeHtml(phase.label)}${phase.disabled ? " (aguardando jogos)" : ""}
+      </option>`),
+  ].join("");
+  if (teamSelect.dataset.rendered !== teamOptions) {
+    teamSelect.innerHTML = teamOptions;
+    teamSelect.dataset.rendered = teamOptions;
+  }
+  if (rankingSelect.dataset.rendered !== rankingOptions) {
+    rankingSelect.innerHTML = rankingOptions;
+    rankingSelect.dataset.rendered = rankingOptions;
+  }
+  if (![...teamSelect.options].some((option) => option.value === activePlayerTeam)) activePlayerTeam = "all";
+  if (![...rankingSelect.options].some((option) => option.value === activePlayerRanking && !option.disabled)) {
+    activePlayerRanking = "top20";
+  }
+  teamSelect.value = activePlayerTeam;
+  rankingSelect.value = activePlayerRanking;
+  teamSelect.onchange = () => {
+    activePlayerTeam = teamSelect.value;
+    renderPlayersDashboard();
+  };
+  rankingSelect.onchange = () => {
+    activePlayerRanking = rankingSelect.value;
+    renderPlayersDashboard();
+  };
+}
+
+function filteredPlayers() {
+  let rows = [...(state.players || [])];
+  if (activePlayerTeam !== "all") {
+    rows = rows.filter((player) => player.team_id === activePlayerTeam);
+  }
+  if (activePlayerRanking.startsWith("phase:")) {
+    const phase = activePlayerRanking.split(":", 2)[1];
+    const allowedTeams = phaseTeams(phase);
+    rows = rows.filter((player) => allowedTeams.has(player.team_id));
+  }
+  return rows.sort(playerSort);
+}
+
+function phaseTeams(phase) {
+  const ids = new Set();
+  for (const match of matchesForPhase(phase)) {
+    if (match.home_team_id) ids.add(match.home_team_id);
+    if (match.away_team_id) ids.add(match.away_team_id);
+  }
+  return ids;
+}
+
+function playerImpact(player) {
+  return Number(player.impact_score ?? player.metric_value ?? player.goals ?? 0);
+}
+
+function playerSort(a, b) {
+  if (activePlayerRanking === "golden_boot") {
+    return Number(b.goals || 0) - Number(a.goals || 0)
+      || Number(b.assists || 0) - Number(a.assists || 0)
+      || Number(a.minutes || 999999) - Number(b.minutes || 999999)
+      || String(a.name).localeCompare(String(b.name));
+  }
+  return playerImpact(b) - playerImpact(a) || String(a.name).localeCompare(String(b.name));
+}
+
+function playerCard(player, index) {
+  const per90 = player.per90 || {};
+  const score = playerImpact(player);
+  return `
+    <article class="player-card">
+      <div class="player-rank">${index + 1}</div>
+      <img class="player-photo" src="${escapeAttr(player.image_url || player.flag_url || "")}" alt="" />
+      <div class="player-main">
+        <div class="player-title">
+          <strong>${escapeHtml(player.name || "-")}</strong>
+          <span>
+            <img src="${escapeAttr(player.flag_url || "")}" alt="" />
+            ${escapeHtml(player.team || teamRef(player.team_id).name || "-")} | ${escapeHtml(player.position || "-")}
+          </span>
+        </div>
+        <div class="player-tags">
+          <em>${escapeHtml(roleLabel(player.role))}</em>
+          <em>${escapeHtml(player.reason || "impacto FIFA")}</em>
+          <em>amostra ${escapeHtml(player.sample || "-")}</em>
+        </div>
+      </div>
+      <div class="player-score">
+        <strong>${num(score, 1)}</strong>
+        <span>impacto</span>
+      </div>
+      <div class="player-stats">
+        <span><b>${num(player.minutes, 0)}</b>min</span>
+        <span><b>${num(player.goals, 0)}</b>gols</span>
+        <span><b>${num(player.assists, 0)}</b>assist.</span>
+        <span><b>${pct(player.confidence)}</b>conf.</span>
+        <span><b>${num(per90.goals, 2)}</b>g/90</span>
+        <span><b>${num(per90.assists, 2)}</b>a/90</span>
+      </div>
+    </article>`;
+}
+
+function renderGuide() {
+  const summary = state?.summary || {};
+  const sync = state?.sync_status || {};
+  const phases = state?.phases || [];
+  const knockoutMatches = phases.reduce((total, phase) => total + Number(phase.match_count || 0), 0);
+  const guide = document.getElementById("guide-dashboard");
+  if (!guide) return;
+  guide.innerHTML = `
+    <div class="guide-hero">
+      <div>
+        <span>Tutor do projeto</span>
+        <h2>Da FIFA ao palpite: o caminho completo</h2>
+        <p>
+          O CopaMind transforma dados de seleções, partidas e jogadores em um pacote estatístico enxuto.
+          Esse pacote alimenta os modelos locais no LM Studio, e cada resposta vira um palpite auditável
+          com telemetria, pontuação e acurácia por fase.
+        </p>
+      </div>
+      <div class="guide-snapshot">
+        <div><span>Times</span><strong>${summary.teams ?? "-"}</strong></div>
+        <div><span>Jogos mata-mata</span><strong>${knockoutMatches}</strong></div>
+        <div><span>Features ML</span><strong>${sync.feature_snapshots ?? 0}</strong></div>
+        <div><span>Modelos</span><strong>${(state.models || []).filter((model) => !model.is_combo).length}</strong></div>
+      </div>
+    </div>
+
+    <div class="guide-flow">
+      ${guideStep("1", "Extração FIFA", "O portal sincroniza partidas, placares, estatísticas de equipe e estatísticas de jogador a partir da base FIFA local/atualizada.", [
+        `${summary.team_tabs ?? 0} abas de equipe`,
+        `${summary.player_tabs ?? 0} abas de jogador`,
+        `${summary.team_rows ?? 0} linhas de seleções`,
+        `${summary.player_rows ?? 0} linhas de jogadores`,
+      ])}
+      ${guideStep("2", "Normalização analytics", "Os CSVs não vão crus para a IA. Eles viram índices comparáveis por percentil/rank para evitar misturar escala de passes, gols, distância e cartões.", [
+        "attack_index e chance_quality_index",
+        "defense_index e keeper_index",
+        "control_index e transition_index",
+        "discipline_risk e volatility_index",
+      ])}
+      ${guideStep("3", "Features por jogo", "Para cada partida de mata-mata, o sistema cria um snapshot com somente o que estava disponível antes do jogo ou no momento do sync.", [
+        "fixture, fase e neutralidade",
+        "forma recente sem vazamento temporal",
+        "jogadores-chave por papel",
+        "baseline Poisson/Elo quando há histórico",
+      ])}
+      ${guideStep("4", "Pacote para LLM", "O agente monta um prompt compacto e igual para todos os modelos. A LLM recebe evidências, diferenças entre times e regras do bolão.", [
+        "deltas home_minus_away",
+        "top evidências com evidence_ids",
+        "alertas de imprevisibilidade",
+        "contrato JSON obrigatório",
+      ])}
+      ${guideStep("5", "Resposta e reparo", "Cada modelo precisa responder JSON estruturado. Se vier texto solto ou formato inválido, o agente tenta reparar a resposta uma vez.", [
+        "vencedor e probabilidades",
+        "placar, prorrogação e pênaltis",
+        "primeiro gol e mercados de jogador",
+        "confiança, rationale e coerência",
+      ])}
+      ${guideStep("6", "Scoring e ranking", "Quando o resultado oficial chega, o palpite é pontuado. Em mata-mata, empate no placar precisa declarar classificado por prorrogação ou pênaltis.", [
+        "pontos do bolão",
+        "acerto de classificado",
+        "placar exato",
+        "Brier score probabilístico",
+      ])}
+    </div>
+
+    <div class="guide-details">
+      <article>
+        <h3>Como os dados viram estatística</h3>
+        <p>
+          Ataque combina produção real, xG, chutes no alvo e eficiência. Defesa combina gols sofridos,
+          clean sheets, pressão, recuperações e exposição do goleiro. Controle mede posse, circulação,
+          precisão e ruptura de linhas. Disciplina e físico entram como risco, não como prova isolada.
+        </p>
+        <p>
+          Jogadores são avaliados por impacto por minuto/per90, papel provável e confiança da amostra.
+          Um atleta com poucos minutos pode aparecer, mas marcado como amostra pequena.
+        </p>
+      </article>
+      <article>
+        <h3>O que vai no prompt</h3>
+        <p>
+          A chamada envia um resumo do confronto, índices das duas seleções, diferenças relativas,
+          jogadores-chave, evidências, baseline estatístico e incertezas. O modelo não recebe a planilha
+          inteira; recebe um pacote desenhado para raciocinar sem estourar contexto.
+        </p>
+        <p>
+          A saída exigida inclui vencedor, probabilidades, gols, prorrogação, pênaltis, vencedor nos
+          pênaltis, primeiro goleador, mercados de jogador, confiança e justificativa com evidence_ids.
+        </p>
+      </article>
+      <article>
+        <h3>Como executar no portal</h3>
+        <p>
+          Em Oitavas, Quartas, Semifinais, 3º lugar e Final, use “Executar todas as LLMs da fase” para rodar
+          todos os modelos ativos. Em cada card, “Executar IA nesta fase” roda só aquele modelo.
+        </p>
+        <p>
+          “Reset modelo”, “Reset fase” e “Reset geral” limpam apenas histórico das LLMs. Jogos,
+          placares oficiais, estatísticas FIFA e jogadores continuam preservados.
+        </p>
+      </article>
+    </div>
+
+    <div class="architecture-guide" aria-label="Arquitetura do projeto">
+      <div class="architecture-head">
+        <p>Arquitetura CopaMind</p>
+        <h3>Como o portal funciona por baixo</h3>
+        <span>
+          O projeto separa operacao, dados, agente e publicacao. Assim o bolao roda localmente,
+          preserva historico em DuckDB e publica uma versao estatica para compartilhamento.
+        </span>
+      </div>
+
+      <div class="architecture-mermaid">
+        <div>
+          <h4>Diagrama Mermaid</h4>
+          <p>
+            Este diagrama mostra o caminho principal: dados FIFA entram, viram features,
+            alimentam o agente das LLMs, sao pontuados e aparecem no portal/export.
+          </p>
+        </div>
+        <pre class="mermaid">flowchart LR
+  FIFA["FIFA / cache local"] --> REFRESH["Sync de jogos, equipes e jogadores"]
+  REFRESH --> DUCKDB["DuckDB local"]
+  DUCKDB --> FEATURES["Features ML por partida"]
+  FEATURES --> PROMPT["Prompt compacto por jogo"]
+  PROMPT --> LMSTUDIO["LM Studio: modelos locais"]
+  LMSTUDIO --> RUNS["llm_model_runs"]
+  RUNS --> CONSENSUS["llm_model_consensus"]
+  CONSENSUS --> PRED["pool_predictions"]
+  DUCKDB --> SCORE["Scoring e telemetria"]
+  PRED --> SCORE
+  SCORE --> EXPORT["copamind.json"]
+  EXPORT --> PORTAL["Portal estatico"]
+  PORTAL --> HTML["Export HTML unico"]</pre>
+      </div>
+
+      <div class="architecture-map">
+        <article>
+          <span>01</span>
+          <h4>Fontes FIFA</h4>
+          <p>
+            Partidas, placares, estatisticas de selecoes e estatisticas de jogadores entram pelos
+            conectores e scripts de refresh. Quando a FIFA falha ou limita acesso, o app preserva
+            o cache local.
+          </p>
+          <ul>
+            <li>Jogos e status oficial</li>
+            <li>CSVs de equipes por aba</li>
+            <li>CSVs de jogadores por aba</li>
+            <li>Fotos, bandeiras e IDs externos</li>
+          </ul>
+        </article>
+
+        <article>
+          <span>02</span>
+          <h4>Base local DuckDB</h4>
+          <p>
+            O DuckDB guarda a verdade operacional: jogos, resultados, snapshots de features,
+            rodadas das LLMs, chamadas individuais, consensos, payloads e pontuacao.
+          </p>
+          <ul>
+            <li>matches e pool_results</li>
+            <li>match_feature_snapshots</li>
+            <li>llm_pool_rounds e llm_model_runs</li>
+            <li>pool_predictions versionados</li>
+          </ul>
+        </article>
+
+        <article>
+          <span>03</span>
+          <h4>Analytics ML</h4>
+          <p>
+            Os dados crus viram indices normalizados. O objetivo nao e mandar planilhas enormes
+            para a IA, mas um pacote enxuto com sinais comparaveis e evidencias rastreaveis.
+          </p>
+          <ul>
+            <li>Ataque, chance e finalizacao</li>
+            <li>Defesa, goleiro e controle</li>
+            <li>Disciplina, fisico e volatilidade</li>
+            <li>Jogadores-chave por papel</li>
+          </ul>
+        </article>
+
+        <article>
+          <span>04</span>
+          <h4>Agente das LLMs</h4>
+          <p>
+            O agente monta a mesma chamada para todos os modelos locais compativeis com chat no
+            LM Studio. Cada modelo responde em JSON estruturado para permitir comparacao justa.
+          </p>
+          <ul>
+            <li>Contexto pre-jogo sem vazamento</li>
+            <li>Probabilidades e placar</li>
+            <li>Prorrogacao e penaltis</li>
+            <li>Telemetria de tokens e latencia</li>
+          </ul>
+        </article>
+
+        <article>
+          <span>05</span>
+          <h4>Scoring do bolao</h4>
+          <p>
+            Quando o placar oficial chega, o sistema calcula pontos e metricas: vencedor correto,
+            placar exato, erro de gols, total de gols, Brier, prorrogacao e penaltis.
+          </p>
+          <ul>
+            <li>Score por fase</li>
+            <li>Acuracia por modelo</li>
+            <li>JSON valido e estabilidade</li>
+            <li>Ranking evolutivo</li>
+          </ul>
+        </article>
+
+        <article>
+          <span>06</span>
+          <h4>Portal e export</h4>
+          <p>
+            O Streamlit fica como console tecnico. O portal em HTML/CSS/JS consome o snapshot
+            exportado e pode gerar um HTML unico com dados e assets embutidos.
+          </p>
+          <ul>
+            <li>Portal publico em 8601</li>
+            <li>Admin Streamlit em 8501</li>
+            <li>API local em 8000</li>
+            <li>HTML estatico para publicar</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="ml-guide" aria-label="Features ML em detalhes">
+        <div class="ml-guide-head">
+          <p>Features ML em detalhes</p>
+          <h3>O que foi feito, qual modelo foi usado e como funciona</h3>
+          <span>
+            No CopaMind, "Features ML" nao significa uma rede neural treinada em segredo.
+            Significa transformar muitos numeros soltos da FIFA em sinais simples, comparaveis
+            e explicaveis para alimentar as LLMs locais.
+          </span>
+        </div>
+
+        <div class="ml-explain-grid">
+          <article>
+            <h4>1. O que sao features?</h4>
+            <p>
+              Feature e uma caracteristica numerica que ajuda a explicar um time ou um jogo.
+              Em vez de dizer apenas "Franca fez 10 gols", o sistema pergunta: esses gols vieram
+              de boas chances? Foram muitos chutes certos? O time tambem defende bem?
+            </p>
+            <p>
+              Para leigos: e como transformar uma planilha gigante em notas de boletim. Ataque,
+              defesa, controle, risco e jogadores-chave viram notas de 0% a 100%.
+            </p>
+          </article>
+
+          <article>
+            <h4>2. Qual modelo foi utilizado?</h4>
+            <p>
+              Existem duas partes. A primeira e uma camada de engenharia de atributos, feita com
+              regras estatisticas transparentes: percentis, pesos e comparacoes entre selecoes.
+            </p>
+            <p>
+              A segunda e um baseline chamado <strong>Poisson/Dixon-Coles</strong>. Ele estima
+              gols esperados e probabilidades de vitoria, empate e derrota a partir do historico
+              de partidas finalizadas disponivel antes do jogo.
+            </p>
+          </article>
+
+          <article>
+            <h4>3. Como os dados crus viram indices?</h4>
+            <p>
+              Cada metrica da FIFA e comparada com todas as selecoes. Se uma equipe esta entre
+              as melhores em xG, chutes no alvo ou clean sheets, ela recebe percentil alto nessas
+              dimensoes.
+            </p>
+            <p>
+              Depois os percentis sao combinados com pesos. Por exemplo: ataque pesa xG, chutes
+              no alvo, gols e volume de finalizacoes. Defesa pesa gols sofridos, clean sheets,
+              recuperacoes e tempo para recuperar a bola.
+            </p>
+          </article>
+
+          <article>
+            <h4>4. Por que usar percentil?</h4>
+            <p>
+              Porque cada estatistica tem escala diferente. Passes podem estar na casa dos
+              milhares, gols na casa das dezenas e cartoes em unidades. Comparar tudo cru
+              confundiria a analise.
+            </p>
+            <p>
+              Percentil responde uma pergunta simples: "em relacao aos outros times, este time
+              esta acima ou abaixo?". Assim 80% quer dizer que a selecao esta melhor que a maior
+              parte das outras naquele sinal.
+            </p>
+          </article>
+
+          <article>
+            <h4>5. Como o Poisson/Dixon-Coles funciona?</h4>
+            <p>
+              Futebol tem poucos gols. Modelos de Poisson sao muito usados para estimar quantos
+              gols cada lado pode marcar em uma partida. O modelo olha o historico disponivel,
+              calcula forca ofensiva e defensiva e gera gols esperados para cada equipe.
+            </p>
+            <p>
+              A parte Dixon-Coles e um ajuste classico para partidas de futebol, especialmente
+              placares baixos como 0-0, 1-0, 1-1 e 0-1. O resultado vira uma referencia numerica,
+              nao uma verdade absoluta.
+            </p>
+          </article>
+
+          <article>
+            <h4>6. Como isso chega na LLM?</h4>
+            <p>
+              A LLM nao recebe todos os CSVs. Ela recebe um pacote pequeno: resumo do confronto,
+              indices dos dois times, diferencas entre eles, jogadores-chave, evidencias, baseline
+              Poisson e alertas de incerteza.
+            </p>
+            <p>
+              Isso ajuda o modelo a raciocinar com contexto limpo. Em vez de se perder em uma
+              tabela enorme, ele ve sinais como "time A cria chances melhores, mas time B tem
+              goleiro em alta e risco de zebra alto".
+            </p>
+          </article>
+        </div>
+
+        <div class="ml-index-list">
+          <article>
+            <h4>Indices gerados</h4>
+            <dl>
+              <div><dt>attack_index</dt><dd>Forca ofensiva geral: xG, gols, chutes e chutes no alvo.</dd></div>
+              <div><dt>chance_quality_index</dt><dd>Qualidade das chances criadas, separando chance boa de chute sem perigo.</dd></div>
+              <div><dt>finishing_index</dt><dd>Capacidade de converter chances em gols, com cuidado para nao supervalorizar sorte.</dd></div>
+              <div><dt>defense_index</dt><dd>Solidez defensiva: poucos gols sofridos, clean sheets e recuperacao.</dd></div>
+              <div><dt>keeper_index</dt><dd>Momento e impacto do goleiro: defesas, gols sofridos e clean sheets.</dd></div>
+              <div><dt>control_index</dt><dd>Controle de jogo: posse, passes, precisao e inversoes.</dd></div>
+              <div><dt>pressing_index</dt><dd>Pressao e recuperacao: roubadas forcadas, pressoes e tempo para recuperar.</dd></div>
+              <div><dt>transition_index</dt><dd>Capacidade de quebrar linhas e atacar profundidade.</dd></div>
+              <div><dt>discipline_risk</dt><dd>Risco de faltas, cartoes e expulsao atrapalharem o jogo.</dd></div>
+              <div><dt>physical_load</dt><dd>Carga fisica: distancia, sprints e corridas intensas; usado como contexto de desgaste.</dd></div>
+              <div><dt>volatility_index</dt><dd>Risco de jogo estranho: overperformance, cartoes, dependencia do goleiro e eficiencia instavel.</dd></div>
+              <div><dt>champion_profile_score</dt><dd>Perfil de time campeao: combina defesa, chance real, ataque, controle e baixo risco disciplinar.</dd></div>
+            </dl>
+          </article>
+
+          <article>
+            <h4>Exemplo simples</h4>
+            <p>
+              Imagine duas selecoes. A primeira chuta muito, mas quase nao acerta o gol. A segunda
+              chuta menos, mas tem xG alto e muitos chutes no alvo. No dado cru, a primeira parece
+              dominante. Nas features, a segunda pode aparecer melhor em qualidade de chance.
+            </p>
+            <p>
+              Esse e o ponto: separar volume de qualidade, eficiencia de sorte, posse de perigo
+              real, defesa forte de goleiro sobrecarregado. Depois a LLM recebe essas pistas e
+              precisa justificar o palpite usando evidencias.
+            </p>
+          </article>
+
+          <article>
+            <h4>O que isso nao faz</h4>
+            <p>
+              Nao garante o vencedor. Copa tem lesao, expulsao, bola desviada, penaltis e contexto
+              emocional. Por isso tambem existe o <strong>upset_risk_score</strong>, que avisa
+              quando o confronto e equilibrado ou imprevisivel.
+            </p>
+            <p>
+              A ideia nao e substituir a LLM, e dar a ela um mapa melhor. Todas recebem o mesmo
+              mapa; vence a IA que interpretar melhor esse contexto ao longo das fases.
+            </p>
+          </article>
+        </div>
+      </div>
+
+      <div class="architecture-flow">
+        <strong>Fluxo resumido</strong>
+        <span>FIFA/cache</span>
+        <i></i>
+        <span>DuckDB</span>
+        <i></i>
+        <span>Features ML</span>
+        <i></i>
+        <span>Agente LLM</span>
+        <i></i>
+        <span>Scoring</span>
+        <i></i>
+        <span>Portal/export</span>
+      </div>
+    </div>
+
+    <div class="llm-call-guide">
+      <div class="llm-call-head">
+        <span>Chamada da IA</span>
+        <h3>O que a LLM recebe para prever um resultado</h3>
+        <p>
+          A chamada continua sendo feita por jogo e por modelo. O sistema nao pede para uma LLM
+          prever a fase inteira em uma unica resposta; ele entrega um dossie compacto de uma partida
+          e exige um JSON padrao para comparar todos os modelos com a mesma regra.
+        </p>
+      </div>
+
+      <div class="llm-call-formula">
+        <strong>Total de chamadas</strong>
+        <code>jogos da fase x modelos participantes x samples</code>
+        <span>Hoje o portal usa samples = 1. O modo consenso 3x so acontece quando samples = 3.</span>
+      </div>
+
+      <div class="llm-call-grid">
+        <article>
+          <h4>1. O botao dispara a fase</h4>
+          <p>
+            "Executar todas as LLMs da fase" chama a API local em /pool/llm/phase/run com a fase
+            ativa, samples=1, modelos pesados incluidos e finished_only=false.
+          </p>
+          <p>
+            O backend inicia o runner em background. Ele busca os jogos oficiais da fase, lista os
+            modelos compativeis do LM Studio e cria um batch para registrar a rodada.
+          </p>
+        </article>
+        <article>
+          <h4>2. A execucao e model-first</h4>
+          <p>
+            Para cada jogo, o runner cria uma rodada versionada, mas a ordem de processamento e por
+            modelo: carrega uma LLM, roda todos os jogos pendentes da fase, salva cada resposta e so
+            entao descarrega o modelo. Quartas com 4 jogos e 29 modelos continuam virando 116
+            chamadas, mas com menos troca de modelo.
+          </p>
+          <p>
+            Cada chamada recebe somente uma partida, por exemplo Franca x Marrocos, com dados das
+            duas selecoes. Isso reduz confusao e evita prompts gigantes.
+          </p>
+        </article>
+        <article>
+          <h4>3. O prompt tem duas mensagens</h4>
+          <p>
+            A mensagem system define a regra: competir no Bolao CopaMind, usar apenas o JSON de
+            contexto, responder somente JSON valido e pensar em prorrogacao/penaltis no mata-mata.
+          </p>
+          <p>
+            A mensagem user traz a tarefa, o contrato de saida e o contexto compacto com jogo,
+            baseline, comparativo dos times, forma recente e jogadores-chave.
+          </p>
+        </article>
+      </div>
+
+      <div class="llm-payload-grid">
+        <article>
+          <h4>O que vai em context.match</h4>
+          <ul>
+            <li>match_id, fase e data do jogo</li>
+            <li>campo neutro ou nao</li>
+            <li>time da esquerda e time da direita</li>
+            <li>bandeiras e IDs internos das selecoes</li>
+          </ul>
+        </article>
+        <article>
+          <h4>O que vai em context.baseline</h4>
+          <ul>
+            <li>modelo Poisson/Dixon-Coles quando existe historico suficiente</li>
+            <li>probabilidade de casa, empate e fora</li>
+            <li>gols esperados para cada lado</li>
+            <li>placar mais provavel pelo baseline</li>
+          </ul>
+        </article>
+        <article>
+          <h4>O que vai em context.matchup</h4>
+          <ul>
+            <li>resumo do confronto</li>
+            <li>deltas entre as selecoes nos indices ML</li>
+            <li>upset_risk_score, o risco de zebra</li>
+            <li>principais evidencias usadas no raciocinio</li>
+          </ul>
+        </article>
+        <article>
+          <h4>O que vai em home e away</h4>
+          <ul>
+            <li>indices: ataque, defesa, controle, volatilidade e perfil campeao</li>
+            <li>metricas centrais: gols, xG, chutes, clean sheets e cartoes</li>
+            <li>ultimos jogos disponiveis antes da partida</li>
+            <li>jogadores-chave com papel, motivo, confianca e per90</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="llm-json-examples">
+        <article>
+          <h4>Exemplo compacto do contexto enviado</h4>
+          <pre>{
+  "task": "Prever o bolao da partida",
+  "context": {
+    "match": {"stage": "quarterfinal", "home_team": "Franca", "away_team": "Marrocos"},
+    "baseline": {"prob_home": 0.45, "prob_draw": 0.27, "prob_away": 0.28},
+    "matchup": {"upset_risk_score": 0.61, "deltas": {"attack_index": 0.12}},
+    "home": {"indexes": {"attack_index": 0.82}, "key_players": ["Kylian Mbappe"]},
+    "away": {"indexes": {"defense_index": 0.74}, "key_players": ["Achraf Hakimi"]}
+  }
+}</pre>
+        </article>
+        <article>
+          <h4>Exemplo da resposta esperada</h4>
+          <pre>{
+  "winner": "home",
+  "prob_home": 0.48,
+  "prob_draw": 0.27,
+  "prob_away": 0.25,
+  "predicted_home_goals": 1,
+  "predicted_away_goals": 1,
+  "goes_to_extra_time": true,
+  "goes_to_penalties": true,
+  "penalty_winner": "home",
+  "first_goal_scorer": "Kylian Mbappe",
+  "player_picks": [{"market": "gol", "player_name": "Kylian Mbappe"}],
+  "confidence": 0.58,
+  "evidence_ids": ["matchup.analytics", "home.key_players"]
+}</pre>
+        </article>
+      </div>
+
+      <div class="llm-postprocess">
+        <article>
+          <h4>Como o JSON e validado</h4>
+          <p>
+            A primeira tentativa usa response_format=json_schema, com schema estrito. Se o modelo
+            nao aceitar, o cliente tenta json_object. Se ainda vier texto livre, o agente tenta
+            extrair e reparar o JSON para salvar uma resposta valida.
+          </p>
+        </article>
+        <article>
+          <h4>Onde a resposta fica salva</h4>
+          <p>
+            A chamada individual vai para llm_model_runs. A palavra final do modelo vai para
+            llm_model_consensus. O palpite oficial versionado vai para pool_predictions, e o payload
+            completo fica em pool_prediction_payloads para auditoria.
+          </p>
+        </article>
+        <article>
+          <h4>O que acontece com empate</h4>
+          <p>
+            No mata-mata nao existe empate final. Se a LLM prever 1-1, o sistema exige prorrogacao
+            ou penaltis e um classificado. Quando necessario, o palpite e normalizado para marcar
+            decisao por penaltis.
+          </p>
+        </article>
+      </div>
+    </div>
+
+    <div class="guide-contract">
+      <div>
+        <h3>Exemplo do contrato esperado</h3>
+        <p>Todos os modelos competem respondendo no mesmo formato, para o portal comparar maçã com maçã.</p>
+      </div>
+      <pre>{
+  "winner": "home",
+  "prob_home": 0.46,
+  "prob_draw": 0.27,
+  "prob_away": 0.27,
+  "predicted_home_goals": 1,
+  "predicted_away_goals": 1,
+  "goes_to_extra_time": true,
+  "goes_to_penalties": true,
+  "penalty_winner": "home",
+  "first_goal_scorer": "Kylian Mbappe",
+  "player_picks": [
+    {"market": "gol", "player_name": "Kylian Mbappe", "team": "França", "confidence": 0.62}
+  ],
+  "evidence_ids": ["matchup.analytics", "home.key_players"]
+}</pre>
+    </div>`;
+}
+
+function guideStep(number, title, body, facts) {
+  return `
+    <article class="guide-step">
+      <div class="step-number">${escapeHtml(number)}</div>
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(body)}</p>
+      <ul>
+        ${facts.map((fact) => `<li>${escapeHtml(fact)}</li>`).join("")}
+      </ul>
+    </article>`;
+}
+
+function teamCard(team) {
+  const analytics = team.analytics || {};
+  const indexes = analytics.indexes || {};
+  const metrics = analytics.core_metrics || {};
+  const players = team.key_players || [];
+  const notes = teamContextNotes(team.team_id).slice(0, 3);
+  return `
+    <article class="team-card">
+      <div class="team-card-head">
+        <img src="${escapeAttr(team.flag_url || "")}" alt="" />
+        <div>
+          <strong>${escapeHtml(team.name)}</strong>
+          <span>${escapeHtml(team.group ? `Grupo ${team.group}` : team.fifa_code || "")}</span>
+        </div>
+        <div class="champion-score">
+          <strong>${pct(indexes.champion_profile_score)}</strong>
+          <span>perfil campeão</span>
+        </div>
+      </div>
+      <div class="team-index-grid">
+        ${indexBar("Ataque", indexes.attack_index)}
+        ${indexBar("Chance", indexes.chance_quality_index)}
+        ${indexBar("Finalização", indexes.finishing_index)}
+        ${indexBar("Defesa", indexes.defense_index)}
+        ${indexBar("Goleiro", indexes.keeper_index)}
+        ${indexBar("Controle", indexes.control_index)}
+        ${indexBar("Pressão", indexes.pressing_index)}
+        ${indexBar("Transição", indexes.transition_index)}
+        ${indexBar("Risco disc.", indexes.discipline_risk, true)}
+        ${indexBar("Volatilidade", indexes.volatility_index, true)}
+      </div>
+      <div class="team-facts">
+        <div><span>Gols</span><strong>${num(metrics.goals, 0)}</strong></div>
+        <div><span>xG</span><strong>${num(metrics.xg, 2)}</strong></div>
+        <div><span>Chutes alvo</span><strong>${num(metrics.shots_on_target, 0)}</strong></div>
+        <div><span>Gols sofridos</span><strong>${num(metrics.goals_conceded, 0)}</strong></div>
+        <div><span>Clean sheets</span><strong>${num(metrics.clean_sheets, 0)}</strong></div>
+      </div>
+      <div class="team-evidence">
+        ${(analytics.evidence || []).slice(0, 3).map((item) => `
+          <span>${escapeHtml(item.text)}</span>
+        `).join("")}
+      </div>
+      ${notes.length ? `
+        <div class="team-context-notes">
+          ${notes.map((note) => `
+            <span>${escapeHtml(noteTypeLabel(note.note_type))} | ${escapeHtml(note.phase_label || phaseLabel(note.phase))}: ${escapeHtml(note.title)}</span>
+          `).join("")}
+        </div>` : ""}
+      <div class="team-players">
+        ${players.slice(0, 5).map(playerPill).join("") || "<span>Jogadores-chave aguardando dados.</span>"}
+      </div>
+    </article>`;
+}
+
+function teamContextNotes(teamId) {
+  return (state.context_notes || [])
+    .filter((note) => note.active !== false && note.team_id === teamId)
+    .sort((a, b) => Number(b.weight || 0) - Number(a.weight || 0));
+}
+
+function indexBar(label, value, inverse = false) {
+  const normalized = Number(value ?? 0);
+  const width = Math.max(0, Math.min(100, Math.round(normalized * 100)));
+  const tone = inverse && normalized >= 0.6 ? "danger" : normalized >= 0.72 ? "good" : "neutral";
+  return `
+    <div class="index-bar ${tone}">
+      <div>
+        <span>${escapeHtml(label)}</span>
+        <strong>${pct(normalized)}</strong>
+      </div>
+      <i style="--w:${width}%"></i>
+    </div>`;
+}
+
+function playerPill(player) {
+  return `
+    <div class="player-pill">
+      <img src="${escapeAttr(player.image_url || player.flag_url || "")}" alt="" />
+      <div>
+        <strong>${escapeHtml(player.name || "-")}</strong>
+        <span>${escapeHtml(roleLabel(player.role))} | conf. ${pct(player.confidence)}</span>
+      </div>
+    </div>`;
+}
+
+function predictionRow(prediction) {
+  if (prediction.is_projection) {
+    return `
+      <div class="prediction-item prediction-item--pending">
+        <div>
+          <b>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</b>
+          <span>${escapeHtml(prediction.projection_note || "projeção por chave")}</span>
+        </div>
+        <div class="prediction-result">
+          <strong>proj.</strong>
+          <span>Aguardando execução</span>
+        </div>
+      </div>`;
+  }
+  if (prediction.has_prediction === false) {
+    const invalid = prediction.status === "invalid_prediction";
+    const lmstudioError = prediction.status === "lmstudio_error";
+    const failed = invalid || lmstudioError;
+    return `
+      <div class="prediction-item prediction-item--pending ${failed ? "prediction-item--invalid" : ""}">
+        <div>
+          <b>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</b>
+          <span>${formatDateTime(prediction.match_date)} | ${failed ? escapeHtml(prediction.projection_note || "execução sem palpite válido") : "aguardando execução"}</span>
+        </div>
+        <div class="prediction-result">
+          <strong>${lmstudioError ? "LM" : invalid ? "JSON" : "-"}</strong>
+          <span>${lmstudioError ? "Erro LM Studio" : invalid ? "Resposta inválida" : "Sem palpite ainda"}</span>
+        </div>
+      </div>`;
+  }
+  const predictionMarkers = predictionBadges(prediction);
+  const playerText = playerPicksText(prediction);
+  const points = prediction.points == null
+    ? "Aguardando resultado"
+    : `${prediction.points} pts | real ${actualScore(prediction)}`;
+  return `
+    <div class="prediction-item">
+      <div>
+        <b>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</b>
+        <span class="prediction-meta">${formatDateTime(prediction.match_date)} | ${escapeHtml(shortRound(prediction.predictor_name))}</span>
+      </div>
+      <div class="prediction-result">
+        <strong>${escapeHtml(predictedScoreText(prediction))}</strong>
+        ${predictionMarkers ? `<em>${escapeHtml(predictionMarkers)}</em>` : ""}
+        <span>${escapeHtml(points)}</span>
+        ${playerText ? `<span class="player-picks-line">${escapeHtml(playerText)}</span>` : ""}
+      </div>
+    </div>`;
+}
+
+function predictedScoreText(prediction) {
+  const score = `${prediction.predicted_home_goals}-${prediction.predicted_away_goals}`;
+  if (!prediction.goes_to_penalties) return score;
+  if (prediction.penalty_winner === "home") return `${score} (${prediction.home} nos pênaltis)`;
+  if (prediction.penalty_winner === "away") return `${score} (${prediction.away} nos pênaltis)`;
+  return `${score} (pênaltis)`;
+}
+
+function matchScore(match) {
+  if (match.home_score == null) return "vs";
+  if (match.went_to_penalties) {
+    return `${match.home_score} (${match.home_penalty_score}) - ${match.away_score} (${match.away_penalty_score})`;
+  }
+  return `${match.home_score}-${match.away_score}`;
+}
+
+function actualScore(prediction) {
+  if (prediction.actual_home_goals == null) return "-";
+  if (prediction.actual_penalties) {
+    return `${prediction.actual_home_goals} (${prediction.actual_home_penalty_score})-${prediction.actual_away_goals} (${prediction.actual_away_penalty_score})`;
+  }
+  if (prediction.actual_extra_time) {
+    return `${prediction.actual_home_goals}-${prediction.actual_away_goals} PROR`;
+  }
+  return `${prediction.actual_home_goals}-${prediction.actual_away_goals}`;
+}
+
+function matchMarkers(match) {
+  const parts = [];
+  if (match.went_to_extra_time) parts.push("PROR");
+  if (match.went_to_penalties) parts.push("PEN");
+  return parts.join(" ");
+}
+
+function predictionBadges(prediction) {
+  const parts = [];
+  if (prediction.goes_to_extra_time) parts.push("Prorr.");
+  if (prediction.goes_to_penalties) {
+    const winner = prediction.penalty_winner === "home"
+      ? prediction.home
+      : prediction.penalty_winner === "away"
+        ? prediction.away
+        : "";
+    parts.push(winner ? `Pênaltis: ${winner}` : "Pênaltis");
+  }
+  return parts.join(" ");
+}
+
+function playerPicksText(prediction) {
+  const parts = [];
+  const seen = new Set();
+  if (prediction.first_goal_scorer) {
+    parts.push(`1º gol: ${prediction.first_goal_scorer}`);
+    seen.add(`first_goal:${normalizeText(prediction.first_goal_scorer)}`);
+  }
+  for (const pick of (prediction.player_picks || [])) {
+    if (!pick?.player_name) continue;
+    const market = marketLabel(pick.market);
+    const name = String(pick.player_name).trim();
+    const key = `${market}:${normalizeText(name)}`;
+    const firstGoalKey = `first_goal:${normalizeText(name)}`;
+    if (seen.has(key) || (market === "1º gol" && seen.has(firstGoalKey))) continue;
+    seen.add(key);
+    parts.push(`${market}: ${name}`);
+    if (parts.length >= 3) break;
+  }
+  return parts.join(" | ");
+}
+
+function marketLabel(value) {
+  const market = normalizeText(value || "");
+  if (["gol", "gols", "goal", "goals", "scorer", "goalscorer", "goleador"].includes(market)) return "Gol";
+  if (["assist", "assists", "assistencia", "assistencias", "assistência", "assistências"].includes(market)) return "Assist.";
+  if (["first_goal", "first_goal_scorer", "primeiro_gol", "1_gol", "1o_gol"].includes(market)) return "1º gol";
+  if (["card", "cards", "cartao", "cartoes", "cartão", "cartões"].includes(market)) return "Cartão";
+  if (["save", "saves", "defesa", "defesas", "clean_sheet"].includes(market)) return "Defesa";
+  if (["betting", "pick", "destaque", "key_player"].includes(market)) return "Destaque";
+  return value ? String(value).replaceAll("_", " ") : "Jogador";
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function bulkProgressPanel(progress) {
+  const percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
+  const status = progressStatusLabel(progress.status);
+  const matchText = progress.total_matches
+    ? `Jogo ${progress.current_match_index || 0}/${progress.total_matches}: ${progress.current_match_label || "preparando"}`
+    : "Mapeando jogos da fase";
+  const modelText = progress.total_models
+    ? `Modelo ${progress.current_model_index || 0}/${progress.total_models}: ${progress.current_model_id || "preparando"}`
+    : "Mapeando modelos locais";
+  const sampleText = progress.total_samples
+    ? `Chamada ${progress.current_sample_index || 0}/${progress.total_samples}`
+    : "Chamada aguardando";
+  const callsText = progress.total_calls
+    ? `${progress.completed_calls || 0}/${progress.total_calls} chamadas`
+    : "chamadas aguardando";
+  return `
+    <div class="bulk-progress" aria-live="polite">
+      <div class="bulk-progress-head">
+        <strong>${escapeHtml(status)}</strong>
+        <span>${num(percent, 1)}%</span>
+      </div>
+      <div class="bulk-progress-bar">
+        <i style="--w:${percent}%"></i>
+      </div>
+      <div class="bulk-progress-grid">
+        <span>${escapeHtml(matchText)}</span>
+        <span>${escapeHtml(modelText)}</span>
+        <span>${escapeHtml(sampleText)}</span>
+        <span>${escapeHtml(callsText)}</span>
+        <span>Tempo ${formatDuration(progress.elapsed_seconds)}</span>
+        <span>ETA ${formatDuration(progress.eta_seconds)}</span>
+      </div>
+      ${progress.message ? `<em>${escapeHtml(progress.message)}</em>` : ""}
+    </div>`;
+}
+
+function progressStatusLabel(status) {
+  const labels = {
+    starting: "Iniciando",
+    running: "Rodando",
+    completed: "Finalizado",
+    completed_with_errors: "Finalizado com erros",
+    failed: "Falhou",
+    interrupted: "Interrompido",
+    idle: "Aguardando",
+  };
+  return labels[status] || status || "Iniciando";
+}
+
+function isTerminalProgress(status) {
+  return ["completed", "completed_with_errors", "failed", "interrupted"].includes(status);
+}
+
+function isStaleProgress(progress) {
+  const updatedAt = progress?.updated_at ? Date.parse(progress.updated_at) : 0;
+  const ageMs = updatedAt ? Date.now() - updatedAt : Number.POSITIVE_INFINITY;
+  if (progress?.status === "starting") return ageMs > 90 * 1000;
+  if (progress?.status === "running") return ageMs > 3 * 60 * 60 * 1000;
+  return false;
+}
+
+function startRunPolling(key) {
+  const item = runningRuns.get(key);
+  if (!item) return;
+  if (item.timer) clearInterval(item.timer);
+  item.timer = setInterval(() => {
+    loadData(true).catch(() => {});
+  }, RUN_POLL_MS);
+  runningRuns.set(key, item);
+}
+
+function startBulkPolling(phase, batchId) {
+  const key = runKey(phase, "__all__");
+  runningRuns.set(key, {
+    phase,
+    modelId: "__all__",
+    batchId,
+    previousPredictionCount: countPhasePredictions(phase),
+    previousSnapshot: state?.generated_at || "",
+    startedAt: Date.now(),
+    progress: {
+      batch_id: batchId,
+      phase,
+      status: "starting",
+      message: "Aguardando runner das LLMs iniciar.",
+      percent: 0,
+      completed_calls: 0,
+      total_calls: 0,
+    },
+    timer: null,
+  });
+  startBulkProgressPolling(key);
+  renderModelActions();
+}
+
+async function recoverLatestBulkProgress() {
+  if (window.COPAMIND_EMBEDDED_DATA) return;
+  const phase = activePhase;
+  const response = await fetch(`${API_BASE}/pool/llm/phase/progress/latest?phase=${encodeURIComponent(phase)}`);
+  if (!response.ok) return;
+  const progress = await response.json();
+  if (!progress?.batch_id || progress.phase !== phase) return;
+  if (recoveredProgressBatches.has(progress.batch_id)) return;
+
+  if (isTerminalProgress(progress.status)) return;
+  if (isStaleProgress(progress)) return;
+
+  const modelId = Number(progress.total_models || 0) === 1 && progress.current_model_id
+    ? progress.current_model_id
+    : "__all__";
+  const key = runKey(phase, modelId);
+  if (runningRuns.has(key)) return;
+  recoveredProgressBatches.add(progress.batch_id);
+  runningRuns.set(key, {
+    phase,
+    modelId,
+    batchId: progress.batch_id,
+    previousPredictionCount: modelId === "__all__"
+      ? countPhasePredictions(phase)
+      : countModelPhasePredictions(phase, modelId),
+    previousSnapshot: state?.generated_at || "",
+    startedAt: Date.now(),
+    progress,
+    timer: null,
+  });
+  startBulkProgressPolling(key);
+  renderModelActions();
+}
+
+function startBulkProgressPolling(key) {
+  const item = runningRuns.get(key);
+  if (!item) return;
+  if (item.timer) clearInterval(item.timer);
+  pollBulkProgress(key).catch(() => {});
+  item.timer = setInterval(() => {
+    pollBulkProgress(key).catch(() => {});
+  }, PROGRESS_POLL_MS);
+  runningRuns.set(key, item);
+}
+
+async function pollBulkProgress(key) {
+  const item = runningRuns.get(key);
+  if (!item?.batchId) return;
+  const response = await fetch(`${API_BASE}/pool/llm/phase/progress?batch_id=${encodeURIComponent(item.batchId)}`);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const progress = await response.json();
+  if (isStaleProgress(progress)) {
+    stopRunPolling(key);
+    renderModelActions();
+    return;
+  }
+  item.progress = progress;
+  runningRuns.set(key, item);
+  renderModelActions();
+  if (isTerminalProgress(progress.status)) {
+    if (item.timer) clearInterval(item.timer);
+    item.timer = null;
+    runningRuns.set(key, item);
+    setTimeout(() => {
+      stopRunPolling(key);
+      loadData(true).catch(() => {});
+    }, 1800);
+  }
+}
+
+function stopRunPolling(key) {
+  const item = runningRuns.get(key);
+  if (item?.timer) clearInterval(item.timer);
+  runningRuns.delete(key);
+}
+
+function reconcileRunningRuns() {
+  for (const [key, item] of runningRuns.entries()) {
+    if (item.batchId) continue;
+    const currentCount = item.modelId === "__all__"
+      ? countPhasePredictions(item.phase)
+      : countModelPhasePredictions(item.phase, item.modelId);
+    const snapshotChanged = String(state?.generated_at || "") !== String(item.previousSnapshot || "");
+    const predictionChanged = currentCount > item.previousPredictionCount;
+    const timedOut = Date.now() - item.startedAt > RUN_TIMEOUT_MS;
+    if (predictionChanged || snapshotChanged || timedOut) {
+      stopRunPolling(key);
+    }
+  }
+}
+
+function countModelPhasePredictions(phase, modelId) {
+  return (state?.phase_predictions_by_model || [])
+    .filter((item) => item.phase === phase && item.model_id === modelId)
+    .flatMap((item) => item.predictions || [])
+    .filter((prediction) => prediction.has_prediction !== false)
+    .length;
+}
+
+function countPhasePredictions(phase) {
+  return (state?.phase_predictions_by_model || [])
+    .filter((item) => item.phase === phase)
+    .flatMap((item) => item.predictions || [])
+    .filter((prediction) => prediction.has_prediction !== false)
+    .length;
+}
+
+function canRunAllModelsForPhase() {
+  if (!BULK_PHASES.includes(activePhase)) return false;
+  return phaseExecutionGaps(activePhase).missingCalls > 0 || projectedMatchesForPhase(activePhase, "combo").length > 0;
+}
+
+function pendingPhaseMatches(phase) {
+  return matchesForPhase(phase).filter((match) => match.status !== "finished" || match.home_score == null || match.away_score == null);
+}
+
+function phaseExecutionGaps(phase) {
+  const matchCount = matchesForPhase(phase).length || projectedMatchesForPhase(phase, "combo").length;
+  if (!matchCount) return { missingCalls: 0, missingModels: 0 };
+  const statusByModel = Object.fromEntries(
+    (state.phase_model_run_status || [])
+      .filter((item) => item.phase === phase)
+      .map((item) => [item.model_id, item])
+  );
+  let missingCalls = 0;
+  let missingModels = 0;
+  for (const model of runnableModels()) {
+    const runs = Number(statusByModel[model.model_id]?.runs || 0);
+    const missing = Math.max(0, matchCount - runs);
+    if (missing) {
+      missingCalls += missing;
+      missingModels += 1;
+    }
+  }
+  return { missingCalls, missingModels };
+}
+
+function runnableModels() {
+  return (state.models || []).filter((model) => (
+    !model.is_combo
+    && model.model_class !== "embedding"
+    && model.model_class !== "unsupported"
+    && model.available !== false
+  ));
+}
+
+function runKey(phase, modelId) {
+  return `${phase}::${modelId}`;
+}
+
+function currentPhase() {
+  return (state.phases || []).find((phase) => phase.key === activePhase);
+}
+
+function matchesForPhase(phase) {
+  return (state.matches || [])
+    .filter((match) => match.stage === phase)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+}
+
+function projectedMatchesForPhase(phase, modelId) {
+  if (matchesForPhase(phase).length) return [];
+  if (phase === "semifinal") {
+    return pairProjectedWinners("quarterfinal", modelId, "Semifinal projetada");
+  }
+  if (phase === "third_place") {
+    const semis = projectedMatchesForPhase("semifinal", modelId);
+    const losers = semis.map((match) => projectedLoser(match, modelId)).filter(Boolean);
+    return pairTeams(losers, phase, "3o lugar projetado");
+  }
+  if (phase === "final") {
+    const semis = projectedMatchesForPhase("semifinal", modelId);
+    const winners = semis.map((match) => projectedWinner(match, modelId)).filter(Boolean);
+    return pairTeams(winners, phase, "Final projetada");
+  }
+  return [];
+}
+
+function pairProjectedWinners(previousPhase, modelId, note) {
+  const winners = matchesForPhase(previousPhase).map((match) => winnerFromMatch(match, modelId)).filter(Boolean);
+  return pairTeams(winners, "semifinal", note);
+}
+
+function pairTeams(teams, phase, note) {
+  const rows = [];
+  for (let index = 0; index + 1 < teams.length; index += 2) {
+    rows.push({
+      match_id: `projected:${phase}:${index / 2}`,
+      stage: phase,
+      home_team_id: teams[index].team_id,
+      away_team_id: teams[index + 1].team_id,
+      home: teams[index].name,
+      away: teams[index + 1].name,
+      home_flag_url: teams[index].flag_url,
+      away_flag_url: teams[index + 1].flag_url,
+      date: null,
+      status: "projected",
+      note,
+    });
+  }
+  return rows;
+}
+
+function winnerFromMatch(match, modelId) {
+  const actual = actualWinner(match);
+  if (actual) return teamRef(actual === "home" ? match.home_team_id : match.away_team_id);
+  const prediction = predictionForMatch(modelId, match.match_id);
+  if (prediction) {
+    return teamRef(predictedSide(prediction) === "home" ? match.home_team_id : match.away_team_id);
+  }
+  return strongerTeam(match.home_team_id, match.away_team_id);
+}
+
+function projectedWinner(match, modelId) {
+  const side = predictedSide(predictionForProjected(match, modelId));
+  if (side === "away") return teamRef(match.away_team_id);
+  if (side === "home") return teamRef(match.home_team_id);
+  return strongerTeam(match.home_team_id, match.away_team_id);
+}
+
+function projectedLoser(match, modelId) {
+  const winner = projectedWinner(match, modelId);
+  if (!winner) return null;
+  return winner.team_id === match.home_team_id ? teamRef(match.away_team_id) : teamRef(match.home_team_id);
+}
+
+function actualWinner(match) {
+  if (match.home_score == null || match.away_score == null) return null;
+  if (match.home_score > match.away_score) return "home";
+  if (match.away_score > match.home_score) return "away";
+  return match.winner_side || null;
+}
+
+function predictionForMatch(modelId, matchId) {
+  const row = (state.phase_predictions_by_model || []).find((item) => (
+    item.model_id === modelId
+    && (item.predictions || []).some((prediction) => prediction.match_id === matchId)
+  ));
+  return (row?.predictions || []).find((prediction) => prediction.match_id === matchId && prediction.has_prediction !== false);
+}
+
+function predictionForProjected(_match, _modelId) {
+  return null;
+}
+
+function predictedSide(prediction) {
+  if (!prediction) return null;
+  if (prediction.goes_to_penalties && prediction.penalty_winner !== "none") return prediction.penalty_winner;
+  if (prediction.predicted_home_goals > prediction.predicted_away_goals) return "home";
+  if (prediction.predicted_away_goals > prediction.predicted_home_goals) return "away";
+  return prediction.prob_home >= prediction.prob_away ? "home" : "away";
+}
+
+function strongerTeam(homeTeamId, awayTeamId) {
+  const home = teamRef(homeTeamId);
+  const away = teamRef(awayTeamId);
+  const homeScore = home?.analytics?.indexes?.champion_profile_score ?? 0;
+  const awayScore = away?.analytics?.indexes?.champion_profile_score ?? 0;
+  return homeScore >= awayScore ? home : away;
+}
+
+function teamRef(teamId) {
+  return (state.teams || []).find((team) => team.team_id === teamId)
+    || { team_id: teamId, name: teamId, flag_url: "" };
+}
+
+function projectedMatchCard(match) {
+  return `
+    <article class="match-card match-card--projected">
+      <div class="match-teams">
+        ${teamLine(match.home, match.home_flag_url, null)}
+        <div class="versus">proj.</div>
+        ${teamLine(match.away, match.away_flag_url, null)}
+      </div>
+      <div class="match-meta">
+        <span>${escapeHtml(match.note || "projeção")}</span>
+        <span>sem chave oficial</span>
+      </div>
+    </article>`;
+}
+
+function emptyPrediction(message) {
+  return `<div class="prediction-item muted-row"><div><b>${escapeHtml(message)}</b></div></div>`;
+}
+
+function empty(message) {
+  return `<div class="empty-state">${escapeHtml(message)}</div>`;
+}
+
+function setText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function phaseLabel(phase) {
+  return PHASE_LABELS[phase] || phase || "-";
+}
+
+function statusLabel(status) {
+  return { scheduled: "agendado", finished: "finalizado", cancelled: "cancelado" }[status] || status || "-";
+}
+
+function accuracyValue(item) {
+  return item?.accuracy == null ? -1 : item.accuracy;
+}
+
+function shortRound(value) {
+  const text = String(value || "");
+  if (!text.includes(":round:")) return text;
+  return `rodada ${text.split(":round:", 2)[1]}`;
+}
+
+function pct(value) {
+  return value == null ? "-" : `${Math.round(Number(value) * 100)}%`;
+}
+
+function roleLabel(role) {
+  return {
+    finalizador: "finalizador",
+    criador: "criador",
+    ruptura: "ruptura",
+    pressao_defensiva: "pressão",
+    risco_disciplinar: "risco disc.",
+    goleiro_decisivo: "goleiro",
+  }[role] || role || "-";
+}
+
+function num(value, digits = 0) {
+  if (value == null || Number.isNaN(Number(value))) return "-";
+  return Number(value).toFixed(digits);
+}
+
+function avg(values) {
+  const items = (values || []).map(Number).filter((value) => Number.isFinite(value));
+  if (!items.length) return null;
+  return items.reduce((sum, value) => sum + value, 0) / items.length;
+}
+
+function formatDateTime(value) {
+  if (!value) return "A definir";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function localDateTimeValue(date) {
+  const offsetMs = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function formatDuration(value) {
+  if (value == null || Number.isNaN(Number(value))) return "-";
+  const total = Math.max(0, Math.round(Number(value)));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  if (minutes) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  return `${seconds}s`;
+}
+
+function avatarForModel(model) {
+  const family = String(model.family || model.display_name || "IA").slice(0, 2).toUpperCase();
+  const hue = hashHue(model.model_id || model.display_name);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="124" height="124" viewBox="0 0 124 124">
+      <rect width="124" height="124" rx="24" fill="#151923"/>
+      <circle cx="92" cy="28" r="38" fill="hsl(${hue}, 82%, 58%)" opacity=".35"/>
+      <circle cx="30" cy="96" r="46" fill="hsl(${(hue + 80) % 360}, 72%, 48%)" opacity=".24"/>
+      <text x="62" y="72" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="34" font-weight="900" fill="#f7fafc">${family}</text>
+    </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function hashHue(value) {
+  let hash = 0;
+  for (const char of String(value || "")) hash = (hash * 31 + char.charCodeAt(0)) % 360;
+  return hash;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) return CSS.escape(value);
+  return String(value).replaceAll('"', '\\"');
+}
+
+async function exportStaticSite() {
+  setExportStatus("Gerando HTML estatico...");
+  try {
+    const [html, css, js, data] = await Promise.all([
+      fetchText("index.html"),
+      fetchText("styles.css"),
+      fetchText("app.js"),
+      window.COPAMIND_EMBEDDED_DATA || fetchJson("data/copamind.json"),
+    ]);
+    const assetMap = await loadStaticAssetMap();
+    let outputCss = replaceAssets(css, assetMap);
+    let outputJs = replaceAssets(js, assetMap).replaceAll("</script>", "<\\/script>");
+    let outputHtml = replaceAssets(html, assetMap);
+    outputHtml = outputHtml.replace(
+      '<link rel="stylesheet" href="styles.css" />',
+      `<style>\n${outputCss}\n</style>`
+    );
+    outputHtml = outputHtml.replace(
+      '<script src="app.js"></script>',
+      `<script>window.COPAMIND_EMBEDDED_DATA=${safeJson(data)};<\/script>\n<script>\n${outputJs}\n<\/script>`
+    );
+    downloadFile(
+      `copamind-2026-portal-${new Date().toISOString().slice(0, 10)}.html`,
+      outputHtml,
+      "text/html;charset=utf-8"
+    );
+    setExportStatus("HTML gerado para download.");
+  } catch (error) {
+    console.error(error);
+    setExportStatus("Nao consegui exportar. Abra pelo servidor local e tente novamente.");
+  }
+}
+
+async function fetchText(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Falha ao carregar ${path}`);
+  return response.text();
+}
+
+async function fetchJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Falha ao carregar ${path}`);
+  return response.json();
+}
+
+async function loadStaticAssetMap() {
+  const entries = await Promise.all(
+    STATIC_ASSETS.map(async (path) => {
+      try {
+        return [path, await assetAsDataUrl(path)];
+      } catch (_error) {
+        return [path, path];
+      }
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
+async function assetAsDataUrl(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Falha ao carregar ${path}`);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function replaceAssets(text, assetMap) {
+  return Object.entries(assetMap).reduce((current, [path, dataUrl]) => (
+    current.replaceAll(path, dataUrl)
+  ), text);
+}
+
+function safeJson(value) {
+  return JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026");
+}
+
+function downloadFile(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function setExportStatus(message) {
+  const status = document.getElementById("export-status");
+  if (status) status.textContent = message;
+}

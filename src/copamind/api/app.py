@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from copamind import __version__
 from copamind.api.routes import (
@@ -32,6 +33,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="CopaMind 2026",
         description="Plataforma local e open source de inteligência esportiva.",
         version=__version__,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "null",
+            "http://localhost:8601",
+            "http://127.0.0.1:8601",
+            "http://localhost:8501",
+            "http://127.0.0.1:8501",
+        ],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     app.include_router(health_router)

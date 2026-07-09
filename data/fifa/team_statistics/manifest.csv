@@ -1,0 +1,8 @@
+﻿aba;story_type;season_id;rankings;linhas;colunas;arquivo
+Ataque;gct_attack;285023;14;48;31;data/fifa/team_statistics/ataque.csv
+Distribuição;gct_distribution;285023;8;48;19;data/fifa/team_statistics/distribuicao.csv
+Defesa;gct_defending;285023;6;48;15;data/fifa/team_statistics/defesa.csv
+Disciplina;gct_discipline;285023;6;48;15;data/fifa/team_statistics/disciplina.csv
+Goleiro;gct_goalkeeping;285023;5;48;13;data/fifa/team_statistics/goleiro.csv
+Movimentação;gct_movement;285023;9;48;21;data/fifa/team_statistics/movimentacao.csv
+Físico;gct_physical;285023;4;48;11;data/fifa/team_statistics/fisico.csv

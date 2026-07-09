@@ -1,17 +1,13 @@
-"""Clientes de LLM local (LM Studio / Ollama) e um cliente fake para testes.
-
-Saída estruturada: o cliente pede JSON e o chamador valida com Pydantic. Todo
-documento/evidência é tratado como dado não confiável (proteção contra injeção).
-"""
+"""Clientes de LLM local (LM Studio / Ollama) e um cliente fake para testes."""
 
 from __future__ import annotations
 
 import json
 import time
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class LLMError(Exception):
@@ -26,27 +22,28 @@ class LLMResponse(BaseModel):
     latency_ms: float
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    attempts: list[dict[str, object]] = Field(default_factory=list)
 
     @property
     def tokens_per_second(self) -> float | None:
-        """Tokens de sa\u00edda por segundo, se dispon\u00edvel."""
+        """Tokens de saida por segundo, se disponivel."""
         if self.completion_tokens is None or self.latency_ms <= 0:
             return None
         return self.completion_tokens / (self.latency_ms / 1000.0)
 
 
 def extract_json(text: str) -> dict[str, object]:
-    """Extrai o primeiro objeto JSON de um texto (robusto a texto ao redor)."""
+    """Extrai o primeiro objeto JSON de um texto."""
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end < start:
-        raise LLMError("resposta não contém JSON")
+        raise LLMError("resposta nao contem JSON")
     try:
         parsed = json.loads(text[start : end + 1])
     except json.JSONDecodeError as exc:
-        raise LLMError(f"JSON inválido: {exc}") from exc
+        raise LLMError(f"JSON invalido: {exc}") from exc
     if not isinstance(parsed, dict):
-        raise LLMError("JSON não é um objeto")
+        raise LLMError("JSON nao e um objeto")
     return parsed
 
 
@@ -59,24 +56,23 @@ class LLMClient(Protocol):
         messages: list[dict[str, str]],
         model_id: str,
         temperature: float = 0.2,
+        response_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
         """Gera uma resposta a partir das mensagens."""
         ...
 
     def unload(self, model_id: str) -> None:
-        """Descarrega o modelo da memória (quando suportado)."""
+        """Descarrega o modelo da memoria quando suportado."""
         ...
 
 
 class FakeLLMClient:
-    """Cliente determinístico para testes.
+    """Cliente deterministico para testes."""
 
-    Mapeia ``model_id`` -> conteúdo (string JSON). Registra unloads.
-    """
-
-    def __init__(self, responses: dict[str, str]) -> None:
+    def __init__(self, responses: dict[str, str | list[str]]) -> None:
         self._responses = responses
         self.unloaded: list[str] = []
+        self.calls: list[dict[str, object]] = []
 
     def complete(
         self,
@@ -84,16 +80,35 @@ class FakeLLMClient:
         messages: list[dict[str, str]],
         model_id: str,
         temperature: float = 0.2,
+        response_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
         if model_id not in self._responses:
-            raise LLMError(f"modelo não configurado no fake: {model_id}")
-        content = self._responses[model_id]
+            raise LLMError(f"modelo nao configurado no fake: {model_id}")
+        self.calls.append(
+            {
+                "model_id": model_id,
+                "temperature": temperature,
+                "response_schema": response_schema is not None,
+                "messages": messages,
+            }
+        )
+        value = self._responses[model_id]
+        if isinstance(value, list):
+            if not value:
+                content = ""
+            elif len(value) == 1:
+                content = value[0]
+            else:
+                content = value.pop(0)
+        else:
+            content = value
         return LLMResponse(
             content=content,
             model_id=model_id,
             latency_ms=1.0,
             prompt_tokens=10,
             completion_tokens=len(content.split()),
+            attempts=[{"mode": "fake", "ok": True}],
         )
 
     def unload(self, model_id: str) -> None:
@@ -101,7 +116,7 @@ class FakeLLMClient:
 
 
 class LMStudioClient:
-    """Cliente para LM Studio (API compatível com OpenAI)."""
+    """Cliente para LM Studio (API compativel com OpenAI)."""
 
     def __init__(
         self,
@@ -119,28 +134,47 @@ class LMStudioClient:
         messages: list[dict[str, str]],
         model_id: str,
         temperature: float = 0.2,
+        response_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
-        # Não forçamos `response_format` (versões do LM Studio divergem: algumas
-        # só aceitam 'json_schema' ou 'text'). O JSON é solicitado no prompt e
-        # extraído de forma tolerante por `extract_json`.
-        payload = {
-            "model": model_id,
-            "messages": messages,
-            "temperature": temperature,
-        }
+        payloads = self._payloads(model_id, messages, temperature, response_schema)
         start = time.perf_counter()
-        try:
-            response = httpx.post(
-                f"{self._base_url}/chat/completions",
-                json=payload,
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                timeout=self._timeout,
-            )
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise LLMError(f"falha na chamada ao LM Studio: {exc}") from exc
+        attempts: list[dict[str, object]] = []
+        last_error: Exception | None = None
+        data: dict[str, Any] | None = None
+
+        for mode, payload in payloads:
+            try:
+                response = httpx.post(
+                    f"{self._base_url}/chat/completions",
+                    json=payload,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    timeout=self._timeout,
+                )
+                response.raise_for_status()
+                data = response.json()
+                attempts.append({"mode": mode, "ok": True})
+                break
+            except httpx.HTTPStatusError as exc:
+                attempts.append(
+                    {
+                        "mode": mode,
+                        "ok": False,
+                        "status_code": exc.response.status_code,
+                        "error": str(exc),
+                    }
+                )
+                last_error = exc
+                if exc.response.status_code not in {400, 404, 422}:
+                    break
+            except httpx.HTTPError as exc:
+                attempts.append({"mode": mode, "ok": False, "error": str(exc)})
+                last_error = exc
+                break
+
+        if data is None:
+            raise LLMError(f"falha na chamada ao LM Studio: {last_error}") from last_error
+
         latency_ms = (time.perf_counter() - start) * 1000.0
-        data = response.json()
         content = data["choices"][0]["message"]["content"]
         usage = data.get("usage", {})
         return LLMResponse(
@@ -149,11 +183,60 @@ class LMStudioClient:
             latency_ms=latency_ms,
             prompt_tokens=usage.get("prompt_tokens"),
             completion_tokens=usage.get("completion_tokens"),
+            attempts=attempts,
         )
 
+    def list_models(self) -> list[str]:
+        """Lista modelos expostos pelo LM Studio local."""
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        try:
+            response = httpx.get(
+                f"{self._base_url}/models",
+                headers=headers,
+                timeout=min(self._timeout, 30.0),
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise LLMError(f"falha ao listar modelos no LM Studio: {exc}") from exc
+        data = response.json()
+        return [str(item["id"]) for item in data.get("data", []) if item.get("id")]
+
     def unload(self, model_id: str) -> None:
-        # A API OpenAI do LM Studio não expõe unload padrão; no-op seguro.
         return None
+
+    def _payloads(
+        self,
+        model_id: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        response_schema: dict[str, Any] | None,
+    ) -> list[tuple[str, dict[str, Any]]]:
+        base: dict[str, Any] = {
+            "model": model_id,
+            "messages": messages,
+            "temperature": temperature,
+        }
+        payloads: list[tuple[str, dict[str, Any]]] = []
+        if response_schema is not None:
+            payloads.append(
+                (
+                    "json_schema",
+                    base
+                    | {
+                        "response_format": {
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": "copamind_bolao_pick",
+                                "schema": response_schema,
+                                "strict": True,
+                            },
+                        }
+                    },
+                )
+            )
+            payloads.append(("json_object", base | {"response_format": {"type": "json_object"}}))
+        payloads.append(("text", base))
+        return payloads
 
 
 class OllamaClient:
@@ -169,6 +252,7 @@ class OllamaClient:
         messages: list[dict[str, str]],
         model_id: str,
         temperature: float = 0.2,
+        response_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
         payload = {
             "model": model_id,
@@ -191,6 +275,7 @@ class OllamaClient:
             latency_ms=latency_ms,
             prompt_tokens=data.get("prompt_eval_count"),
             completion_tokens=data.get("eval_count"),
+            attempts=[{"mode": "ollama_json", "ok": True}],
         )
 
     def unload(self, model_id: str) -> None:

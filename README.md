@@ -18,11 +18,13 @@
 
 - 📊 **Modelos preditivos**: Elo, Poisson/Dixon-Coles, ensemble e calibração isotônica (Brier/Log-Loss/ECE)
 - 🎲 **Simulação Monte Carlo** do torneio (chances por fase e de título), reprodutível por seed
-- 🏆 **Bolão de IAs Locais**: preditores competem com palpites imutáveis e leaderboard (backtest anti-leakage)
+- 🏆 **Bolão de IAs Locais** — ~30 modelos LM Studio preveem cada partida do mata-mata; placar, vencedor, pênaltis, probabilidades e jogadores-chave; runner model-first com progresso ao vivo
+- 📐 **Analytics FIFA v2** — 13 índices derivados por equipe (attack, defense, keeper, control, pressing, transition, volatility, champion_profile, upset_risk, etc.) com anti-leakage por snapshot
+- 📰 **Context Notes** — notas contextuais manuais (lesão, rotação, tática) injetadas como evidência estruturada nos prompts; extrator automático de notícias via LLM
 - 🔍 **RAG** com busca híbrida (vetorial + léxico) e proteção contra prompt injection
-- 🤖 **Orquestração de LLMs locais** (LM Studio/Ollama): analista → challenger → auditor → consenso + **benchmark**
+- 🤖 **Orquestração de LLMs locais** (LM Studio/Ollama): sequencial, model-first, retry e benchmark por fase
 - 🔌 **MCP** (`copamind-mcp`): ferramentas read-only e de escrita para o agente/IDE
-- 🖥️ **Dashboard bilíngue (EN/PT-BR)** em Streamlit: ranking, previsões, bolão, calibração e chat
+- 🖥️ **Portal estático** (`apps/portal/`) com tabela-resumo de previsões, ranking das LLMs, dashboard de seleções/jogadores e aba Tabela e Jogos
 - 🧾 **Linhagem e reprodutibilidade** em cada resultado (origem, snapshot, evidências)
 
 ## Diferencial
@@ -110,9 +112,11 @@ mypy                   # tipos
 pytest                 # testes + cobertura
 ```
 
-## Estado do projeto
+## Estado do projeto (09/07/2026)
 
-Núcleo entregue (145 testes verdes): dados/ingestão (E1), user reports (E2), Elo + forma (E3a), Poisson/Dixon-Coles (E4), ensemble + calibração (E3b), simulação Monte Carlo (E4b), RAG (E5), MCP (E6), orquestração de LLMs + benchmark (E7), dashboard bilíngue + chat (E8a/E8b) e Bolão de IAs (E11). Veja [TASKS.md](TASKS.md) e o [ROADMAP.md](ROADMAP.md).
+**Fase ativa: Quartas de final** (França×Marrocos · Espanha×Bélgica · Noruega×Inglaterra · Argentina×Suíça). Final: 19/07/2026.
+
+Núcleo entregue (160+ testes): dados/ingestão (E1), user reports (E2), Elo + forma (E3a), Poisson/Dixon-Coles (E4), ensemble + calibração (E3b), simulação Monte Carlo (E4b), RAG (E5), MCP (E6), orquestração de LLMs + benchmark (E7), dashboard Streamlit (E8a/E8b), portal estático (E9) e Bolão de IAs com runner model-first (E11). Analytics FIFA v2 com 13 índices, context notes com extrator LLM e tabela-resumo de previsões implementados. Veja [TASKS.md](TASKS.md) e o [ROADMAP.md](ROADMAP.md).
 
 ## Conteúdo para divulgação
 

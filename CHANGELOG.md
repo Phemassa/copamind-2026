@@ -4,8 +4,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Unreleased]
 
-### Corrigido
-- **Compatibilidade LM Studio:** removido `response_format: json_object` (versões recentes só aceitam `json_schema`/`text`), evitando erro 400; o JSON é solicitado no prompt e extraído com tolerância.
+### Adicionado (09/07/2026)
+- **Analytics FIFA v2:** 13 índices derivados por equipe (attack, chance_quality, finishing, defense, keeper, control, pressing, transition, discipline_risk, physical_load, volatility, champion_profile, upset_risk); snapshots anti-leakage em `match_feature_snapshots`.
+- **Bolão LLMs — runner model-first:** fluxo modelo→todos os jogos→unload→próximo; progresso ao vivo (`batch_id`, ETA, %); endpoints `POST /pool/llm/phase/run` e `GET /pool/llm/phase/progress`; suporte a Oitavas, Quartas, Semifinais, Final.
+- **Context Notes:** tabela `team_context_notes` com notas táticas/de rotação/lesão; CRUD via API (`GET/POST/DELETE /pool/context-notes`); anti-leakage por `available_at <= match_date`; notas entram como evidências estruturadas no prompt da LLM.
+- **Extrator de notícias via LLM:** `POST /pool/context-notes/extract` — busca URL, limpa HTML, chama LLM ativo no LM Studio e retorna nota pré-preenchida; botão "Extrair de URL" no portal preenche o formulário automaticamente.
+- **Portal estático — novas telas:** Resumo (tabela jogos × modelos com placar, pênaltis, % médio das LLMs e nome vertical); Tabela e Jogos (grupos, 32 avos, oitavas sem LLMs); Inputs das Seleções integrado ao Dashboard de Seleções; Benchmark LLMs com Config LM Studio abaixo do ranking.
+- **Benchmark LLMs — Structured Output:** JSON Schema do contrato `LLMMatchPick` documentado para uso no LM Studio.
+
+### Corrigido (07/2026)
+- Decorator `@router.post("/llm/phase/run")` restaurado após edição acidental.
+- Contagem de votos no Ranking corrigida (top-5 oculta votos de times com 1 voto).
+- Layout Benchmark: aside "Config LM Studio" movido para abaixo da tabela de ranking; scroll horizontal na tabela de modelos.
+
+ (versões recentes só aceitam `json_schema`/`text`), evitando erro 400; o JSON é solicitado no prompt e extraído com tolerância.
 - **Robustez do contrato LLM:** `AnalystResponse.model_role`/`answer` opcionais e `Claim.text` aceita aliases (`claim`/`statement`); prompt do analista com template JSON explícito. Chat com LLMs locais validado ponta a ponta (Qwen3.5 / Gemma 4).
 
 ### Adicionado

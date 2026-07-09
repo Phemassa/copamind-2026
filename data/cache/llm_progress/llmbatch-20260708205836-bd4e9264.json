@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260708205836-bd4e9264",
+  "phase": "quarterfinal",
+  "status": "running",
+  "current_match_index": 3,
+  "total_matches": 4,
+  "current_match_label": "Noruega x Inglaterra",
+  "current_model_index": 29,
+  "total_models": 29,
+  "current_model_id": "google/gemma-4-12b-qat",
+  "current_sample_index": 1,
+  "total_samples": 1,
+  "completed_calls": 86,
+  "total_calls": 116,
+  "percent": 74.1,
+  "elapsed_seconds": 9080.4,
+  "eta_seconds": 3167.6,
+  "message": "Executando google/gemma-4-12b-qat em Noruega x Inglaterra.",
+  "started_at": "2026-07-08T20:58:36.665683+00:00",
+  "updated_at": "2026-07-08T23:29:57.115733+00:00"
+}
