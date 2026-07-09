@@ -33,16 +33,45 @@ PHASE_LABELS = {
 TOURNAMENT_STAGE_ORDER = ("group", "round_of_32", "round_of_16", "quarterfinal", "semifinal", "third_place", "final")
 MODEL_IMAGES = {
     "combo": "",
+    # Google
+    "gemma": "https://cdn.simpleicons.org/googlegemini/4285F4",
+    # Alibaba / Qwen
     "qwen": "https://qwenlm.github.io/img/logo.png",
-    "gemma": "https://ai.google.dev/gemma/images/gemma4_banner.png",
+    # Mistral AI
     "mistral": "https://cdn.simpleicons.org/mistralai/FA520F",
     "ministral": "https://cdn.simpleicons.org/mistralai/FA520F",
-    "phi": "https://cdn.simpleicons.org/microsoft/5E5E5E",
-    "microsoft": "https://cdn.simpleicons.org/microsoft/5E5E5E",
-    "glm": "https://www.z.ai/favicon.ico",
-    "llama": "https://cdn.simpleicons.org/meta/FFFFFF",
+    # Microsoft
+    "phi": "../../pictures/icons/phi.png",
+    "microsoft": "../../pictures/icons/phi.png",
+    # Zhipu AI / ZAI
+    "glm": "../../pictures/icons/glm.png",
+    # Meta
+    "llama": "https://cdn.simpleicons.org/meta/0081FB",
+    # NVIDIA
     "nvidia": "https://cdn.simpleicons.org/nvidia/76B900",
     "nemotron": "https://cdn.simpleicons.org/nvidia/76B900",
+    # OpenAI
+    "openai": "../../pictures/icons/gpt.png",
+    # DeepSeek
+    "deepseek": "https://cdn.simpleicons.org/deepseek/4D6BFF",
+    # IBM
+    "ibm": "../../pictures/icons/granite.png",
+    "granite": "../../pictures/icons/granite.png",
+    # Baidu
+    "baidu": "https://cdn.simpleicons.org/baidu/2932E1",
+    "ernie": "https://cdn.simpleicons.org/baidu/2932E1",
+    # AllenAI
+    "allenai": "https://allenai.org/favicon.ico",
+    "olmo": "https://allenai.org/favicon.ico",
+    # ByteDance
+    "bytedance": "../../pictures/icons/oss.png",
+    "seed": "../../pictures/icons/oss.png",
+    # Essential AI
+    "essentialai": "https://essential.ai/favicon.ico",
+    "rnj": "https://essential.ai/favicon.ico",
+    # Liquid AI
+    "liquid": "../../pictures/icons/lfm2.png",
+    "lfm": "../../pictures/icons/lfm2.png",
 }
 
 
@@ -927,7 +956,22 @@ def _display_model_name(model_id: str) -> str:
 
 def _model_family(model_id: str) -> str:
     value = model_id.casefold()
-    for family in ("qwen", "gemma", "mistral", "ministral", "phi", "microsoft", "glm", "llama", "nemotron", "nvidia"):
+    # Order matters: check more-specific tokens before broader ones
+    # (e.g. "deepseek" before "qwen", since deepseek model names include "qwen")
+    for family in (
+        "deepseek", "openai",
+        "gemma", "qwen",
+        "mistral", "ministral",
+        "phi", "microsoft",
+        "glm", "llama",
+        "nemotron", "nvidia",
+        "granite", "ibm",
+        "ernie", "baidu",
+        "olmo", "allenai",
+        "seed", "bytedance",
+        "rnj", "essentialai",
+        "lfm", "liquid",
+    ):
         if family in value:
             return "mistral" if family == "ministral" else family
     if model_id == "combo":

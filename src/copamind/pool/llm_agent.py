@@ -26,6 +26,27 @@ ModelClass = Literal["bolao", "heavy", "embedding", "unsupported"]
 
 REMOVED_BOLAO_MODEL_IDS = {
     "gemma-4-e4b-it-qat",
+    # Desclassificado: Channel Error no llama.cpp ao gerar saida estruturada;
+    # sem Structured Output nao obedecia o contrato JSON; removido para nao
+    # contaminar o ranking com dados invalidos.
+    "mistralai/mistral-7b-instruct-v0.3",
+}
+
+# Mensagens de desclassificacao por modelo (exibidas no portal e logs).
+_DISQUALIFIED_REASONS: dict[str, str] = {
+    "mistralai/mistral-7b-instruct-v0.3": (
+        "Channel Error no llama.cpp ao gerar saida estruturada. "
+        "Sem Structured Output nao obedecia o contrato JSON do bolao. "
+        "Removido para nao contaminar o ranking com dados invalidos."
+    ),
+}
+
+# Modelos antigos que nao suportam grammar-based structured output no llama.cpp.
+# Ao usar json_schema com eles, o backend do LM Studio crasha (Channel Error).
+# Esses modelos recebem response_schema=None e ficam no modo plain-text JSON.
+_LEGACY_NO_SCHEMA_MODEL_IDS = {
+    "mistralai/mistral-7b-instruct-v0.2",
+    "mistralai/mistral-7b-instruct-v0.1",
 }
 
 HEAVY_MODEL_IDS = {
@@ -162,11 +183,19 @@ def classify_local_model(model_id: str) -> LocalModelInfo:
     """Classifica modelos do LM Studio para a tela do bolao."""
     lowered = model_id.casefold()
     if model_id in REMOVED_BOLAO_MODEL_IDS:
+        reason = _DISQUALIFIED_REASONS.get(model_id, "Modelo removido do bolao CopaMind.")
         return LocalModelInfo(
             model_id=model_id,
             model_class="unsupported",
             participates=False,
-            warning="Modelo removido do bolao CopaMind.",
+            warning=reason,
+        )
+    if model_id in _LEGACY_NO_SCHEMA_MODEL_IDS:
+        return LocalModelInfo(
+            model_id=model_id,
+            model_class="bolao",
+            participates=True,
+            warning="Modelo legado sem suporte a structured output; usa modo plain-text JSON.",
         )
     if "embed" in lowered or "embedding" in lowered or "olmocr" in lowered or "ocr" in lowered:
         return LocalModelInfo(
@@ -431,14 +460,15 @@ class BolaoLLMAgent:
 
     def run(
         self,
-        repo: DuckDBRepository,
+        repo: DuckDBRepository | None,
         match: Match,
         *,
+        pre_context: dict[str, Any] | None = None,
         sample_index: int = 1,
         previous_picks: list[LLMMatchPick] | None = None,
     ) -> LLMRunResult:
         """Chama a LLM e devolve resultado auditavel sem levantar erro de contrato."""
-        context = build_match_context(repo, match)
+        context = pre_context if pre_context is not None else build_match_context(repo, match)
         messages = _messages_with_previous_picks(build_bolao_prompt(context), previous_picks or [])
         predictor_name = f"llm:{self.model_id}"
         raw_text: str | None = None
@@ -446,12 +476,13 @@ class BolaoLLMAgent:
         latency_ms = 0.0
         prompt_tokens: int | None = None
         completion_tokens: int | None = None
+        _schema = None if self.model_id in _LEGACY_NO_SCHEMA_MODEL_IDS else LLMMatchPick.model_json_schema()
         try:
             raw = self.client.complete(
                 messages=messages,
                 model_id=self.model_id,
                 temperature=self.temperature,
-                response_schema=LLMMatchPick.model_json_schema(),
+                response_schema=_schema,
             )
             raw_text = raw.content
             attempts.extend(raw.attempts)
@@ -466,7 +497,7 @@ class BolaoLLMAgent:
                     messages=repair_messages,
                     model_id=self.model_id,
                     temperature=0.0,
-                    response_schema=LLMMatchPick.model_json_schema(),
+                    response_schema=_schema,
                 )
                 raw_text = raw.content
                 attempts.extend(raw.attempts)
@@ -837,8 +868,18 @@ def _normalized_pick(pick: LLMMatchPick) -> LLMMatchPick:
             str(data.get("coherence_notes") or ""),
             "Placar empatado em mata-mata normalizado para decisao por penaltis.",
         )
-    elif pick.winner == "draw":
-        data["winner"] = "home" if pick.predicted_home_goals > pick.predicted_away_goals else "away"
+    else:
+        # Placar decidido — prorrogação/pênaltis são incoerentes, corrigir silenciosamente.
+        if data.get("goes_to_extra_time") or data.get("goes_to_penalties"):
+            data["goes_to_extra_time"] = False
+            data["goes_to_penalties"] = False
+            data["penalty_winner"] = "none"
+            data["coherence_notes"] = _append_note(
+                str(data.get("coherence_notes") or ""),
+                "goes_to_penalties/extra_time ignorados: placar nao empatado.",
+            )
+        if pick.winner == "draw":
+            data["winner"] = "home" if pick.predicted_home_goals > pick.predicted_away_goals else "away"
     if not data["goes_to_penalties"]:
         data["penalty_winner"] = "none"
     return LLMMatchPick.model_validate(data)

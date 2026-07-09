@@ -9,10 +9,6 @@
 </head>
 <body>
   <main class="app">
-    <div class="top-banner" aria-label="CopaMind 2026">
-      <img src="../../docs/assets/banner.png" alt="CopaMind 2026" />
-    </div>
-
     <header class="app-header">
       <div class="brand-line">
         <img src="../../docs/assets/icon.png" alt="" />
@@ -28,19 +24,9 @@
       </div>
     </header>
 
-    <section class="home-hero" aria-label="Home CopaMind">
-      <div class="home-copy">
-        <span>Local AI + dados FIFA + bolao</span>
-        <h2>CopaMind <span class="year-mark" aria-label="2026"><i>2</i><i>0</i><i>2</i><i>6</i></span></h2>
-        <p>
-          Um portal simples para comparar LLMs locais no mata-mata: cada modelo recebe o mesmo pacote
-          estatistico, gera palpites e acumula score conforme os resultados oficiais chegam.
-        </p>
-      </div>
-    </section>
-
     <nav class="main-nav" aria-label="Navegacao principal">
-      <button class="active" type="button" data-view="bolao">Bolao das LLMs</button>
+      <button class="active" type="button" data-view="home">Home</button>
+      <button type="button" data-view="bolao">Bolao das LLMs</button>
       <button type="button" data-view="ranking">Ranking das LLMs</button>
       <button type="button" data-view="benchmark">Benchmark LLMs</button>
       <button type="button" data-view="linkedin">Resumo</button>
@@ -50,6 +36,30 @@
       <button type="button" data-view="guia">Guia do projeto</button>
       <button type="button" data-view="referencias">Referencias</button>
     </nav>
+
+    <section class="home-section view-section" data-section="home">
+      <div class="home-about">
+        <p class="home-tag">Local AI · dados FIFA · bolao</p>
+        <h2>CopaMind 2026</h2>
+        <p class="home-desc">
+          Um experimento de benchmark com LLMs locais rodando em hardware proprio.
+          Cada modelo recebe o mesmo pacote estatistico de pre-jogo — indices FIFA, analytics derivados
+          e evidencias de jogadores — e gera um palpite estruturado em JSON para cada partida do mata-mata.
+          O score e calculado fase a fase conforme os resultados oficiais chegam.
+        </p>
+        <div class="home-highlights">
+          <div><strong id="kpi-models-home">-</strong><span>modelos locais</span></div>
+          <div><strong id="kpi-matches-home">-</strong><span>jogos pontuados</span></div>
+          <div><strong id="kpi-predictions-home">-</strong><span>palpites gerados</span></div>
+        </div>
+        <div class="home-nav-shortcuts">
+          <button type="button" data-view="bolao">Bolao das LLMs</button>
+          <button type="button" data-view="ranking">Ranking</button>
+          <button type="button" data-view="linkedin">Resumo</button>
+          <button type="button" data-view="benchmark">Benchmark</button>
+        </div>
+      </div>
+    </section>
 
     <section class="kpi-strip" aria-label="Resumo">
       <div><span>Jogos mata-mata</span><strong id="kpi-matches">-</strong></div>
@@ -161,9 +171,14 @@
           <div id="benchmark-guidance" class="benchmark-guidance"></div>
         </aside>
       </div>
+      <div id="benchmark-charts"></div>
     </section>
 
     <section class="linkedin-section view-section is-hidden" data-section="linkedin">
+      <div class="linkedin-export-bar" id="linkedin-export-bar">
+        <span class="linkedin-export-hint">Selecione a fase e exporte o quadro para redes sociais</span>
+        <button id="btn-export-linkedin" type="button">📸 Exportar imagem</button>
+      </div>
       <div class="linkedin-cover">
         <img src="../../docs/assets/copamind_2026.png" alt="CopaMind 2026" />
         <div>
@@ -304,6 +319,7 @@
         <h3>Sobre o projeto</h3>
       </div>
       <div class="reference-grid">
+        <!-- Row 1: Autor | Hardware | Fontes -->
         <article class="author-card">
           <img src="../../docs/assets/icon.png" alt="" />
           <div>
@@ -319,6 +335,19 @@
             </a>
           </div>
         </article>
+        <article class="reference-card hardware-card">
+          <h3>Hardware local</h3>
+          <div class="hardware-badge">Acer Predator Helios 16 AI</div>
+          <ul class="ref-list">
+            <li><span>CPU</span> Intel Core Ultra 9 275HX · 24 cores · ate 5.4 GHz</li>
+            <li><span>GPU</span> NVIDIA RTX 5070 Laptop GPU · 8 GB GDDR7</li>
+            <li><span>RAM</span> 32 GB DDR5 5600 MHz (2&times; SODIMM)</li>
+            <li><span>SSD</span> 2 TB NVMe PCIe Gen 4</li>
+            <li><span>Tela</span> 16&quot; IPS WQXGA 2560&times;1600 · 240 Hz</li>
+            <li><span>OS</span> Windows 11</li>
+          </ul>
+          <a href="https://www.acer.com/br-pt/predator/laptops/helios/helios-16-ai" target="_blank" rel="noreferrer" class="hw-link">Ver no site Acer</a>
+        </article>
         <article class="reference-card">
           <h3>Fontes e tecnologia</h3>
           <p>
@@ -330,6 +359,46 @@
             atualizar dados, rodar agentes e exportar snapshots.
           </p>
         </article>
+        <!-- Row 2: Stack | Modelos ajuste | Exportar -->
+        <article class="reference-card">
+          <h3>Stack tecnologico</h3>
+          <ul class="ref-list">
+            <li><span>Dev</span> VS Code · GitHub Copilot Agent · GitHub Codex</li>
+            <li><span>IA</span> Claude Sonnet 4.5 (Copilot) · LM Studio</li>
+            <li><span>Lang</span> Python 3.12 · JavaScript ES2022 · HTML/CSS</li>
+            <li><span>API</span> FastAPI · Pydantic v2 · Uvicorn</li>
+            <li><span>DB</span> DuckDB · Polars · PyArrow</li>
+            <li><span>UI</span> Streamlit 1.58 · Portal HTML estatico</li>
+            <li><span>RAG</span> Qdrant · FastMCP · HybridRetriever</li>
+            <li><span>ML</span> Poisson · Dixon-Coles · Elo · Monte Carlo</li>
+            <li><span>CI</span> pytest · ruff · GitHub Actions</li>
+            <li><span>VCS</span> Git · GitHub</li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>Modelos que precisaram de ajuste</h3>
+          <p>7 modelos nao obedecem JSON livremente e precisaram de <strong>Structured Output</strong> forcado no LM Studio para gerar palpites validos.</p>
+          <ul class="ref-list struct-list">
+            <li>zai-org / glm-4.7-flash</li>
+            <li>nvidia / nemotron-3-nano-4b</li>
+            <li>nvidia / nemotron-3-nano-omni</li>
+            <li>allenai / olmo-3-32b-think</li>
+            <li>qwen / qwen3.5-9b</li>
+            <li>qwen / qwen3.6-27b</li>
+            <li>qwen / qwen3.6-35b-a3b</li>
+          </ul>
+          <p>Os demais <strong>21 modelos</strong> geraram JSON valido sem configuracao adicional.</p>
+        </article>
+        <article class="reference-card disqualified-ref-card">
+          <h3>Desclassificados</h3>
+          <p>Modelos que nao conseguiram concluir o projeto de testes e foram removidos do ranking para nao contaminar os resultados.</p>
+          <ul class="ref-list disqualified-list">
+            <li>
+              <strong>mistralai / mistral-7b-instruct-v0.3</strong>
+              <span>Channel Error no llama.cpp ao gerar saida estruturada. Sem Structured Output, nao retornava respostas validas para o contrato JSON do bolao. Modelo incompativel com o pipeline de palpites — removido da competicao.</span>
+            </li>
+          </ul>
+        </article>
         <article class="reference-card export-card">
           <h3>Exportar para compartilhar</h3>
           <p>
@@ -340,6 +409,7 @@
           <span id="export-status"></span>
         </article>
       </div>
+      <div id="ref-models-table" class="ref-models-section"></div>
     </section>
 
     <footer class="app-footer">

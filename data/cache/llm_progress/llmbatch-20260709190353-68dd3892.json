@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709190353-68dd3892",
+  "phase": "semifinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 2,
+  "total_calls": 2,
+  "updated_at": "2026-07-09T19:04:13.237490+00:00",
+  "current_match_index": 2,
+  "total_matches": 2,
+  "current_match_label": "Inglaterra x Argentina",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "microsoft/phi-4-mini-reasoning",
+  "current_sample_index": 1,
+  "elapsed_seconds": 16.7,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T19:03:56.560445+00:00"
+}

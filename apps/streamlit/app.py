@@ -572,6 +572,155 @@ def render_modelos_lmstudio() -> None:
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
 
+# ---------------------------------------------------------------------------
+# Exportar card PNG para redes sociais
+# ---------------------------------------------------------------------------
+
+def _build_benchmark_card(standings: list) -> bytes:
+    """Gera um PNG do ranking de LLMs pronto para postar em redes sociais."""
+    from io import BytesIO
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError as exc:
+        raise RuntimeError("Instale Pillow: pip install Pillow") from exc
+
+    # ── Dimensoes ─────────────────────────────────────────────────────────
+    W = 1200
+    BANNER_H = 220
+    TITLE_H = 80
+    COL_H = 42
+    ROW_H = 50
+    PAD = 28
+    FOOTER_H = 46
+
+    n_rows = min(len(standings), 12)
+    total_h = BANNER_H + TITLE_H + COL_H + n_rows * ROW_H + PAD + FOOTER_H
+
+    # ── Paleta (tema escuro CopaMind) ─────────────────────────────────────
+    C_BG      = (7, 16, 15)
+    C_BG2     = (12, 26, 22)
+    C_ACCENT  = (82, 227, 181)
+    C_GOLD    = (242, 201, 76)
+    C_SILVER  = (185, 199, 196)
+    C_BRONZE  = (217, 138, 95)
+    C_TEXT    = (242, 250, 248)
+    C_DIM     = (110, 145, 135)
+    C_HDR_BG  = (16, 40, 34)
+    C_BORDER  = (30, 60, 50)
+
+    # ── Fontes ────────────────────────────────────────────────────────────
+    def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+        candidates = [
+            f"C:/Windows/Fonts/{'arialbd' if bold else 'arial'}.ttf",
+            "C:/Windows/Fonts/arial.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
+        for path in candidates:
+            try:
+                return ImageFont.truetype(path, size)
+            except Exception:
+                pass
+        try:
+            return ImageFont.load_default(size=size)
+        except Exception:
+            return ImageFont.load_default()
+
+    f_title   = _font(30, bold=True)
+    f_subtitle = _font(17)
+    f_header  = _font(15, bold=True)
+    f_body    = _font(18)
+    f_body_b  = _font(18, bold=True)
+    f_small   = _font(13)
+
+    # ── Canvas ────────────────────────────────────────────────────────────
+    img  = Image.new("RGB", (W, total_h), C_BG)
+    draw = ImageDraw.Draw(img)
+
+    # ── Banner ────────────────────────────────────────────────────────────
+    for candidate in ["docs/assets/banner.png", "docs/assets/copamind_2026.png"]:
+        banner_path = Path(candidate)
+        if banner_path.exists():
+            banner = Image.open(banner_path).convert("RGBA")
+            bw, bh = banner.size
+            scaled_h = int(bh * W / bw)
+            banner = banner.resize((W, max(scaled_h, BANNER_H)), Image.LANCZOS)
+            # Crop centro verticalmente
+            cy = (banner.height - BANNER_H) // 2
+            banner = banner.crop((0, cy, W, cy + BANNER_H))
+            base = Image.new("RGBA", (W, BANNER_H), (*C_BG, 255))
+            base.paste(banner, (0, 0), banner)
+            img.paste(base.convert("RGB"), (0, 0))
+            break
+
+    # Faixa de separacao accent
+    draw.rectangle([(0, BANNER_H), (W, BANNER_H + 3)], fill=C_ACCENT)
+
+    y = BANNER_H + 16
+
+    # ── Titulo ────────────────────────────────────────────────────────────
+    draw.text((W // 2, y + 20), "Benchmark de LLMs Locais",
+              fill=C_ACCENT, font=f_title, anchor="mm")
+    draw.text((W // 2, y + 56),
+              f"Bolao de IAs  \u2022  Copa do Mundo 2026  \u2022  {datetime.now().strftime('%d/%m/%Y')}",
+              fill=C_DIM, font=f_subtitle, anchor="mm")
+
+    y += TITLE_H
+
+    # ── Colunas ───────────────────────────────────────────────────────────
+    #   #    Modelo    Pontos   Palpites   Exatos   % Certos   Brier
+    cx = [PAD, PAD + 56, W - 420, W - 320, W - 230, W - 140, W - PAD]
+    ca = ["lm", "lm",   "mm",    "mm",    "mm",    "mm",     "rm"]
+    ch = ["#", "Modelo", "Pontos", "Palpites", "Exatos", "% Certos", "Brier"]
+
+    draw.rectangle([(PAD, y), (W - PAD, y + COL_H)], fill=C_HDR_BG)
+    for hdr, x, anchor in zip(ch, cx, ca):
+        draw.text((x, y + COL_H // 2), hdr, fill=C_DIM, font=f_header, anchor=anchor)
+    draw.line([(PAD, y + COL_H), (W - PAD, y + COL_H)], fill=C_ACCENT, width=1)
+    y += COL_H
+
+    # ── Linhas de dados ───────────────────────────────────────────────────
+    rank_colors = [C_GOLD, C_SILVER, C_BRONZE]
+
+    for i, s in enumerate(standings[:12]):
+        row_fill = C_BG2 if i % 2 == 0 else C_BG
+        draw.rectangle([(PAD, y), (W - PAD, y + ROW_H)], fill=row_fill)
+
+        rc = rank_colors[i] if i < 3 else C_TEXT
+        draw.text((cx[0], y + ROW_H // 2), f"#{i + 1}",
+                  fill=rc, font=f_body_b, anchor="lm")
+        model_name = s.predictor_name[:32] + "\u2026" if len(s.predictor_name) > 33 else s.predictor_name
+        draw.text((cx[1], y + ROW_H // 2), model_name,
+                  fill=rc, font=(f_body_b if i < 3 else f_body), anchor="lm")
+        draw.text((cx[2], y + ROW_H // 2), str(s.total_points),
+                  fill=C_ACCENT if i == 0 else C_TEXT, font=f_body_b, anchor="mm")
+        draw.text((cx[3], y + ROW_H // 2), str(s.predictions),
+                  fill=C_DIM, font=f_body, anchor="mm")
+        draw.text((cx[4], y + ROW_H // 2), str(s.exact_scores),
+                  fill=C_TEXT, font=f_body, anchor="mm")
+        pct = s.correct_results / max(s.predictions, 1) * 100
+        draw.text((cx[5], y + ROW_H // 2), f"{pct:.0f}%",
+                  fill=C_ACCENT if pct >= 60 else C_TEXT, font=f_body, anchor="mm")
+        brier_clr = C_ACCENT if s.mean_brier < 0.25 else (C_GOLD if s.mean_brier < 0.35 else C_TEXT)
+        draw.text((cx[6], y + ROW_H // 2), f"{s.mean_brier:.3f}",
+                  fill=brier_clr, font=f_body, anchor="rm")
+
+        y += ROW_H
+
+    # ── Rodape ────────────────────────────────────────────────────────────
+    y += 10
+    draw.rectangle([(PAD, y), (W - PAD, y + 1)], fill=C_BORDER)
+    y += 12
+    draw.text((W // 2, y + FOOTER_H // 2),
+              "github.com/Phemassa/copamind-2026  \u2022  IA local \u00b7 dados oficiais FIFA \u00b7 prompt auditavel",
+              fill=C_DIM, font=f_small, anchor="mm")
+
+    buf = BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
 def render_ranking() -> None:
     repo = _repo()
     _hero(
@@ -579,6 +728,21 @@ def render_ranking() -> None:
         "Ranking do Bolao de IAs",
         "Cada modelo compete por placar exato, resultado correto e calibracao probabilistica.",
     )
+    standings = leaderboard(repo)
+    _btn_col, _rest = st.columns([1, 3])
+    with _btn_col:
+        try:
+            png_bytes = _build_benchmark_card(standings)
+            st.download_button(
+                label="📸 Exportar card para redes sociais",
+                data=png_bytes,
+                file_name=f"copamind_benchmark_{datetime.now().strftime('%Y%m%d')}.png",
+                mime="image/png",
+                help="PNG 1200px com o banner CopaMind e o ranking completo.",
+                use_container_width=True,
+            )
+        except RuntimeError as exc:
+            st.warning(str(exc))
     if st.button("Rodar backtest ML no historico", use_container_width=False):
         summary = run_backtest(repo, [PoissonPredictor(), EloPredictor()])
         st.success(
@@ -618,7 +782,7 @@ def render_ranking() -> None:
         final_only = st.checkbox("Somente palavra final", value=True)
     with f6:
         include_combo = st.checkbox("Incluir combo", value=True)
-    standings = leaderboard(repo)
+    st.markdown("---")
     if not standings:
         st.info("Ainda nao ha palpites pontuados.")
     else:

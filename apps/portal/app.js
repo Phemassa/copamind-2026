@@ -22,15 +22,17 @@ const STATIC_ASSETS = [
 
 let state = null;
 let activePhase = "round_of_16";
-let activeView = "bolao";
+let activeView = "home";
 let activePlayerTeam = "all";
 let activePlayerRanking = "top20";
 let activeCapturePhase = null;
 let activeTournamentStage = "group";
 const runningRuns = new Map();
 const recoveredProgressBatches = new Set();
+let sequentialBatch = null;
 
 document.getElementById("refresh-data").addEventListener("click", () => loadData(true));
+document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
 document.querySelectorAll("[data-export-static]").forEach((button) => {
   button.addEventListener("click", exportStaticSite);
 });
@@ -100,6 +102,7 @@ function renderAll() {
   renderTeamDashboard();
   renderPlayersDashboard();
   renderGuide();
+  renderReferences();
   document.getElementById("generated-at").textContent = `Snapshot: ${formatDateTime(state.generated_at)}`;
 }
 
@@ -115,10 +118,15 @@ function renderMainNav() {
 function renderSummary() {
   const summary = state.summary || {};
   const sync = state.sync_status || {};
+  const modelCount = (state.models || []).filter((model) => !model.is_combo).length;
+  const predictions = summary.predictions ?? 0;
   setText("kpi-matches", summary.matches ?? "-");
-  setText("kpi-models", (state.models || []).filter((model) => !model.is_combo).length);
+  setText("kpi-models", modelCount);
   setText("kpi-features", sync.feature_snapshots ?? 0);
-  setText("kpi-predictions", summary.predictions ?? 0);
+  setText("kpi-predictions", predictions);
+  setText("kpi-models-home", modelCount);
+  setText("kpi-matches-home", summary.matches ?? "-");
+  setText("kpi-predictions-home", predictions);
 }
 
 function renderPhaseTabs() {
@@ -126,7 +134,7 @@ function renderPhaseTabs() {
   document.getElementById("phase-tabs").innerHTML = phases.map((phase) => `
     <button class="${phase.key === activePhase ? "active" : ""}" type="button" data-phase="${escapeAttr(phase.key)}">
       ${escapeHtml(phase.label)}
-      <span>${phase.match_count} jogos</span>
+      <span>${phase.match_count ? phase.match_count + " jogos" : "em breve"}</span>
     </button>
   `).join("");
   document.querySelectorAll("#phase-tabs button").forEach((button) => {
@@ -265,13 +273,16 @@ function renderModelActions() {
   const bulkRun = runningRuns.get(runKey(activePhase, "__all__"));
   const runOverview = phaseRunOverview(activePhase);
   const gaps = phaseExecutionGaps(activePhase);
-  const runButtonLabel = bulkRun
-    ? "Executando fase..."
-    : gaps.missingCalls
-      ? "Executar LLMs faltantes"
-      : runOverview?.invalid
-        ? "Tudo processado (há erros)"
-      : "Executar todas as LLMs da fase";
+  const isSeq = Boolean(sequentialBatch && !sequentialBatch.aborted && sequentialBatch.phase === activePhase);
+  const runButtonLabel = isSeq
+    ? `Modelo ${sequentialBatch.current}/${sequentialBatch.total}: ${sequentialBatch.currentModelId || ""}`
+    : bulkRun
+      ? "Executando fase..."
+      : gaps.missingCalls
+        ? "Executar LLMs faltantes"
+        : runOverview?.invalid
+          ? "Tudo processado (há erros)"
+        : "Executar todas as LLMs da fase";
   const runHint = canRunAll
     ? gaps.missingCalls
       ? `Executa ${gaps.missingCalls} chamadas ainda nao processadas em ${phase?.label || phaseLabel(activePhase)}.`
@@ -292,12 +303,14 @@ function renderModelActions() {
         <strong>Controle do agente</strong>
         <span>${escapeHtml(statusBits.join(" | "))}</span>
       </div>
-      ${bulkRun?.progress ? bulkProgressPanel(bulkRun.progress) : ""}
+      ${isSeq && sequentialBatch.progress ? bulkProgressPanel(sequentialBatch.progress) : ""}
+      ${!isSeq && bulkRun?.progress ? bulkProgressPanel(bulkRun.progress) : ""}
     </div>
     <div class="model-action-buttons">
-      <button type="button" id="run-all-models" ${canRunAll && !bulkRun ? "" : "disabled"} title="${escapeAttr(runHint)}">
+      <button type="button" id="run-all-models" ${canRunAll && !bulkRun && !isSeq ? "" : "disabled"} title="${escapeAttr(runHint)}">
         ${escapeHtml(runButtonLabel)}
       </button>
+      ${isSeq ? `<button type="button" id="cancel-sequential" class="danger-button" title="Interrompe após o modelo atual terminar.">Cancelar</button>` : ""}
       <button type="button" id="reset-phase-history" title="Limpa chamadas e palpites das LLMs nesta fase.">
         Reset fase
       </button>
@@ -306,28 +319,56 @@ function renderModelActions() {
       </button>
     </div>`;
   document.getElementById("run-all-models").addEventListener("click", runAllModelsForPhase);
+  document.getElementById("cancel-sequential")?.addEventListener("click", cancelSequentialBatch);
   document.getElementById("reset-phase-history").addEventListener("click", () => resetLLMHistory({ phase: activePhase }));
   document.getElementById("reset-all-history").addEventListener("click", () => resetLLMHistory({}));
+}
+
+const DISQUALIFIED_MODELS = {
+  "mistralai/mistral-7b-instruct-v0.3": "Desclassificado — Channel Error no llama.cpp ao gerar saída estruturada. Sem Structured Output, não obedecia o contrato JSON do bolão. Removido para não contaminar o ranking com dados inválidos.",
+};
+
+const STRUCTURED_OUTPUT_MODELS = new Set([
+  "glm-4.7-flash",
+  "nemotron-3-nano-4b",
+  "nemotron-3-nano-omni",
+  "olmo-3-32b-think",
+  "qwen3.5-9b",
+  "qwen3.6-27b",
+  "qwen3.6-35b-a3b",
+]);
+
+function needsStructuredOutput(modelId) {
+  const id = (modelId || "").toLowerCase();
+  return [...STRUCTURED_OUTPUT_MODELS].some((key) => id.includes(key));
 }
 
 function modelCard(model, score, predictions, runStatus) {
   const telemetry = model.telemetry || {};
   const accuracy = score?.accuracy == null ? null : Math.round(score.accuracy * 100);
+  const exactRate = score?.exact_rate == null ? null : score.exact_rate;
+  const precision = (accuracy != null && accuracy > 0 && exactRate != null)
+    ? Math.round((exactRate / score.accuracy) * 100)
+    : null;
   const jsonRate = telemetry.json_rate == null ? "-" : `${Math.round(telemetry.json_rate * 100)}%`;
   const fallbackAvatar = avatarForModel(model);
-  const avatar = model.image_url || fallbackAvatar;
+  const avatar = resolveModelImage(model) || fallbackAvatar;
   const phaseRunLabel = phaseRunSummary(score, predictions, runStatus);
+  const disqualifiedReason = DISQUALIFIED_MODELS[model.model_id];
   return `
-    <article class="llm-card ${model.is_combo ? "combo-card" : ""}">
+    <article class="llm-card ${model.is_combo ? "combo-card" : ""} ${disqualifiedReason ? "disqualified-card" : ""}">
+      ${disqualifiedReason ? `<div class="disqualified-banner">🚫 ${escapeHtml(disqualifiedReason)}</div>` : ""}
       <div class="llm-card-head">
         <img class="model-avatar" src="${escapeAttr(avatar)}" alt="" onerror="this.onerror=null;this.src='${escapeAttr(fallbackAvatar)}';" />
         <div class="llm-title">
           <strong title="${escapeAttr(model.model_id)}">${escapeHtml(model.display_name || model.model_id)}</strong>
           <span>${escapeHtml(model.family || "local")} | ${escapeHtml(model.model_class || "chat")} | ${escapeHtml(phaseRunLabel)}</span>
+          ${needsStructuredOutput(model.model_id) ? `<span class="struct-output-badge" title="Necessita Structured Output ativado no LM Studio para gerar JSON valido. Menos maleavel — exige mais refinamento de configuracao.">⚠ Struct. Output</span>` : ""}
         </div>
         <div class="accuracy-score">
           <strong>${accuracy == null ? "Aguardando" : `${accuracy}%`}</strong>
           <span>${accuracy == null ? "resultado" : "assertividade"}</span>
+          ${precision != null ? `<strong class="precision-score">${precision}%</strong><span>precisao nos acertos</span>` : ""}
         </div>
       </div>
       <div class="llm-metrics">
@@ -339,9 +380,13 @@ function modelCard(model, score, predictions, runStatus) {
         <div><span>Brier fase</span><strong>${score?.brier_avg == null ? "aguarda" : num(score.brier_avg, 3)}</strong></div>
         <div><span>Rodadas</span><strong>${telemetry.rounds ?? 0}</strong></div>
       </div>
-      ${model.is_combo ? "" : modelActionRow(model)}
+      ${disqualifiedReason
+        ? `<div class="disqualified-no-action">Modelo fora da competição — sem execução no pipeline</div>`
+        : model.is_combo ? "" : modelActionRow(model)}
       <div class="prediction-list">
-        ${predictions.map(predictionRow).join("") || emptyPrediction("Sem palpites nesta fase.")}
+        ${model.is_combo
+          ? comboConsensusBlock(activePhase, predictions)
+          : predictions.map(predictionRow).join("") || emptyPrediction("Sem palpites nesta fase.")}
       </div>
     </article>`;
 }
@@ -579,6 +624,7 @@ function renderBenchmark() {
   renderBenchmarkSummary(rows);
   renderBenchmarkTable(rows);
   renderBenchmarkGuidance(rows);
+  renderBenchmarkCharts();
 }
 
 function renderBenchmarkSummary(rows) {
@@ -645,6 +691,62 @@ function renderBenchmarkGuidance(rows) {
       <h4>O que a nota mede</h4>
       <p>Ela combina score do bolao, taxa de JSON valido, velocidade, latencia e disponibilidade. Assim um modelo pode ser bom no palpite, mas perder pontos se for dificil de operar.</p>
     </article>`;
+}
+
+function svgHBar({ rows, getValue, title, color, unit = "", labelW = 170, barZoneW = 270, barH = 20, gap = 5 }) {
+  const n = rows.length;
+  if (!n) return `<p class="bench-chart-empty">Sem dados suficientes</p>`;
+  const W = labelW + barZoneW + 72;
+  const H = 34 + n * (barH + gap);
+  const vals = rows.map(getValue).filter((v) => v != null && !isNaN(v));
+  const maxV = vals.length ? Math.max(...vals, 0.001) : 1;
+  const items = rows.map((row, i) => {
+    const v = getValue(row);
+    const valid = v != null && !isNaN(v) && v >= 0;
+    const bw = valid ? Math.round((v / maxV) * barZoneW) : 0;
+    const y = 30 + i * (barH + gap);
+    const label = (row.display_name || row.model_id || "").slice(0, 24);
+    const valStr = valid ? (v % 1 === 0 ? String(Math.round(v)) : v.toFixed(1)) + unit : "—";
+    const op = row.archived ? 0.3 : 1;
+    return `
+      <text x="${labelW - 6}" y="${y + barH - 5}" text-anchor="end" font-family="system-ui,ui-sans-serif,sans-serif" font-size="11" fill="#9aa8b8" opacity="${op}">${escapeHtml(label)}</text>
+      <rect x="${labelW}" y="${y}" width="${Math.max(bw, valid ? 3 : 0)}" height="${barH}" fill="${color}" rx="3" opacity="${op * 0.82}" />
+      <text x="${labelW + Math.max(bw, 0) + 7}" y="${y + barH - 5}" font-family="system-ui,ui-sans-serif,sans-serif" font-size="11" font-weight="700" fill="#dce8f5" opacity="${op}">${valStr}</text>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="max-width:100%">
+    <text x="${labelW}" y="16" font-family="system-ui,ui-sans-serif,sans-serif" font-size="10" font-weight="900" fill="#6a8aa8" letter-spacing="1.2">${escapeHtml(title.toUpperCase())}</text>
+    ${items}
+  </svg>`;
+}
+
+function renderBenchmarkCharts() {
+  const container = document.getElementById("benchmark-charts");
+  if (!container) return;
+  const active = benchmarkRows().filter((r) => !r.archived && (r.runs > 0 || r.scored > 0));
+  if (!active.length) { container.innerHTML = ""; return; }
+  const TOP = 20;
+  const byScore  = active.slice().sort((a, b) => b.benchmark_score - a.benchmark_score).slice(0, TOP);
+  const byPoints = active.slice().sort((a, b) => b.points - a.points).filter((r) => r.scored > 0).slice(0, TOP);
+  const byJson   = active.filter((r) => r.runs > 0).sort((a, b) => (b.json_rate ?? 0) - (a.json_rate ?? 0)).slice(0, TOP);
+  const byAccur  = active.filter((r) => r.accuracy != null).sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0)).slice(0, TOP);
+  const bySpeed  = active.filter((r) => r.avg_tokens_per_second != null).sort((a, b) => b.avg_tokens_per_second - a.avg_tokens_per_second).slice(0, TOP);
+  const byBrier  = active.filter((r) => r.brier_avg != null).sort((a, b) => a.brier_avg - b.brier_avg).slice(0, TOP);
+  const charts = [
+    { title: "Score Total",          rows: byScore,  getValue: (r) => r.benchmark_score,                                             color: "#38d6a5", unit: ""       },
+    { title: "Pontos no Bolao",      rows: byPoints, getValue: (r) => r.points,                                                      color: "#f2c94c", unit: " pts"   },
+    { title: "JSON Valido %",        rows: byJson,   getValue: (r) => r.json_rate != null ? +(r.json_rate * 100).toFixed(1) : null,  color: "#57a7ff", unit: "%"      },
+    { title: "Acerto % (corretos)",  rows: byAccur,  getValue: (r) => r.accuracy != null ? +(r.accuracy * 100).toFixed(1) : null,   color: "#ff9d5c", unit: "%"      },
+    { title: "Tokens / segundo",     rows: bySpeed,  getValue: (r) => r.avg_tokens_per_second != null ? +r.avg_tokens_per_second.toFixed(1) : null, color: "#c084fc", unit: " tok/s" },
+    { title: "Brier (menor=melhor)", rows: byBrier,  getValue: (r) => r.brier_avg != null ? +r.brier_avg.toFixed(3) : null,         color: "#fb7185", unit: ""       },
+  ].filter((c) => c.rows.length > 0);
+  container.innerHTML = `
+    <div class="section-title bench-charts-title">
+      <p>Estatisticas de execucao</p>
+      <h3>Graficos comparativos das LLMs</h3>
+    </div>
+    <div class="bench-charts-grid">
+      ${charts.map((c) => `<div class="bench-chart-panel">${svgHBar(c)}</div>`).join("")}
+    </div>`;
 }
 
 function benchmarkRows() {
@@ -772,6 +874,359 @@ function runErrorType(error) {
   return "other_error";
 }
 
+// ─── Canvas-based image export (no html2canvas dependency) ──────────────────
+
+function _loadImg(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+function _shortName(name) {
+  if (!name) return "?";
+  const first = name.trim().split(/\s+/)[0];
+  return first.length <= 10 ? first : first.slice(0, 3).toUpperCase();
+}
+
+function _nameLines(displayName) {
+  // Strip vendor prefix, split on delimiters → up to 4 short lines
+  const base = (displayName || "").replace(/^[^/]+\//, "");
+  const parts = base.split(/[-_.]/g).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  for (const p of parts) {
+    const joined = cur ? `${cur}-${p}` : p;
+    if (cur && joined.length > 10) { lines.push(cur); cur = p; }
+    else { cur = joined; }
+    if (lines.length === 3) { cur = parts.slice(parts.indexOf(p)).join("-"); break; }
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, 4);
+}
+
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function buildLinkedInCanvas(rows, phase, icon, iconMap) {
+  const SCALE   = 2;           // retina
+  const PAD     = 20;
+  const MCW     = 130;         // match column width
+  const CW      = 64;          // cell width per model
+  const ICO     = 32;          // model icon size
+  const HDR_H   = 110;         // CopaMind header
+  const SUM_H   = 58;          // stats bar
+  const MOD_H   = 112;         // model name header row (icon + 4 lines + dot)
+  const ROW_H   = 68;          // data row height
+  const FOOT_H  = 38;
+
+  // Collect ordered matches
+  const matchOrder = [];
+  const seenKeys = new Set();
+  rows.forEach((row) => (row.predictions || []).forEach((pred) => {
+    const key = pred.match_id || `${pred.home}x${pred.away}`;
+    if (!seenKeys.has(key)) { seenKeys.add(key); matchOrder.push({ ...pred, _key: key }); }
+  }));
+
+  // Avg prob per match across models
+  const matchStats = {};
+  matchOrder.forEach((m) => {
+    const preds = rows
+      .map((row) => (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key))
+      .filter((p) => p && (p.prob_home || 0) + (p.prob_away || 0) > 0);
+    if (preds.length) {
+      const avgH = preds.reduce((s, p) => s + p.prob_home / (p.prob_home + p.prob_away), 0) / preds.length;
+      matchStats[m._key] = { home: Math.round(avgH * 100), away: Math.round((1 - avgH) * 100) };
+    }
+  });
+
+  const nM = rows.length;
+  const nG = matchOrder.length;
+  const W  = PAD + MCW + nM * CW + PAD;
+  const H  = HDR_H + SUM_H + MOD_H + nG * ROW_H + FOOT_H;
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  // ── Palette ────────────────────────────────────────────────────────────────
+  const C = {
+    bg:      "#161a22", panel:   "#1e2433", border:  "#2c3347",
+    accent:  "#38d6a5", blue:    "#4d8dff", gold:    "#f2c94c",
+    red:     "#fb7185", purple:  "#c084fc",
+    text:    "#e8edf5", muted:   "#7080a0", dim:     "#404a60",
+    cHome:   "#0f231c", cAway:   "#0e1a2e", cDraw:   "#221e0a",
+    tHome:   "#38d6a5", tAway:   "#57a7ff", tDraw:   "#f2c94c",
+  };
+
+  const F = (size, bold = false) =>
+    `${bold ? "bold " : ""}${size}px system-ui, ui-sans-serif, sans-serif`;
+
+  // helper: fill + stroke text
+  const txt = (text, x, y, font, color, align = "left") => {
+    ctx.textAlign = align;
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.fillText(text, x, y);
+    ctx.textAlign = "left";
+  };
+
+  // ── Background ─────────────────────────────────────────────────────────────
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Header ─────────────────────────────────────────────────────────────────
+  const hGrad = ctx.createLinearGradient(0, 0, W, HDR_H);
+  hGrad.addColorStop(0, "#090e18");
+  hGrad.addColorStop(1, "#161a22");
+  ctx.fillStyle = hGrad;
+  ctx.fillRect(0, 0, W, HDR_H);
+
+  // Icon / logo
+  const LOGO = 72;
+  if (icon) {
+    ctx.drawImage(icon, PAD, (HDR_H - LOGO) / 2, LOGO, LOGO);
+  } else {
+    ctx.fillStyle = C.accent + "33";
+    _roundRect(ctx, PAD, (HDR_H - LOGO) / 2, LOGO, LOGO, 10);
+    ctx.fill();
+    txt("CM", PAD + LOGO / 2, (HDR_H - LOGO) / 2 + LOGO / 2 + 8, F(22, true), C.accent, "center");
+  }
+
+  const tx = PAD + LOGO + 16;
+  txt("BENCHMARK DE LLMS LOCAIS", tx, HDR_H / 2 - 20, F(10, true), C.accent);
+  txt("CopaMind 2026", tx, HDR_H / 2 + 12, F(30, true), C.text);
+  txt("Mesmo contexto, mesma regra JSON, previsoes auditaveis e ranking por qualidade.", tx, HDR_H / 2 + 30, F(12), C.muted);
+
+  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  txt(dateStr, W - PAD, PAD + 14, F(11), C.muted, "right");
+
+  // Accent line
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(0, HDR_H - 2, W, 2);
+
+  // ── Summary bar ────────────────────────────────────────────────────────────
+  const phaseInfo = (state.phases || []).find((p) => p.key === phase);
+  const phaseLbl  = phaseInfo?.label || phase;
+  const validPreds = rows.reduce((s, r) => s + r.predictions.length, 0);
+  const best100    = rows.filter((r) => r.json_rate === 1).length;
+
+  ctx.fillStyle = C.panel;
+  ctx.fillRect(0, HDR_H, W, SUM_H);
+
+  const sumItems = [
+    { label: "FASE",            value: phaseLbl },
+    { label: "MODELOS VÁLIDOS", value: String(nM) },
+    { label: "PALPITES",        value: String(validPreds) },
+    { label: "JSON 100%",       value: String(best100) },
+  ];
+  const sw = W / sumItems.length;
+  sumItems.forEach((item, i) => {
+    if (i > 0) { ctx.fillStyle = C.border; ctx.fillRect(i * sw, HDR_H + 8, 1, SUM_H - 16); }
+    const cx = i * sw + sw / 2;
+    txt(item.label, cx, HDR_H + 20, F(9, true), C.muted, "center");
+    txt(item.value, cx, HDR_H + 46, F(20, true), C.text, "center");
+  });
+
+  ctx.fillStyle = C.border;
+  ctx.fillRect(0, HDR_H + SUM_H - 1, W, 1);
+
+  // ── Model header row ───────────────────────────────────────────────────────
+  const tableX = PAD + MCW;
+  let sy = HDR_H + SUM_H;
+
+  // Empty match-col corner
+  ctx.fillStyle = C.panel;
+  ctx.fillRect(PAD, sy, MCW, MOD_H);
+
+  rows.forEach((row, ri) => {
+    const cx = tableX + ri * CW;
+    ctx.fillStyle = ri % 2 === 0 ? "#1c2130" : C.panel;
+    ctx.fillRect(cx, sy, CW - 1, MOD_H);
+
+    const cellCx = cx + CW / 2;
+
+    // ── Model icon ──
+    const icoX = cx + (CW - ICO) / 2;
+    const icoY = sy + 6;
+    const modelIcon = iconMap?.get(row.model_id);
+    ctx.fillStyle = "#10141c";
+    _roundRect(ctx, icoX - 2, icoY - 2, ICO + 4, ICO + 4, 7);
+    ctx.fill();
+    if (modelIcon) {
+      ctx.save();
+      _roundRect(ctx, icoX, icoY, ICO, ICO, 6);
+      ctx.clip();
+      ctx.drawImage(modelIcon, icoX, icoY, ICO, ICO);
+      ctx.restore();
+    } else {
+      // Fallback initials
+      const initials = (row.display_name || row.model_id).replace(/^[^/]+\//, "").slice(0, 2).toUpperCase();
+      ctx.fillStyle = C.accent + "44";
+      _roundRect(ctx, icoX, icoY, ICO, ICO, 6);
+      ctx.fill();
+      txt(initials, cellCx, icoY + ICO * 0.67, F(12, true), C.accent, "center");
+    }
+
+    // ── Model name lines ──
+    const lines = _nameLines(row.display_name || row.model_id);
+    ctx.textAlign = "center";
+    const nameStartY = icoY + ICO + 11;
+    lines.forEach((line, li) => {
+      ctx.fillStyle = li === 0 ? C.text : C.muted;
+      ctx.font = F(li === 0 ? 9 : 8, li === 0);
+      ctx.fillText(line, cellCx, nameStartY + li * 12);
+    });
+
+    // ── JSON rate dot ──
+    const jr = row.json_rate ?? 0;
+    const dotColor = jr >= 0.95 ? C.accent : jr >= 0.7 ? C.gold : C.red;
+    ctx.fillStyle = dotColor;
+    ctx.beginPath();
+    ctx.arc(cellCx, sy + MOD_H - 8, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.textAlign = "left";
+  });
+
+  // Accent separator below model header
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(PAD, sy + MOD_H - 2, W - PAD, 2);
+
+  sy += MOD_H;
+
+  // ── Data rows ──────────────────────────────────────────────────────────────
+  matchOrder.forEach((m, mi) => {
+    const ry = sy + mi * ROW_H;
+    const even = mi % 2 === 0;
+
+    // Match info column
+    ctx.fillStyle = even ? "#1a1f2c" : "#161a24";
+    ctx.fillRect(PAD, ry, MCW - 2, ROW_H - 1);
+
+    const stats = matchStats[m._key];
+    const homeShort = _shortName(m.home);
+    const awayShort = _shortName(m.away);
+    const mPad = PAD + 8;
+
+    txt(homeShort, mPad, ry + 18, F(11, true), C.text);
+    if (stats) txt(`${stats.home}%`, mPad, ry + 31, F(10, true), C.accent);
+    txt("×", mPad, ry + ROW_H / 2 + 4, F(10), C.dim);
+    txt(awayShort, mPad, ry + ROW_H - 22, F(11, true), C.text);
+    if (stats) txt(`${stats.away}%`, mPad, ry + ROW_H - 9, F(10, true), C.muted);
+
+    ctx.fillStyle = C.border;
+    ctx.fillRect(PAD, ry + ROW_H - 1, MCW - 2, 1);
+
+    // Model cells
+    rows.forEach((row, ri) => {
+      const cx = tableX + ri * CW;
+      const pred = (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key);
+      const side = pred ? predictedSide(pred) : null;
+
+      // Cell bg
+      const baseBg = even ? "#181d28" : C.bg;
+      ctx.fillStyle = side === "home" ? C.cHome : side === "away" ? C.cAway : side === "draw" ? C.cDraw : baseBg;
+      ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
+
+      if (!pred) {
+        txt("—", cx + CW / 2, ry + ROW_H / 2 + 5, F(12), C.dim, "center");
+      } else {
+        const isDrawScore = pred.predicted_home_goals != null && pred.predicted_away_goals != null
+          && Number(pred.predicted_home_goals) === Number(pred.predicted_away_goals);
+        const hasPen = isDrawScore && pred.goes_to_penalties
+          && pred.penalty_winner && pred.penalty_winner !== "none";
+
+        const tColor = side === "home" ? C.tHome : side === "away" ? C.tAway : C.tDraw;
+        const scoreStr = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
+        const penStr   = hasPen
+          ? `(${pred.penalty_winner === "home" ? 4 : 3}–${pred.penalty_winner === "away" ? 4 : 3})`
+          : "";
+
+        txt(scoreStr, cx + CW / 2, ry + (hasPen ? 22 : 26), F(13, true), tColor, "center");
+        if (penStr) txt(penStr, cx + CW / 2, ry + 36, F(9), C.muted, "center");
+
+        const winner = side === "home" ? homeShort : side === "away" ? awayShort : "EMP";
+        txt(winner.slice(0, 7), cx + CW / 2, ry + ROW_H - 10, F(9, true), C.muted, "center");
+      }
+
+      // Right divider
+      ctx.fillStyle = C.border;
+      ctx.fillRect(cx + CW - 1, ry, 1, ROW_H);
+    });
+
+    // Bottom divider
+    ctx.fillStyle = C.border;
+    ctx.fillRect(PAD, ry + ROW_H - 1, W - PAD, 1);
+  });
+
+  sy += nG * ROW_H;
+
+  // ── Footer ─────────────────────────────────────────────────────────────────
+  ctx.fillStyle = C.border;
+  ctx.fillRect(PAD, sy + 8, W - PAD * 2, 1);
+  txt(
+    "github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",
+    W / 2, sy + 26, F(11), C.muted, "center",
+  );
+
+  return canvas;
+}
+
+async function exportLinkedInImage() {
+  const phase = activeCapturePhase || defaultCapturePhase();
+  const rows  = linkedInRows(phase);
+  if (!rows.length) {
+    alert("Sem palpites validos para exportar nesta fase. Processe os modelos primeiro.");
+    return;
+  }
+  const btn = document.getElementById("btn-export-linkedin");
+  const origText = btn.textContent;
+  btn.textContent = "Gerando...";
+  btn.disabled = true;
+  try {
+    // Load banner icon and all model icons in parallel
+    const modelUrls = rows.map((row) => resolveModelImage(row) || avatarForModel(row));
+    const [icon, ...rawIcons] = await Promise.all([
+      _loadImg("../../docs/assets/copamind_2026.png"),
+      ...modelUrls.map((url) => _loadImg(url)),
+    ]);
+    // Fallback to SVG avatar if real image failed
+    const modelIcons = await Promise.all(
+      rows.map(async (row, i) => rawIcons[i] || await _loadImg(avatarForModel(row))),
+    );
+    const iconMap = new Map(rows.map((row, i) => [row.model_id, modelIcons[i]]));
+
+    const canvas = buildLinkedInCanvas(rows, phase, icon, iconMap);
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const link = document.createElement("a");
+    link.download = `copamind_resumo_${phase}_${date}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  } catch (err) {
+    console.error("Erro ao gerar imagem:", err);
+    alert("Erro ao gerar imagem. Veja o console.");
+  } finally {
+    btn.textContent = origText;
+    btn.disabled = false;
+  }
+}
+
 function renderLinkedInCaptures() {
   if (!state) return;
   const phase = currentCapturePhase();
@@ -804,13 +1259,14 @@ function renderLinkedInCaptures() {
       .filter((p) => p && (p.prob_home || 0) + (p.prob_away || 0) > 0);
     if (preds.length) {
       const avgHome = preds.reduce((s, p) => s + p.prob_home / (p.prob_home + p.prob_away), 0) / preds.length;
-      matchStats[m._key] = { home: Math.round(avgHome * 100), away: Math.round((1 - avgHome) * 100) };
+      const home = Math.round(avgHome * 100);
+      matchStats[m._key] = { home, away: 100 - home };
     }
   });
   // Header: jogo | modelo1 | modelo2 | ...
   const modelHead = rows.map((row) => `
     <th class="resumo-model-header-th">
-      <img src="${escapeAttr(row.image_url || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
+      <img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
       <div class="resumo-model-name">${escapeHtml(row.display_name)}</div>
     </th>`).join("");
   // Body: one row per match
@@ -823,11 +1279,13 @@ function renderLinkedInCaptures() {
       const baseScore = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
       let penLine = "";
       let ext = "";
-      if (pred.goes_to_penalties && pred.penalty_winner && pred.penalty_winner !== "none") {
+      const isDrawScore = pred.predicted_home_goals != null && pred.predicted_away_goals != null
+        && Number(pred.predicted_home_goals) === Number(pred.predicted_away_goals);
+      if (isDrawScore && pred.goes_to_penalties && pred.penalty_winner && pred.penalty_winner !== "none") {
         const hp = pred.penalty_winner === "home" ? 4 : 3;
         const ap = pred.penalty_winner === "away" ? 4 : 3;
         penLine = `<small class="resumo-pen">(${hp}–${ap})</small>`;
-      } else if (pred.goes_to_extra_time) {
+      } else if (isDrawScore && pred.goes_to_extra_time) {
         ext = " P";
       }
       const winner = side === "home" ? shortTeamName(pred.home) : side === "away" ? shortTeamName(pred.away) : "EMP";
@@ -837,9 +1295,9 @@ function renderLinkedInCaptures() {
     }).join("");
     return `<tr>
       <td class="resumo-match-td">
-        <div class="resumo-team-row"><b>${escapeHtml(shortTeamName(m.home))}</b>${stats ? `<em>${stats.home}%</em>` : ""}</div>
-        <small>×</small>
-        <div class="resumo-team-row"><b>${escapeHtml(shortTeamName(m.away))}</b>${stats ? `<em>${stats.away}%</em>` : ""}</div>
+        <div class="resumo-match-inline">
+          <b>${escapeHtml(shortTeamName(m.home))}</b>${stats ? `<em>${stats.home}%</em>` : ""}<span class="resumo-sep">×</span>${stats ? `<em>${stats.away}%</em>` : ""}<b>${escapeHtml(shortTeamName(m.away))}</b>
+        </div>
       </td>
       ${cells}
     </tr>`;
@@ -923,7 +1381,7 @@ function linkedInModelCard(row) {
   return `
     <article class="linkedin-model-card">
       <div class="linkedin-model-head">
-        <img src="${escapeAttr(row.image_url || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
+        <img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
         <div>
           <span>${escapeHtml(row.family || "modelo local")}</span>
           <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
@@ -977,7 +1435,9 @@ function predictedWinnerLabel(prediction) {
 function predictionScore(prediction) {
   const home = prediction.predicted_home_goals ?? "-";
   const away = prediction.predicted_away_goals ?? "-";
-  if (prediction.goes_to_penalties && prediction.penalty_winner && prediction.penalty_winner !== "none") {
+  const isDrawScore = prediction.predicted_home_goals != null && prediction.predicted_away_goals != null
+    && Number(prediction.predicted_home_goals) === Number(prediction.predicted_away_goals);
+  if (isDrawScore && prediction.goes_to_penalties && prediction.penalty_winner && prediction.penalty_winner !== "none") {
     const homePen = prediction.penalty_winner === "home" ? 4 : 3;
     const awayPen = prediction.penalty_winner === "away" ? 4 : 3;
     return `${home} (${homePen}) - ${away} (${awayPen})`;
@@ -1418,31 +1878,84 @@ async function runModelPhase(modelId) {
 
 async function runAllModelsForPhase() {
   if (!canRunAllModelsForPhase()) return;
-  const button = document.getElementById("run-all-models");
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Iniciando batch...";
+  if (sequentialBatch) return;
+
+  const phase = activePhase;
+  const matchCount = matchesForPhase(phase).length || projectedMatchesForPhase(phase, "combo").length;
+  const statusByModel = Object.fromEntries(
+    (state.phase_model_run_status || [])
+      .filter((item) => item.phase === phase)
+      .map((item) => [item.model_id, item])
+  );
+  const modelsToRun = runnableModels().filter((model) => {
+    const runs = Number(statusByModel[model.model_id]?.runs || 0);
+    return Math.max(0, matchCount - runs) > 0;
+  });
+  if (!modelsToRun.length) return;
+
+  sequentialBatch = {
+    phase,
+    total: modelsToRun.length,
+    current: 0,
+    currentModelId: null,
+    aborted: false,
+    progress: null,
+  };
+  renderModelActions();
+
+  for (let i = 0; i < modelsToRun.length; i++) {
+    if (sequentialBatch?.aborted || sequentialBatch?.phase !== activePhase) break;
+    sequentialBatch.current = i + 1;
+    sequentialBatch.currentModelId = modelsToRun[i].model_id;
+    sequentialBatch.progress = null;
+    renderModelActions();
+    await runOneModelAndWait(modelsToRun[i].model_id, phase);
+    await loadData(true).catch(() => {});
   }
+
+  sequentialBatch = null;
+  renderModelActions();
+  await loadData(true).catch(() => {});
+}
+
+function cancelSequentialBatch() {
+  if (sequentialBatch) sequentialBatch.aborted = true;
+}
+
+async function runOneModelAndWait(modelId, phase) {
   try {
     const response = await fetch(`${API_BASE}/pool/llm/phase/run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phase: activePhase,
-        samples: 1,
-        include_heavy: true,
-        finished_only: false,
-      }),
+      body: JSON.stringify({ phase, model_id: modelId, samples: 1, include_heavy: true, finished_only: false }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) return;
     const payload = await response.json();
-    startBulkPolling(activePhase, payload.batch_id);
-  } catch (error) {
-    if (button) {
-      button.disabled = false;
-      button.textContent = "API offline";
-    }
-  }
+    const batchId = payload.batch_id;
+    if (!batchId) return;
+    await pollProgressUntilDone(batchId);
+  } catch (_err) { /* pula modelo com erro */ }
+}
+
+async function pollProgressUntilDone(batchId) {
+  return new Promise((resolve) => {
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/pool/llm/phase/progress?batch_id=${encodeURIComponent(batchId)}`);
+        if (!res.ok) { clearInterval(timer); resolve(); return; }
+        const progress = await res.json();
+        if (sequentialBatch) {
+          sequentialBatch.progress = progress;
+          renderModelActions();
+        }
+        if (isTerminalProgress(progress.status) || isStaleProgress(progress)) {
+          clearInterval(timer);
+          resolve();
+        }
+      } catch (_err) { clearInterval(timer); resolve(); }
+    }, PROGRESS_POLL_MS);
+    setTimeout(() => { clearInterval(timer); resolve(); }, RUN_TIMEOUT_MS);
+  });
 }
 
 async function resetLLMHistory({ phase = null, modelId = null }) {
@@ -1645,6 +2158,80 @@ function playerCard(player, index) {
         <span><b>${num(per90.assists, 2)}</b>a/90</span>
       </div>
     </article>`;
+}
+
+const MODEL_DESCRIPTIONS = {
+  "gemma-4-e2b":              "Google Gemma 4 · 2B · instruct leve · baixo consumo de VRAM",
+  "gemma-4-12b-qat":          "Google Gemma 4 · 12B · QAT · bom equilibrio qualidade/velocidade",
+  "gemma-4-26b-a4b-qat":      "Google Gemma 4 · 26B MoE · QAT · alta qualidade com activation sparse",
+  "gemma-4-31b-qat":          "Google Gemma 4 · 31B · QAT · modelo pesado de referencia",
+  "qwen3.5-9b":               "Alibaba Qwen 3.5 · 9B · instruct · requer Structured Output",
+  "qwen3.6-27b":              "Alibaba Qwen 3.6 · 27B · instruct · modelo pesado · requer Structured Output",
+  "qwen3.6-35b-a3b":          "Alibaba Qwen 3.6 · 35B MoE · 3B ativos · modelo pesado · requer Structured Output",
+  "phi-4-mini-reasoning":     "Microsoft Phi-4 Mini · 4B · reasoning · eficiente em raciocinio",
+  "phi-4-reasoning-plus":     "Microsoft Phi-4 Reasoning Plus · 14B · chain-of-thought avancado",
+  "phi-4":                    "Microsoft Phi-4 · 14B · instruct balanceado",
+  "mistral-7b-instruct-v0.3": "Mistral 7B · instruct v0.3 · modelo base de referencia · requer Structured Output",
+  "mistral-nemo-instruct-2407":"Mistral NeMo · 12B · instruct · contexto longo",
+  "ministral-3-14b":          "Mistral Ministral · 14B · reasoning compacto",
+  "devstral-small":           "Mistral Devstral Small · orientado a codigo e instrucao",
+  "nemotron-3-nano-4b":       "NVIDIA Nemotron 3 Nano · 4B · ultra leve · requer Structured Output",
+  "nemotron-3-nano-omni":     "NVIDIA Nemotron 3 Nano Omni · multimodal compacto · requer Structured Output",
+  "olmo-3-32b-think":         "AllenAI OLMo 3 · 32B · chain-of-thought aberto · requer Structured Output",
+  "glm-4.7-flash":            "ZAI GLM 4.7 Flash · 9B · instruct rapido · requer Structured Output",
+  "ernie-4.5-21b-a3b":        "Baidu ERNIE 4.5 · 21B MoE · 3B ativos · modelo chines de producao",
+  "lfm2-24b-a2b":             "Liquid AI LFM2 · 24B MoE · 2B ativos · arquitetura hybrid attention",
+  "gpt-oss-20b":              "OpenAI GPT OSS · 20B · modelo open-source de referencia",
+  "granite-4-h-tiny":         "IBM Granite 4 · tiny · instruct compacto · orientado a enterprise",
+  "granite-3.2-8b":           "IBM Granite 3.2 · 8B · instruct · eficiente e confiavel",
+  "deepseek-r1-0528-qwen3-8b":"DeepSeek R1 · 8B Qwen3 base · reasoning com chain-of-thought",
+  "rnj-1":                    "Essential AI RNJ-1 · instruct experimental",
+  "seed-oss-36b":             "ByteDance Seed OSS · 36B · modelo pesado open-source",
+};
+
+function modelDesc(modelId) {
+  const id = (modelId || "").toLowerCase();
+  const key = Object.keys(MODEL_DESCRIPTIONS).find((k) => id.includes(k));
+  return key ? MODEL_DESCRIPTIONS[key] : null;
+}
+
+function renderReferences() {
+  const container = document.getElementById("ref-models-table");
+  if (!container) return;
+  const models = (state?.models || []).filter((m) => !m.is_combo && m.model_class !== "embedding");
+  if (!models.length) { container.innerHTML = ""; return; }
+  const rows = models.map((m) => {
+    const avatar = resolveModelImage(m) || avatarForModel(m);
+    const fallback = avatarForModel(m);
+    const desc = modelDesc(m.model_id) || `${m.family || "Local"} · ${m.model_class || "chat"}`;
+    const disqualReason = DISQUALIFIED_MODELS[m.model_id];
+    const badge = disqualReason
+      ? `<span class="disqualified-badge" title="${escapeAttr(disqualReason)}">🚫 Desclassificado</span>`
+      : needsStructuredOutput(m.model_id)
+        ? `<span class="struct-output-badge" title="Necessita Structured Output no LM Studio">⚠ Struct. Output</span>`
+        : "";
+    return `<tr class="ref-model-row ${disqualReason ? "ref-model-disqualified" : ""}">
+      <td class="ref-model-id">
+        <img src="${escapeAttr(avatar)}" alt="" onerror="this.onerror=null;this.src='${escapeAttr(fallback)}';" />
+        <div>
+          <strong>${escapeHtml(m.display_name || m.model_id)}</strong>
+          <small>${escapeHtml(m.model_id)}</small>
+        </div>
+      </td>
+      <td class="ref-model-desc">${escapeHtml(desc)}${badge}</td>
+    </tr>`;
+  }).join("");
+  container.innerHTML = `
+    <div class="section-title" style="margin-top:18px">
+      <p>Participantes do bolao</p>
+      <h3>Modelos utilizados (${models.length})</h3>
+    </div>
+    <div class="ref-models-table-wrap">
+      <table class="ref-models-tbl">
+        <thead><tr><th>Modelo</th><th>Descritivo</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function renderGuide() {
@@ -2314,6 +2901,82 @@ function playerPill(player) {
     </div>`;
 }
 
+function comboConsensusBlock(phase, comboMatches) {
+  const valid = comboMatches.filter((m) => m.has_prediction !== false);
+  const pending = comboMatches.filter((m) => m.has_prediction === false);
+  if (!valid.length && !pending.length) return emptyPrediction("Sem palpites nesta fase.");
+
+  // Unique matches from combo predictions (home|||away key, latest combo pred per match)
+  const matchDefs = new Map();
+  valid.forEach((match) => {
+    const key = `${match.home}|||${match.away}`;
+    if (!matchDefs.has(key)) matchDefs.set(key, { home: match.home, away: match.away, latestCombo: match });
+    else matchDefs.get(key).latestCombo = match; // keep latest
+  });
+
+  // Individual (non-combo) model predictions for this phase
+  const allModelPreds = (state.phase_predictions_by_model || [])
+    .filter((item) => item.phase === phase && item.model_id !== "combo");
+
+  const blocks = [...matchDefs.values()].map(({ home, away, latestCombo }) => {
+    // One vote per model: latest valid prediction for this match
+    const modelVotes = allModelPreds
+      .map((item) => {
+        const preds = (item.predictions || []).filter(
+          (p) => p.home === home && p.away === away && p.has_prediction !== false
+        );
+        return preds.length ? preds[preds.length - 1] : null;
+      })
+      .filter(Boolean);
+
+    // Primary: individual model votes; fallback: combo's own rounds
+    const comboRounds = valid.filter((m) => m.home === home && m.away === away);
+    const votes = modelVotes.length > 0 ? modelVotes : comboRounds;
+    const sourceLabel = modelVotes.length > 0
+      ? `${votes.length} modelo${votes.length !== 1 ? "s" : ""}`
+      : `${votes.length} rodada${votes.length !== 1 ? "s" : ""}`;
+
+    const total = votes.length;
+    const homeCount = votes.filter((v) => predictedSide(v) === "home").length;
+    const awayCount = votes.filter((v) => predictedSide(v) === "away").length;
+    const drawCount = total - homeCount - awayCount;
+    const homePct = Math.round(homeCount / total * 100);
+    const awayPct = Math.round(awayCount / total * 100);
+    const drawPct = 100 - homePct - awayPct;
+    const pts = latestCombo.points == null
+      ? "Aguardando resultado"
+      : `${latestCombo.points} pts | real ${actualScore(latestCombo)}`;
+    const drawRow = drawCount > 0 ? `
+      <div class="combo-vote-row">
+        <span class="combo-team-name">Empate</span>
+        <div class="combo-bar"><div class="combo-bar-fill combo-bar-draw" style="width:${drawPct}%"></div></div>
+        <span class="combo-vote-pct">${drawPct}% <small>(${drawCount})</small></span>
+      </div>` : "";
+    return `
+      <div class="prediction-item combo-consensus-item">
+        <div class="combo-match-label">
+          <b>${escapeHtml(home)} \u00d7 ${escapeHtml(away)}</b>
+          <span>${escapeHtml(sourceLabel)}</span>
+        </div>
+        <div class="combo-vote-bars">
+          <div class="combo-vote-row">
+            <span class="combo-team-name">${escapeHtml(shortTeamName(home))}</span>
+            <div class="combo-bar"><div class="combo-bar-fill combo-bar-home" style="width:${homePct}%"></div></div>
+            <span class="combo-vote-pct">${homePct}% <small>(${homeCount})</small></span>
+          </div>
+          ${drawRow}
+          <div class="combo-vote-row">
+            <span class="combo-team-name">${escapeHtml(shortTeamName(away))}</span>
+            <div class="combo-bar"><div class="combo-bar-fill combo-bar-away" style="width:${awayPct}%"></div></div>
+            <span class="combo-vote-pct">${awayPct}% <small>(${awayCount})</small></span>
+          </div>
+        </div>
+        <div class="combo-result-pts"><span>${escapeHtml(pts)}</span></div>
+      </div>`;
+  });
+  return blocks.join("") + pending.map(predictionRow).join("") || emptyPrediction("Sem palpites nesta fase.");
+}
+
 function predictionRow(prediction) {
   if (prediction.is_projection) {
     return `
@@ -2366,7 +3029,9 @@ function predictionRow(prediction) {
 
 function predictedScoreText(prediction) {
   const score = `${prediction.predicted_home_goals}-${prediction.predicted_away_goals}`;
-  if (!prediction.goes_to_penalties) return score;
+  const isDrawScore = prediction.predicted_home_goals != null && prediction.predicted_away_goals != null
+    && Number(prediction.predicted_home_goals) === Number(prediction.predicted_away_goals);
+  if (!isDrawScore || !prediction.goes_to_penalties) return score;
   if (prediction.penalty_winner === "home") return `${score} (${prediction.home} nos pênaltis)`;
   if (prediction.penalty_winner === "away") return `${score} (${prediction.away} nos pênaltis)`;
   return `${score} (pênaltis)`;
@@ -2400,8 +3065,10 @@ function matchMarkers(match) {
 
 function predictionBadges(prediction) {
   const parts = [];
-  if (prediction.goes_to_extra_time) parts.push("Prorr.");
-  if (prediction.goes_to_penalties) {
+  const isDrawScore = prediction.predicted_home_goals != null && prediction.predicted_away_goals != null
+    && Number(prediction.predicted_home_goals) === Number(prediction.predicted_away_goals);
+  if (isDrawScore && prediction.goes_to_extra_time) parts.push("Prorr.");
+  if (isDrawScore && prediction.goes_to_penalties) {
     const winner = prediction.penalty_winner === "home"
       ? prediction.home
       : prediction.penalty_winner === "away"
@@ -2915,6 +3582,64 @@ function formatDuration(value) {
   return `${seconds}s`;
 }
 
+// Official icon per provider — keyed by family name and model_id provider prefix.
+// Used as fallback when image_url is empty or known-bad.
+const MODEL_IMAGE_OVERRIDES = {
+  // Google
+  "gemma":       "https://cdn.simpleicons.org/googlegemini/4285F4",
+  "google":      "https://cdn.simpleicons.org/googlegemini/4285F4",
+  // Alibaba / Qwen
+  "qwen":        "https://qwenlm.github.io/img/logo.png",
+  // Mistral AI
+  "mistral":     "https://cdn.simpleicons.org/mistralai/FA520F",
+  "mistralai":   "https://cdn.simpleicons.org/mistralai/FA520F",
+  // Microsoft
+  "phi":         "../../pictures/icons/phi.png",
+  "microsoft":   "../../pictures/icons/phi.png",
+  // Zhipu AI / ZAI
+  "glm":         "../../pictures/icons/glm.png",
+  "zai-org":     "../../pictures/icons/glm.png",
+  // Meta
+  "llama":       "https://cdn.simpleicons.org/meta/0081FB",
+  "meta-llama":  "https://cdn.simpleicons.org/meta/0081FB",
+  // NVIDIA
+  "nvidia":      "https://cdn.simpleicons.org/nvidia/76B900",
+  "nemotron":    "https://cdn.simpleicons.org/nvidia/76B900",
+  // OpenAI
+  "openai":      "../../pictures/icons/gpt.png",
+  // DeepSeek
+  "deepseek":    "https://cdn.simpleicons.org/deepseek/4D6BFF",
+  // IBM
+  "ibm":         "../../pictures/icons/granite.png",
+  "granite":     "../../pictures/icons/granite.png",
+  // Baidu
+  "baidu":       "https://cdn.simpleicons.org/baidu/2932E1",
+  "ernie":       "https://cdn.simpleicons.org/baidu/2932E1",
+  // AllenAI
+  "allenai":     "https://allenai.org/favicon.ico",
+  "olmo":        "https://allenai.org/favicon.ico",
+  // ByteDance
+  "bytedance":   "../../pictures/icons/oss.png",
+  "seed":        "../../pictures/icons/oss.png",
+  // Essential AI
+  "essentialai": "https://essential.ai/favicon.ico",
+  "rnj":         "https://essential.ai/favicon.ico",
+  // Liquid AI
+  "liquid":      "../../pictures/icons/lfm2.png",
+  "lfm":         "../../pictures/icons/lfm2.png",
+};
+
+function resolveModelImage(model) {
+  const url = model.image_url || "";
+  // Reject known-bad banner images
+  if (!url || url.includes("gemma4_banner")) {
+    const family = (model.family || "").toLowerCase();
+    const provider = (model.model_id || "").split("/")[0].toLowerCase();
+    return MODEL_IMAGE_OVERRIDES[family] || MODEL_IMAGE_OVERRIDES[provider] || null;
+  }
+  return url;
+}
+
 function avatarForModel(model) {
   const family = String(model.family || model.display_name || "IA").slice(0, 2).toUpperCase();
   const hue = hashHue(model.model_id || model.display_name);
@@ -2953,7 +3678,7 @@ function cssEscape(value) {
 }
 
 async function exportStaticSite() {
-  setExportStatus("Gerando HTML estatico...");
+  setExportStatus("Coletando arquivos...");
   try {
     const [html, css, js, data] = await Promise.all([
       fetchText("index.html"),
@@ -2961,7 +3686,12 @@ async function exportStaticSite() {
       fetchText("app.js"),
       window.COPAMIND_EMBEDDED_DATA || fetchJson("data/copamind.json"),
     ]);
-    const assetMap = await loadStaticAssetMap();
+    const localAssetMap = await loadStaticAssetMap();
+    const externalUrls = collectExternalImageUrls(data, js);
+    setExportStatus(`Baixando ${externalUrls.size} imagens externas (bandeiras e logos)...`);
+    const externalAssetMap = await loadExternalAssetMap(externalUrls);
+    const assetMap = { ...localAssetMap, ...externalAssetMap };
+    const embeddedData = replaceUrlsInData(data, externalAssetMap);
     let outputCss = replaceAssets(css, assetMap);
     let outputJs = replaceAssets(js, assetMap).replaceAll("</script>", "<\\/script>");
     let outputHtml = replaceAssets(html, assetMap);
@@ -2971,7 +3701,7 @@ async function exportStaticSite() {
     );
     outputHtml = outputHtml.replace(
       '<script src="app.js"></script>',
-      `<script>window.COPAMIND_EMBEDDED_DATA=${safeJson(data)};<\/script>\n<script>\n${outputJs}\n<\/script>`
+      `<script>window.COPAMIND_EMBEDDED_DATA=${safeJson(embeddedData)};<\/script>\n<script>\n${outputJs}\n<\/script>`
     );
     downloadFile(
       `copamind-2026-portal-${new Date().toISOString().slice(0, 10)}.html`,
@@ -3020,6 +3750,78 @@ async function assetAsDataUrl(path) {
     reader.onerror = reject;
     reader.readAsDataURL(blob);
   });
+}
+
+function collectExternalImageUrls(data, jsText) {
+  const urls = new Set();
+  function walk(obj) {
+    if (Array.isArray(obj)) { obj.forEach(walk); return; }
+    if (!obj || typeof obj !== "object") return;
+    for (const [key, val] of Object.entries(obj)) {
+      if ((key === "flag_url" || key === "image_url") && typeof val === "string" && val.startsWith("http")) {
+        urls.add(val);
+      } else {
+        walk(val);
+      }
+    }
+  }
+  walk(data);
+  const urlPattern = /["'](https?:\/\/[^\s"'\\]+)["']/g;
+  let m;
+  while ((m = urlPattern.exec(jsText)) !== null) {
+    const url = m[1];
+    if (
+      url.includes("cdn.simpleicons.org") ||
+      url.includes("qwenlm.github.io") ||
+      url.includes("favicon.ico") ||
+      /\.(png|jpg|jpeg|webp|svg)(\?|$)/i.test(url)
+    ) {
+      urls.add(url);
+    }
+  }
+  return urls;
+}
+
+async function loadExternalAssetMap(urls) {
+  const entries = await Promise.all(
+    [...urls].map(async (url) => {
+      try {
+        return [url, await urlAsDataUrl(url)];
+      } catch (_err) {
+        console.warn(`Nao foi possivel embutir: ${url}`);
+        return [url, url];
+      }
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
+async function urlAsDataUrl(url) {
+  const resp = await fetch(url, { mode: "cors" });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const blob = await resp.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function replaceUrlsInData(data, urlMap) {
+  if (Array.isArray(data)) return data.map((item) => replaceUrlsInData(item, urlMap));
+  if (data && typeof data === "object") {
+    const result = {};
+    for (const [key, val] of Object.entries(data)) {
+      if ((key === "flag_url" || key === "image_url") && typeof val === "string" && urlMap[val] && urlMap[val] !== val) {
+        result[key] = urlMap[val];
+      } else {
+        result[key] = replaceUrlsInData(val, urlMap);
+      }
+    }
+    return result;
+  }
+  return data;
 }
 
 function replaceAssets(text, assetMap) {

@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709190952-c0e77598",
+  "phase": "final",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 1,
+  "total_calls": 1,
+  "updated_at": "2026-07-09T19:10:06.289263+00:00",
+  "current_match_index": 1,
+  "total_matches": 1,
+  "current_match_label": "Espanha x Argentina",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "deepseek/deepseek-r1-0528-qwen3-8b",
+  "current_sample_index": 1,
+  "elapsed_seconds": 11.3,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T19:09:54.933739+00:00"
+}

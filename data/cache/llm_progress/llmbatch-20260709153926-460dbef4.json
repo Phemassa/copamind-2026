@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709153926-460dbef4",
+  "phase": "quarterfinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Nada a retomar: todas as chamadas da fase ja estavam salvas.",
+  "percent": 0.0,
+  "completed_calls": 0,
+  "total_calls": 0,
+  "updated_at": "2026-07-09T15:39:29.443518+00:00",
+  "current_match_index": 0,
+  "total_matches": 0,
+  "current_match_label": null,
+  "current_model_index": 0,
+  "total_models": 0,
+  "current_model_id": null,
+  "current_sample_index": 0,
+  "elapsed_seconds": 0.0,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T15:39:29.437206+00:00"
+}

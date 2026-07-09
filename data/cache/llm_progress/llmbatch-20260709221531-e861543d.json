@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709221531-e861543d",
+  "phase": "semifinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 2,
+  "total_calls": 2,
+  "updated_at": "2026-07-09T22:18:52.387149+00:00",
+  "current_match_index": 2,
+  "total_matches": 2,
+  "current_match_label": "Inglaterra x Argentina",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "nvidia/nemotron-3-nano-omni",
+  "current_sample_index": 1,
+  "elapsed_seconds": 197.6,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T22:15:34.803197+00:00"
+}

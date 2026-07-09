@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709180716-5a7cb327",
+  "phase": "semifinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 2,
+  "total_calls": 2,
+  "updated_at": "2026-07-09T18:09:50.553156+00:00",
+  "current_match_index": 2,
+  "total_matches": 2,
+  "current_match_label": "Inglaterra x Argentina",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "mistralai/devstral-small-2-2512",
+  "current_sample_index": 1,
+  "elapsed_seconds": 151.7,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T18:07:18.897522+00:00"
+}

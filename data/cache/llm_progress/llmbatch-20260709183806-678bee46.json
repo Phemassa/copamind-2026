@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709183806-678bee46",
+  "phase": "round_of_16",
+  "status": "completed",
+  "current_match_index": 1,
+  "total_matches": 1,
+  "current_match_label": "Paraguai x França",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "google/gemma-4-26b-a4b-qat",
+  "current_sample_index": 1,
+  "total_samples": 1,
+  "completed_calls": 1,
+  "total_calls": 1,
+  "percent": 100.0,
+  "elapsed_seconds": 82.3,
+  "eta_seconds": null,
+  "message": "Batch finalizado com status=completed.",
+  "started_at": "2026-07-09T18:38:06.199751+00:00",
+  "updated_at": "2026-07-09T18:39:28.500658+00:00"
+}

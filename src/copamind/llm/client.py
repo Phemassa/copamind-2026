@@ -155,16 +155,19 @@ class LMStudioClient:
                 attempts.append({"mode": mode, "ok": True})
                 break
             except httpx.HTTPStatusError as exc:
+                body = exc.response.text.lower()
+                is_backend_crash = "channel error" in body
                 attempts.append(
                     {
                         "mode": mode,
                         "ok": False,
                         "status_code": exc.response.status_code,
                         "error": str(exc),
+                        "backend_crash": is_backend_crash,
                     }
                 )
                 last_error = exc
-                if exc.response.status_code not in {400, 404, 422}:
+                if exc.response.status_code not in {400, 404, 422} or is_backend_crash:
                     break
             except httpx.HTTPError as exc:
                 attempts.append({"mode": mode, "ok": False, "error": str(exc)})
@@ -175,7 +178,8 @@ class LMStudioClient:
             raise LLMError(f"falha na chamada ao LM Studio: {last_error}") from last_error
 
         latency_ms = (time.perf_counter() - start) * 1000.0
-        content = data["choices"][0]["message"]["content"]
+        msg = data["choices"][0]["message"]
+        content = msg.get("content") or msg.get("reasoning_content") or ""
         usage = data.get("usage", {})
         return LLMResponse(
             content=content,
@@ -269,8 +273,9 @@ class OllamaClient:
             raise LLMError(f"falha na chamada ao Ollama: {exc}") from exc
         latency_ms = (time.perf_counter() - start) * 1000.0
         data = response.json()
+        ollama_msg = data["message"]
         return LLMResponse(
-            content=data["message"]["content"],
+            content=ollama_msg.get("content") or ollama_msg.get("thinking") or "",
             model_id=model_id,
             latency_ms=latency_ms,
             prompt_tokens=data.get("prompt_eval_count"),

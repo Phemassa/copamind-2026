@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709184508-466ff49e",
+  "phase": "semifinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 2,
+  "total_calls": 2,
+  "updated_at": "2026-07-09T18:52:33.202563+00:00",
+  "current_match_index": 2,
+  "total_matches": 2,
+  "current_match_label": "Inglaterra x Argentina",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "google/gemma-4-12b-qat",
+  "current_sample_index": 1,
+  "elapsed_seconds": 441.9,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T18:45:11.328998+00:00"
+}

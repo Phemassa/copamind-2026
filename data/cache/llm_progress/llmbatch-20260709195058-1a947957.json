@@ -1,0 +1,11 @@
+{
+  "batch_id": "llmbatch-20260709195058-1a947957",
+  "phase": "third_place",
+  "status": "starting",
+  "total_samples": 1,
+  "message": "Aguardando runner das LLMs iniciar.",
+  "percent": 0.0,
+  "completed_calls": 0,
+  "total_calls": 0,
+  "updated_at": "2026-07-09T19:50:58.247474+00:00"
+}

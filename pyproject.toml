@@ -52,6 +52,7 @@ dev = [
 ui = [
     "streamlit>=1.36",
     "plotly>=5.22",
+    "Pillow>=10.0",
 ]
 rag = [
     "qdrant-client>=1.9",

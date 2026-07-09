@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709173044-ca3d247d",
+  "phase": "semifinal",
+  "status": "running",
+  "total_samples": 1,
+  "message": "Executando zai-org/glm-4.7-flash em Inglaterra x Argentina.",
+  "percent": 9.3,
+  "completed_calls": 5,
+  "total_calls": 54,
+  "updated_at": "2026-07-09T17:46:09.599418+00:00",
+  "current_match_index": 6,
+  "total_matches": 54,
+  "current_match_label": "Inglaterra x Argentina",
+  "current_model_index": 3,
+  "total_models": 27,
+  "current_model_id": "zai-org/glm-4.7-flash",
+  "current_sample_index": 1,
+  "elapsed_seconds": 921.0,
+  "eta_seconds": 9026.3,
+  "started_at": "2026-07-09T17:30:48.553719+00:00"
+}

@@ -1,0 +1,231 @@
+COPAMIND 2026 — PROMPTS PARA GOOGLE FLOW
+=========================================
+Arquivo gerado a partir de video.txt
+Cole o PROMPT MESTRE antes de cada cena no Google Flow.
+Anexe o arquivo indicado em "Material" junto com o prompt da cena.
+
+Ordem de montagem final (55s):
+  00-04s  Cena 1 — Gancho com produto real
+  04-10s  Cena 2 — Probabilidades e simulacao
+  10-16s  Cena 3 — Problema do LLM sozinho  (sem imagem)
+  16-23s  Cena 4 — Arquitetura preditiva
+  23-31s  Cena 5 — RAG, MCP e mini agente
+  31-43s  Cena 6 — LLMs locais em sequencia
+  43-49s  Cena 7 — Demonstracao real         (gravacao de tela)
+  49-55s  Cena 8 — GitHub e encerramento
+
+Extras do portal (boas alternativas / B-roll):
+  portal_home.png       — Hero + KPIs (27 modelos · 12 jogos · 602 palpites)
+  portal_benchmark.png  — Benchmark operacional (score tecnico + tabela)
+
+
+========================================
+PROMPT MESTRE — colar antes de cada cena
+========================================
+
+Estamos criando um video promocional profissional para o CopaMind 2026, uma plataforma open source de inteligencia esportiva executada localmente.
+
+O video deve divulgar um produto real, por isso as telas do sistema devem ser preservadas exatamente como aparecem nos screenshots e videos enviados. Nao recrie a interface, nao altere textos, nao altere numeros, nao invente funcoes e nao mude resultados.
+
+O CopaMind 2026 combina dados de futebol, modelos Elo, Poisson/Dixon-Coles, ensemble preditivo, calibracao, simulacoes Monte Carlo, RAG, MCP, um mini agente, LLMs locais executados sequencialmente, auditoria de afirmacoes e consenso final baseado em evidencias.
+
+Direcao visual:
+tecnologia esportiva premium, fundo escuro, detalhes verde-ciano, visual de dados, linhas conectadas, camera suave, luz dramatica discreta, interfaces reais legiveis, estilo moderno e confiavel.
+
+Evitar:
+estetica infantil, propaganda de apostas, logos da FIFA, logos de emissoras, marcas de terceiros inventadas, jogadores reconheciveis, imagens de partidas televisionadas, textos pequenos inventados, rankings ficticios, numeros falsos, links falsos e telas falsas.
+
+Formato:
+horizontal 16:9, cenas curtas, ritmo crescente, adequado para LinkedIn, YouTube e GitHub.
+
+Nao coloque textos longos dentro do video. Deixe areas limpas para que titulos e legendas sejam adicionados depois na edicao.
+
+
+========================================
+CENA 1 — Gancho com produto real (4-5s)
+========================================
+Material: pictures/google_flow/cena_01_gancho.png
+  (portal — Bolao das LLMs: cards de partida com resultados, ML baseline, bandeiras)
+Alternativa extra: pictures/google_flow/portal_home.png
+  (portal — Hero CopaMind 2026 + KPIs: 27 modelos, 12 jogos, 602 palpites)
+Titulo a inserir na edicao: Quem vence? O LLM nao decide sozinho.
+
+Crie uma abertura de 4 a 5 segundos para um video profissional do CopaMind 2026 usando a interface real enviada como referencia.
+
+Comece com a tela real do produto em fundo escuro. A camera faz um zoom suave na pergunta do chat e depois nas probabilidades da partida.
+
+Preserve integralmente a interface, textos, numeros, cores e layout. Nao recrie a tela. Nao altere dados. Nao invente componentes.
+
+Adicione apenas movimento de camera, leve destaque luminoso verde-ciano nos elementos importantes e uma transicao elegante para a proxima cena.
+
+Clima: tecnologia esportiva premium, produto real, confiavel e objetivo.
+
+Nao adicionar textos dentro da cena. Deixar espaco limpo para titulo posterior.
+
+
+========================================
+CENA 2 — Probabilidades e simulacao (5-6s)
+========================================
+Material: pictures/google_flow/cena_02_ranking.png
+  (portal — Ranking das LLMs: tabela classificacao, votos por selecao, Brier score)
+Alternativa: pictures/video/02_probabilidades_titulo.png
+Titulo a inserir na edicao: Probabilidades vem dos modelos.
+
+Crie uma cena de 5 a 6 segundos usando a captura real de probabilidades do CopaMind 2026.
+
+A camera deve revelar o painel de chances de titulo e destacar visualmente que os resultados vem de simulacoes e modelos preditivos.
+
+Use linhas de dados verde-ciano e pequenos pulsos de luz sobre graficos, rankings ou areas de probabilidade, sem alterar a interface.
+
+Preserve todos os textos, numeros, graficos e layout da captura real. Nao invente selecoes, percentuais, rankings ou resultados.
+
+Visual profissional, tecnico e legivel. Movimento suave, sem excesso de efeitos.
+
+
+========================================
+CENA 3 — O problema do LLM sozinho (5-6s)
+========================================
+Material: nenhum — cena conceitual, sem screenshot
+Titulo a inserir na edicao: Palpite nao e previsao.
+
+Crie uma cena conceitual de 5 a 6 segundos sobre o problema de perguntar diretamente a apenas um LLM quem vai vencer.
+
+Em uma interface abstrata escura, uma pergunta simples aparece como um bloco visual, sem textos pequenos ilegiveis. Em seguida, surgem respostas genericas e contraditorias representadas por etiquetas grandes e abstratas como "palpite", "opiniao" e "confianca alta". Essas respostas se desfazem e sao substituidas por tres blocos mais solidos: "dados", "evidencias" e "consenso".
+
+Nao usar nomes de selecoes. Nao usar logos. Nao usar imagens de jogadores. Nao usar estatisticas falsas. Nao criar ranking.
+
+Estetica profissional, analitica e cinematografica. Fundo escuro, verde-ciano discreto, movimentos limpos.
+
+Deixar area central limpa para titulo posterior.
+
+
+========================================
+CENA 4 — Arquitetura preditiva (6-7s)
+========================================
+Material: pictures/google_flow/cena_04_arquitetura.png
+Titulo a inserir na edicao: Elo + Poisson + ensemble + Monte Carlo
+
+Anime a imagem real da arquitetura do CopaMind 2026 sem alterar textos, caixas ou componentes.
+
+Mostre o fluxo de dados passando por ingestao, data lake local, base textual, modelos preditivos, simulacao Monte Carlo, MCP + mini agente e orquestracao de LLMs locais.
+
+Destaque visualmente, com linhas verde-ciano discretas, os blocos:
+Elo, Poisson/Dixon-Coles, ensemble, calibracao e Monte Carlo.
+
+Nao invente CatBoost, novos modelos, novos numeros ou novos componentes. Nao alterar o conteudo da imagem. Nao recriar o diagrama. Nao trocar textos.
+
+Visual tecnico, limpo, premium e confiavel. Movimento suave, profundidade discreta, interface legivel.
+
+
+========================================
+CENA 5 — RAG, MCP e mini agente (6-8s)
+========================================
+Material: pictures/google_flow/cena_04_arquitetura.png  (opcional — mesma da Cena 4)
+Titulo a inserir na edicao: Evidencias, ferramentas e contexto.
+
+Crie uma visualizacao conceitual de 6 a 8 segundos para mostrar RAG, MCP e mini agente no CopaMind 2026.
+
+No centro existe um agente digital abstrato, pequeno e discreto. Ao redor dele estao quatro fontes conectadas:
+- banco estruturado local;
+- base textual e documentos;
+- ferramentas MCP;
+- modelos preditivos.
+
+O agente consulta cada fonte e monta um pacote de evidencias organizado. A informacao deve parecer rastreavel, auditavel e local.
+
+Use icones abstratos sem marcas de empresas. Fundo escuro, detalhes verde-ciano, linhas conectadas, animacao sofisticada e limpa.
+
+Nao usar logos. Nao inventar telas de produto. Nao criar textos pequenos. Nao criar nomes de selecoes ou probabilidades.
+
+Deixar espaco para titulo adicionado posteriormente.
+
+
+========================================
+CENA 6 — LLMs locais em sequencia (8-12s)
+========================================
+Material: pictures/google_flow/cena_06_llms.png
+  (portal — cards de cada modelo LLM com pontos, JSON valido, latencia, tokens/s, Brier)
+Alternativa: pictures/video/04_bolao_ias.png
+Alternativa extra: pictures/google_flow/portal_benchmark.png
+  (portal — Benchmark: deepseek #1, ernie #2, gemma #3, score tecnico + operacao)
+Titulo a inserir na edicao: Analista -> Challenger -> Auditor -> Consenso
+
+Crie uma cena demonstrativa de 8 a 12 segundos usando o screenshot ou video real do chat do CopaMind 2026.
+
+A camera deve percorrer suavemente os boxes da interface nesta ordem:
+1. probabilidades/modelo estatistico;
+2. analista;
+3. segunda opiniao;
+4. auditor;
+5. consenso final.
+
+Cada box recebe um brilho discreto quando esta em foco. Deve ficar claro que os modelos sao executados em sequencia, nao todos ao mesmo tempo.
+
+Preserve integralmente a interface real. Nao alterar textos, numeros, equipes, probabilidades, evidencias, nomes dos modelos, cores ou layout.
+
+Nao recriar a tela. Nao inventar dados. Nao resumir textos. Apenas animar camera, foco, brilhos e transicoes.
+
+Visual profissional de demonstracao de software. Produto real, legivel e confiavel.
+
+
+========================================
+CENA 7 — Demonstracao real da interface (8-12s)
+========================================
+Material: gravacao real da tela (OBS Studio / Xbox Game Bar / gravador do Windows)
+Titulo a inserir na edicao: Tudo local. Tudo rastreavel.
+
+Edite este video real da interface do CopaMind 2026.
+
+Nao altere a interface, dados, textos, probabilidades, equipes, resultados ou evidencias.
+
+Fazer apenas:
+- estabilizacao visual;
+- cortes discretos;
+- zoom suave nos elementos importantes;
+- destaque da pergunta;
+- destaque das probabilidades;
+- destaque dos boxes dos modelos;
+- destaque da auditoria;
+- destaque do consenso final;
+- melhoria leve de contraste e nitidez;
+- transicoes discretas;
+- trilha tecnologica suave, se disponivel.
+
+O produto deve continuar claramente legivel e verdadeiro. Nao inventar nenhuma funcao ou resultado.
+
+Essa e a cena de prova: ela deve mostrar que o projeto realmente funciona.
+
+
+========================================
+CENA 8 — GitHub e encerramento (5-7s)
+========================================
+Material: pictures/google_flow/cena_08_github.png
+          pictures/copamind_2026_banner_dark.png  (opcional — abertura da cena)
+Titulo a inserir na edicao: Open source. Local. Auditavel.
+Chamada inferior a inserir na edicao: github.com/Phemassa/copamind-2026
+
+Crie um encerramento de 5 a 7 segundos para o CopaMind 2026 usando a imagem real do repositorio no GitHub como referencia.
+
+Comece com um detalhe do dashboard ou da marca CopaMind 2026 e faca uma transicao suave para a pagina real do repositorio no GitHub.
+
+Preserve a imagem da pagina, sem alterar nomes, numeros, textos, commits, estrutura ou qualquer informacao visivel.
+
+Finalize com fundo escuro, particulas sutis verde-ciano e espaco central limpo para a chamada final.
+
+Deixar tambem espaco inferior para inserir o endereco do repositorio na edicao.
+
+Nao criar link falso. Nao inventar estrelas, forks, releases ou numeros.
+
+
+========================================
+REFINAMENTO — se a cena sair errada
+========================================
+
+Se a cena sair bonita mas pouco fiel ao produto real:
+Refaca a cena preservando mais o material real enviado. A interface, textos, numeros, graficos e layout precisam permanecer inalterados. Reduza elementos inventados, remova textos pequenos gerados artificialmente e mantenha apenas movimento de camera, luzes discretas, foco e transicoes.
+
+Se a cena parecer propaganda de aposta:
+Refaca com tom mais tecnico, educacional e open source. Remova qualquer sensacao de aposta, premio, dinheiro, odds ou previsao garantida. O foco deve ser dados, modelos, evidencias, auditoria e reprodutibilidade.
+
+Se a cena ficar generica demais:
+Refaca dando mais protagonismo ao produto real CopaMind 2026. Mostre mais a interface enviada, o fluxo de dados e a ideia de execucao local. Reduza imagens genericas de estadio e aumente a sensacao de software real funcionando.

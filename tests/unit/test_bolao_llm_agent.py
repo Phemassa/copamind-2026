@@ -102,8 +102,11 @@ def test_model_consensus_uses_mode_before_rounding(seeded_repo: DuckDBRepository
 def test_model_consensus_preserves_penalty_prediction(seeded_repo: DuckDBRepository) -> None:
     match = seeded_repo.list_finished_matches()[-1]
     pick = LLMMatchPick.model_validate(json.loads(_pick_json()))
+    # Placar empatado → pênaltis são coerentes e devem ser preservados
     pick = pick.model_copy(
         update={
+            "predicted_home_goals": 1,
+            "predicted_away_goals": 1,
             "goes_to_extra_time": True,
             "goes_to_penalties": True,
             "penalty_winner": "away",
@@ -116,6 +119,29 @@ def test_model_consensus_preserves_penalty_prediction(seeded_repo: DuckDBReposit
     assert consensus.goes_to_extra_time is True
     assert consensus.goes_to_penalties is True
     assert consensus.penalty_winner == "away"
+
+
+def test_normalized_pick_strips_penalties_when_score_not_drawn(seeded_repo: DuckDBRepository) -> None:
+    """Pênaltis declarados com placar decidido (2-1) devem ser removidos na normalização."""
+    match = seeded_repo.list_finished_matches()[-1]
+    pick = LLMMatchPick.model_validate(json.loads(_pick_json()))
+    # Placar 2-1 mas LLM erroneamente marcou pênaltis
+    pick = pick.model_copy(
+        update={
+            "predicted_home_goals": 2,
+            "predicted_away_goals": 1,
+            "goes_to_extra_time": True,
+            "goes_to_penalties": True,
+            "penalty_winner": "away",
+        }
+    )
+
+    consensus = build_model_consensus_pick(match, [pick])
+
+    assert consensus is not None
+    assert consensus.goes_to_extra_time is False
+    assert consensus.goes_to_penalties is False
+    assert consensus.penalty_winner == "none"
 
 
 def test_run_model_samples_adds_previous_answers(seeded_repo: DuckDBRepository) -> None:

@@ -22,6 +22,7 @@ from copamind.pool.llm_agent import (
     LLMModelConsensus,
     LLMRunResult,
     build_combo_pick,
+    build_match_context,
     build_model_consensus_from_runs,
     classify_local_model,
 )
@@ -32,24 +33,42 @@ from copamind.pool.scoring import bolao_points, brier_score, outcome
 def main() -> None:
     args = _parse_args()
     client = LMStudioClient(timeout=args.timeout)
-    with DuckDBRepository(get_settings().duckdb_path) as repo:
+    db_path = get_settings().duckdb_path
+
+    # ── Fase 1: leitura e configuracao (conexao rapida, fecha antes do loop LLM) ──
+    with DuckDBRepository(db_path) as repo:
         repo.create_schema()
+        single_model_id = args.model[0] if len(args.model) == 1 else None
         matches = _phase_matches(
             repo,
             args.phase,
             finished_only=args.finished_only,
-            model_id=args.model[0] if len(args.model) == 1 else None,
+            model_id=single_model_id,
         )
-        if not matches:
-            _write_failed_progress(args.batch_id, args.phase, "Nenhum jogo encontrado para a fase.")
-            raise SystemExit(f"Nenhum jogo encontrado para phase={args.phase}.")
+
+        # Modelos precisam ser resolvidos antes de calcular o remaining projetado.
         models = _selected_models(client, include_heavy=args.include_heavy, only=args.model)
         if args.limit:
             models = models[: args.limit]
         if not models:
             _write_failed_progress(args.batch_id, args.phase, "Nenhum modelo participante encontrado no LM Studio.")
             raise SystemExit("Nenhum modelo participante encontrado no LM Studio.")
-        remaining = _remaining_match_models(repo, matches, models)
+
+        if matches:
+            remaining = _remaining_match_models(repo, matches, models)
+        elif args.phase in _PROJECTED_PHASES:
+            # Sem partidas oficiais: cada modelo projeta seu proprio bracket
+            # com base nas predicoes da fase anterior.
+            remaining = _build_projected_remaining(repo, args.phase, models)
+            matches = [match for match, _ in remaining]  # para logs e dry-run
+        else:
+            _write_failed_progress(args.batch_id, args.phase, "Nenhum jogo encontrado para a fase.")
+            raise SystemExit(f"Nenhum jogo encontrado para phase={args.phase}.")
+
+        if not matches and not args.dry_run:
+            _write_failed_progress(args.batch_id, args.phase, "Nenhum jogo encontrado para a fase.")
+            raise SystemExit(f"Nenhum jogo encontrado para phase={args.phase}.")
+
         pending_models = _pending_models(models, remaining)
         if args.dry_run:
             total_calls = sum(len(model_ids) for _match, model_ids in remaining) * args.samples
@@ -121,63 +140,70 @@ def main() -> None:
         )
         rounds_by_match = _create_match_rounds(repo, remaining, batch_id, args.phase, args.samples)
         match_indexes = {match.match_id: index for index, (match, _models) in enumerate(remaining, 1)}
-        failures = 0
-        try:
-            for model_index, (model_id, model_matches) in enumerate(_model_first_groups(pending_models, remaining), 1):
-                print(f"\n[{model_index}/{len(pending_models)}] {model_id} | {len(model_matches)} jogos", flush=True)
-                try:
-                    for match in model_matches:
-                        match_index = match_indexes[match.match_id]
-                        print(
-                            f"  [{match_index}/{len(remaining)}] {match.match_id} "
-                            f"{match.home_team_id} x {match.away_team_id}",
-                            end="",
-                            flush=True,
+    # ── conexao fechada aqui; LLM loop abaixo nao segura o lock do DuckDB ──
+
+    failures = 0
+    status = "failed"
+    # ── Fase 2: loop LLM (conexoes curtas, liberadas durante a inferencia) ──
+    try:
+        for model_index, (model_id, model_matches) in enumerate(_model_first_groups(pending_models, remaining), 1):
+            print(f"\n[{model_index}/{len(pending_models)}] {model_id} | {len(model_matches)} jogos", flush=True)
+            try:
+                for match in model_matches:
+                    match_index = match_indexes[match.match_id]
+                    print(
+                        f"  [{match_index}/{len(remaining)}] {match.match_id} "
+                        f"{match.home_team_id} x {match.away_team_id}",
+                        end="",
+                        flush=True,
+                    )
+                    _record_result_if_finished(db_path, match)
+                    try:
+                        _run_model_match(
+                            db_path,
+                            client,
+                            match,
+                            model_id,
+                            round_id=rounds_by_match[match.match_id],
+                            samples=args.samples,
+                            model_index=model_index,
+                            total_models=len(pending_models),
+                            match_index=match_index,
+                            total_matches=len(remaining),
+                            progress=progress,
                         )
-                        _record_result_if_finished(repo, match)
-                        try:
-                            _run_model_match(
-                                repo,
-                                client,
-                                match,
-                                model_id,
-                                round_id=rounds_by_match[match.match_id],
-                                samples=args.samples,
-                                model_index=model_index,
-                                total_models=len(pending_models),
-                                match_index=match_index,
-                                total_matches=len(remaining),
-                                progress=progress,
-                            )
-                        except Exception as exc:  # pragma: no cover - runner resilience
-                            failures += 1
-                            _update_progress(
-                                progress,
-                                status="running",
-                                message=f"Erro em {model_id} / {match.match_id}: {exc}",
-                                current_match_index=match_index,
-                                current_match_label=_match_label(match),
-                                current_model_index=model_index,
-                                current_model_id=model_id,
-                            )
-                            print(f" -> ERRO {exc}", flush=True)
-                finally:
-                    with suppress(LLMError):
-                        client.unload(model_id)
-            _finalize_match_rounds(repo, remaining, rounds_by_match)
-            status = "completed" if failures == 0 else "completed_with_errors"
-        except KeyboardInterrupt:
-            status = "interrupted"
-            print("\nInterrompido pelo usuario; progresso salvo.", flush=True)
+                    except Exception as exc:  # pragma: no cover - runner resilience
+                        failures += 1
+                        _update_progress(
+                            progress,
+                            status="running",
+                            message=f"Erro em {model_id} / {match.match_id}: {exc}",
+                            current_match_index=match_index,
+                            current_match_label=_match_label(match),
+                            current_model_index=model_index,
+                            current_model_id=model_id,
+                        )
+                        print(f" -> ERRO {exc}", flush=True)
+            finally:
+                with suppress(LLMError):
+                    client.unload(model_id)
+        status = "completed" if failures == 0 else "completed_with_errors"
+    except KeyboardInterrupt:
+        status = "interrupted"
+        print("\nInterrompido pelo usuario; progresso salvo.", flush=True)
+
+    # ── Fase 3: finalizacao (conexao curta) ───────────────────────────────
+    with DuckDBRepository(db_path) as repo:
+        _finalize_match_rounds(repo, remaining, rounds_by_match)
         repo.update_llm_phase_batch_status(batch_id, status)
-        _update_progress(
-            progress,
-            status=status,
-            message=f"Batch finalizado com status={status}.",
-            completed_calls=progress["completed_calls"],
-        )
-        print(f"\nBatch {batch_id} finalizado com status={status}.", flush=True)
-        _print_batch_score(repo, batch_id)
+    _update_progress(
+        progress,
+        status=status,
+        message=f"Batch finalizado com status={status}.",
+        completed_calls=progress["completed_calls"],
+    )
+    print(f"\nBatch {batch_id} finalizado com status={status}.", flush=True)
+    _print_batch_score(db_path, batch_id)
     if args.export_portal:
         _export_portal()
 
@@ -198,6 +224,40 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--no-export", dest="export_portal", action="store_false")
     parser.set_defaults(include_heavy=True, finished_only=False, export_portal=True)
     return parser.parse_args()
+
+
+_PROJECTED_PHASES = frozenset({"semifinal", "third_place", "final"})
+
+
+def _build_projected_remaining(
+    repo: DuckDBRepository,
+    phase: str,
+    models: list[str],
+) -> list[tuple[Match, list[str]]]:
+    """Para fases sem partidas oficiais: cada modelo projeta seu proprio bracket.
+
+    Os match_ids projetados incluem o model_id
+    (ex: ``projected:semifinal:qwen_qwen3.5-9b:0``), portanto cada entrada
+    do remaining tem exatamente um modelo associado.
+    """
+    completed: set[tuple[str, str]] = set()
+    for row in repo.list_llm_model_runs():
+        m_id = str(row.get("match_id") or "")
+        mdl = str(row.get("model_id") or "")
+        if m_id and mdl:
+            completed.add((m_id, mdl))
+    for prediction in repo.list_pool_predictions():
+        mdl = _model_id_from_predictor(prediction.predictor_name)
+        if mdl:
+            completed.add((str(prediction.match_id), mdl))
+
+    remaining: list[tuple[Match, list[str]]] = []
+    for model_id in models:
+        projected = _projected_phase_matches(repo, phase, model_id)
+        for match in projected:
+            if (str(match.match_id), model_id) not in completed:
+                remaining.append((match, [model_id]))
+    return remaining
 
 
 def _phase_matches(
@@ -494,7 +554,7 @@ def _create_match_rounds(
 
 
 def _run_model_match(
-    repo: DuckDBRepository,
+    db_path: str,
     client: LMStudioClient,
     match: Match,
     model_id: str,
@@ -507,6 +567,10 @@ def _run_model_match(
     total_matches: int,
     progress: dict[str, object],
 ) -> None:
+    # Leitura do contexto: conexao curta antes da inferencia LLM ──────────────
+    with DuckDBRepository(db_path) as repo:
+        pre_context = build_match_context(repo, match)
+
     agent = BolaoLLMAgent(client, model_id, temperature=0.2)
     runs: list[LLMRunResult] = []
     valid_picks: list[LLMMatchPick] = []
@@ -524,16 +588,20 @@ def _run_model_match(
             current_sample_index=sample_index,
             total_samples=samples,
         )
+        # DB fechado durante a chamada LLM (pode levar minutos) ──────────────
         result = agent.run(
-            repo,
+            None,
             match,
+            pre_context=pre_context,
             sample_index=sample_index,
             previous_picks=valid_picks,
         )
         runs.append(result)
         if result.pick is not None:
             valid_picks.append(result.pick)
-        _save_llm_run(repo, match, round_id, result, sample_index)
+        # Escrita rapida: abre e fecha conexao imediatamente ─────────────────
+        with DuckDBRepository(db_path) as repo:
+            _save_llm_run(repo, match, round_id, result, sample_index)
         progress["completed_calls"] = int(progress["completed_calls"]) + 1
         _update_progress(
             progress,
@@ -555,18 +623,19 @@ def _run_model_match(
         runs,
         total_samples=samples,
     )
-    if consensus is None:
-        _save_invalid_payload(repo, match, round_id, model_id, runs)
-        print(" -> invalido", flush=True)
-        return
-    _save_consensus(repo, match, consensus)
-    _lock_pick(
-        repo,
-        match,
-        consensus.predictor_name,
-        consensus.pick,
-        _consensus_payload(consensus),
-    )
+    with DuckDBRepository(db_path) as repo:
+        if consensus is None:
+            _save_invalid_payload(repo, match, round_id, model_id, runs)
+            print(" -> invalido", flush=True)
+            return
+        _save_consensus(repo, match, consensus)
+        _lock_pick(
+            repo,
+            match,
+            consensus.predictor_name,
+            consensus.pick,
+            _consensus_payload(consensus),
+        )
     pick = consensus.pick
     print(
         f" -> {pick.predicted_home_goals}-{pick.predicted_away_goals} "
@@ -636,17 +705,18 @@ def _save_combo_for_round(
         )
 
 
-def _record_result_if_finished(repo: DuckDBRepository, match: Match) -> None:
+def _record_result_if_finished(db_path: str, match: Match) -> None:
     if str(match.status) != "finished" or match.home_score is None or match.away_score is None:
         return
-    repo.upsert_pool_result(
-        PoolResult(
-            match_id=match.match_id,
-            home_score=match.home_score,
-            away_score=match.away_score,
-            recorded_at=datetime.now(UTC),
+    with DuckDBRepository(db_path) as repo:
+        repo.upsert_pool_result(
+            PoolResult(
+                match_id=match.match_id,
+                home_score=match.home_score,
+                away_score=match.away_score,
+                recorded_at=datetime.now(UTC),
+            )
         )
-    )
 
 
 def _lock_pick(
@@ -784,41 +854,42 @@ def _consensus_payload(consensus: LLMModelConsensus) -> dict[str, object]:
     }
 
 
-def _print_batch_score(repo: DuckDBRepository, batch_id: str) -> None:
-    rounds = repo.list_llm_pool_rounds(batch_id=batch_id)
-    round_ids = {row["round_id"] for row in rounds}
-    results = {result.match_id: result for result in repo.list_pool_results()}
-    rows = []
-    for prediction in repo.list_pool_predictions():
-        if not _prediction_in_rounds(prediction.predictor_name, round_ids):
-            continue
-        result = results.get(prediction.match_id)
-        if result is None:
-            continue
-        actual = outcome(result.home_score, result.away_score)
-        predicted = outcome(prediction.predicted_home_goals, prediction.predicted_away_goals)
-        rows.append(
-            {
-                "predictor": prediction.predictor_name,
-                "points": bolao_points(
-                    prediction.predicted_home_goals,
-                    prediction.predicted_away_goals,
-                    result.home_score,
-                    result.away_score,
-                ),
-                "winner_hit": predicted == actual,
-                "exact": (
-                    prediction.predicted_home_goals == result.home_score
-                    and prediction.predicted_away_goals == result.away_score
-                ),
-                "brier": brier_score(
-                    prediction.prob_home,
-                    prediction.prob_draw,
-                    prediction.prob_away,
-                    actual,
-                ),
-            }
-        )
+def _print_batch_score(db_path: str, batch_id: str) -> None:
+    with DuckDBRepository(db_path) as repo:
+        rounds = repo.list_llm_pool_rounds(batch_id=batch_id)
+        round_ids = {row["round_id"] for row in rounds}
+        results = {result.match_id: result for result in repo.list_pool_results()}
+        rows = []
+        for prediction in repo.list_pool_predictions():
+            if not _prediction_in_rounds(prediction.predictor_name, round_ids):
+                continue
+            result = results.get(prediction.match_id)
+            if result is None:
+                continue
+            actual = outcome(result.home_score, result.away_score)
+            predicted = outcome(prediction.predicted_home_goals, prediction.predicted_away_goals)
+            rows.append(
+                {
+                    "predictor": prediction.predictor_name,
+                    "points": bolao_points(
+                        prediction.predicted_home_goals,
+                        prediction.predicted_away_goals,
+                        result.home_score,
+                        result.away_score,
+                    ),
+                    "winner_hit": predicted == actual,
+                    "exact": (
+                        prediction.predicted_home_goals == result.home_score
+                        and prediction.predicted_away_goals == result.away_score
+                    ),
+                    "brier": brier_score(
+                        prediction.prob_home,
+                        prediction.prob_draw,
+                        prediction.prob_away,
+                        actual,
+                    ),
+                }
+            )
     by_predictor: dict[str, list[dict[str, object]]] = {}
     for row in rows:
         by_predictor.setdefault(str(row["predictor"]), []).append(row)

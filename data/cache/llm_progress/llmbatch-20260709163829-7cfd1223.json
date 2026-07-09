@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709163829-7cfd1223",
+  "phase": "quarterfinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 4,
+  "total_calls": 4,
+  "updated_at": "2026-07-09T16:48:30.075089+00:00",
+  "current_match_index": 4,
+  "total_matches": 4,
+  "current_match_label": "Argentina x Suíça",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "allenai/olmo-3-32b-think",
+  "current_sample_index": 1,
+  "elapsed_seconds": 597.5,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T16:38:32.516816+00:00"
+}

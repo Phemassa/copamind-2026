@@ -1,0 +1,21 @@
+{
+  "batch_id": "llmbatch-20260709185510-8edbddc7",
+  "phase": "semifinal",
+  "status": "completed",
+  "total_samples": 1,
+  "message": "Batch finalizado com status=completed.",
+  "percent": 100.0,
+  "completed_calls": 2,
+  "total_calls": 2,
+  "updated_at": "2026-07-09T18:55:37.162655+00:00",
+  "current_match_index": 2,
+  "total_matches": 2,
+  "current_match_label": "Inglaterra x Argentina",
+  "current_model_index": 1,
+  "total_models": 1,
+  "current_model_id": "ibm/granite-3.2-8b",
+  "current_sample_index": 1,
+  "elapsed_seconds": 24.1,
+  "eta_seconds": null,
+  "started_at": "2026-07-09T18:55:13.015065+00:00"
+}
