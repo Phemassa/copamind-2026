@@ -48,7 +48,8 @@ data/snapshots/
 *.duckdb
 *.duckdb.wal
 *.parquet
-
+# Cache de execução (transiente)
+data/cache/
 # Modelos / artefatos de ML
 mlruns/
 artifacts/

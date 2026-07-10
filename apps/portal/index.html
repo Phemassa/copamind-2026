@@ -29,6 +29,7 @@
       <button type="button" data-view="bolao">Bolao das LLMs</button>
       <button type="button" data-view="ranking">Ranking das LLMs</button>
       <button type="button" data-view="benchmark">Benchmark LLMs</button>
+      <button type="button" data-view="chat">Pergunte as IAs</button>
       <button type="button" data-view="linkedin">Resumo</button>
       <button type="button" data-view="tabela">Tabela e jogos</button>
       <button type="button" data-view="selecoes">Dashboard das selecoes</button>
@@ -113,9 +114,12 @@
       <div class="ranking-layout">
         <div class="ranking-left">
           <section class="ranking-panel">
-            <div class="section-title">
-              <p>Score geral</p>
-              <h3>Classificacao das IAs</h3>
+            <div class="table-export-bar">
+              <div class="section-title">
+                <p>Score geral</p>
+                <h3>Classificacao das IAs</h3>
+              </div>
+              <button id="btn-export-ranking" class="btn-export-table" type="button">📸 Exportar imagem</button>
             </div>
             <div id="ranking-table"></div>
           </section>
@@ -157,9 +161,12 @@
       <div id="benchmark-summary" class="benchmark-summary"></div>
       <div class="benchmark-layout">
         <section class="benchmark-panel">
-          <div class="section-title">
-            <p>Ranking dos modelos</p>
-            <h3>Score tecnico + operacao</h3>
+          <div class="table-export-bar">
+            <div class="section-title">
+              <p>Ranking dos modelos</p>
+              <h3>Score tecnico + operacao</h3>
+            </div>
+            <button id="btn-export-benchmark" class="btn-export-table" type="button">📸 Exportar imagem</button>
           </div>
           <div class="benchmark-table-wrapper"><div id="benchmark-table"></div></div>
         </section>
@@ -189,7 +196,52 @@
         <div id="linkedin-phase-tabs" class="linkedin-phase-tabs"></div>
       </div>
       <div id="linkedin-summary" class="linkedin-summary"></div>
+      <div id="linkedin-team-ranking"></div>
       <div id="linkedin-capture-grid" class="linkedin-capture-grid"></div>
+    </section>
+
+    <section class="chat-section view-section is-hidden" data-section="chat">
+      <div class="section-title">
+        <p>Conhecimento CopaMind</p>
+        <h3>Pergunte as IAs</h3>
+      </div>
+      <div class="chat-layout">
+        <aside class="chat-controls">
+          <div class="chat-control-head">
+            <strong>Modelos que responderao</strong>
+            <div>
+              <button id="chat-select-all" type="button">Todos</button>
+              <button id="chat-select-none" type="button">Nenhum</button>
+            </div>
+          </div>
+          <div id="chat-models" class="chat-models"><span>Carregando modelos...</span></div>
+          <label class="chat-memory-toggle">
+            <input id="chat-use-memory" type="checkbox" checked />
+            <span>Usar memoria nesta pergunta</span>
+          </label>
+          <button id="chat-reset" class="chat-reset" type="button">Resetar historico</button>
+        </aside>
+        <div class="chat-main">
+          <div class="chat-news-box">
+            <label for="chat-news-url">URL fonte (opcional)</label>
+            <div class="extract-url-row">
+              <input id="chat-news-url" type="url" placeholder="https://..." />
+              <button id="chat-extract-news" type="button">Extrair de URL</button>
+            </div>
+            <input id="chat-news-title" type="text" maxlength="200" placeholder="Titulo extraido" />
+            <textarea id="chat-news-summary" rows="3" maxlength="2000" placeholder="Resumo editavel da noticia"></textarea>
+            <p id="chat-news-status"></p>
+          </div>
+          <div id="chat-timeline" class="chat-timeline"></div>
+          <form id="chat-form" class="chat-form">
+            <textarea id="chat-question" rows="4" maxlength="4000" placeholder="Pergunte sobre selecoes, jogadores, partidas, previsoes ou resultados reais..."></textarea>
+            <div>
+              <span id="chat-status">API local e LM Studio necessarios.</span>
+              <button id="chat-send" type="submit" disabled>Enviar para as IAs</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </section>
 
     <section class="tournament-section view-section is-hidden" data-section="tabela">

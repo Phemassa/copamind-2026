@@ -219,6 +219,8 @@ class LMStudioClient:
             "model": model_id,
             "messages": messages,
             "temperature": temperature,
+            "max_tokens": 3000,
+            "repeat_penalty": 1.1,
         }
         payloads: list[tuple[str, dict[str, Any]]] = []
         if response_schema is not None:

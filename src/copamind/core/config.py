@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     model_analyst_id: str = ""
     model_challenger_id: str = ""
     model_auditor_id: str = ""
+    chat_synthesizer_model_id: str = ""
     embedding_model_id: str = ""
 
     # i18n

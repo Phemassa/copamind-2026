@@ -157,7 +157,10 @@ def main() -> None:
                         end="",
                         flush=True,
                     )
-                    _record_result_if_finished(db_path, match)
+                    try:
+                        _record_result_if_finished(db_path, match)
+                    except Exception as exc:  # pragma: no cover
+                        print(f" -> aviso: _record_result_if_finished falhou: {exc}", flush=True)
                     try:
                         _run_model_match(
                             db_path,

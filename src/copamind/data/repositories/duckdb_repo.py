@@ -238,6 +238,52 @@ CREATE TABLE IF NOT EXISTS team_context_notes (
     created_at TIMESTAMP NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE
 );
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    session_id VARCHAR PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    memory_summary VARCHAR NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    message_id VARCHAR PRIMARY KEY,
+    session_id VARCHAR NOT NULL,
+    batch_id VARCHAR,
+    role VARCHAR NOT NULL,
+    model_id VARCHAR,
+    content VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    latency_ms DOUBLE,
+    metadata_json VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_batches (
+    batch_id VARCHAR PRIMARY KEY,
+    session_id VARCHAR NOT NULL,
+    question_message_id VARCHAR NOT NULL,
+    selected_models_json VARCHAR NOT NULL,
+    use_memory BOOLEAN NOT NULL,
+    status VARCHAR NOT NULL,
+    current_model_id VARCHAR,
+    completed_models INTEGER NOT NULL DEFAULT 0,
+    error VARCHAR,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_news (
+    news_id VARCHAR PRIMARY KEY,
+    session_id VARCHAR NOT NULL,
+    source_url VARCHAR NOT NULL,
+    source VARCHAR NOT NULL,
+    title VARCHAR NOT NULL,
+    summary VARCHAR NOT NULL,
+    published_at VARCHAR,
+    entities_json VARCHAR NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
 """
 
 _TEAM_COLUMNS = (
@@ -361,6 +407,11 @@ class DuckDBRepository:
         """Cria as tabelas de forma idempotente."""
         self._con.execute(_SCHEMA_SQL)
         self._ensure_schema_migrations()
+
+    @property
+    def path(self) -> str:
+        """Caminho usado pela conexao (util para workers com conexao propria)."""
+        return self._path
 
     def _ensure_schema_migrations(self) -> None:
         """Aplica pequenas migracoes idempotentes em bancos existentes."""
@@ -1395,6 +1446,137 @@ class DuckDBRepository:
         )
         return [PlayerRating(**row) for row in _rows_to_dicts(cursor)]
 
+    # -- Chat persistente ----------------------------------------------------
+    def create_chat_session(self, session_id: str, created_at: datetime) -> None:
+        self._con.execute(
+            "INSERT INTO chat_sessions (session_id, created_at, updated_at, memory_summary) "
+            "VALUES (?, ?, ?, '')",
+            [session_id, created_at, created_at],
+        )
+
+    def get_chat_session(self, session_id: str) -> dict[str, Any] | None:
+        cursor = self._con.execute(
+            "SELECT session_id, created_at, updated_at, memory_summary FROM chat_sessions "
+            "WHERE session_id = ?",
+            [session_id],
+        )
+        rows = _rows_to_dicts(cursor)
+        return rows[0] if rows else None
+
+    def update_chat_memory(self, session_id: str, summary: str, updated_at: datetime) -> None:
+        self._con.execute(
+            "UPDATE chat_sessions SET memory_summary = ?, updated_at = ? WHERE session_id = ?",
+            [summary, updated_at, session_id],
+        )
+
+    def insert_chat_message(
+        self,
+        *,
+        message_id: str,
+        session_id: str,
+        batch_id: str | None,
+        role: str,
+        content: str,
+        status: str,
+        created_at: datetime,
+        model_id: str | None = None,
+        latency_ms: float | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self._con.execute(
+            "INSERT INTO chat_messages (message_id, session_id, batch_id, role, model_id, "
+            "content, status, latency_ms, metadata_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [message_id, session_id, batch_id, role, model_id, content, status, latency_ms,
+             json.dumps(metadata or {}, ensure_ascii=False), created_at],
+        )
+
+    def list_chat_messages(self, session_id: str) -> list[dict[str, Any]]:
+        rows = _rows_to_dicts(self._con.execute(
+            "SELECT message_id, session_id, batch_id, role, model_id, content, status, "
+            "latency_ms, metadata_json, created_at FROM chat_messages "
+            "WHERE session_id = ? ORDER BY created_at, message_id", [session_id]
+        ))
+        for row in rows:
+            row["metadata"] = json.loads(row.pop("metadata_json") or "{}")
+        return rows
+
+    def insert_chat_batch(
+        self, batch_id: str, session_id: str, question_message_id: str,
+        selected_models: list[str], use_memory: bool, created_at: datetime,
+    ) -> None:
+        self._con.execute(
+            "INSERT INTO chat_batches (batch_id, session_id, question_message_id, "
+            "selected_models_json, use_memory, status, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)",
+            [batch_id, session_id, question_message_id,
+             json.dumps(selected_models, ensure_ascii=False), use_memory, created_at, created_at],
+        )
+
+    def update_chat_batch(self, batch_id: str, *, status: str, updated_at: datetime,
+                          current_model_id: str | None = None, completed_models: int = 0,
+                          error: str | None = None) -> None:
+        self._con.execute(
+            "UPDATE chat_batches SET status = ?, current_model_id = ?, completed_models = ?, "
+            "error = ?, updated_at = ? WHERE batch_id = ?",
+            [status, current_model_id, completed_models, error, updated_at, batch_id],
+        )
+
+    def get_chat_batch(self, batch_id: str) -> dict[str, Any] | None:
+        rows = _rows_to_dicts(self._con.execute(
+            "SELECT batch_id, session_id, question_message_id, selected_models_json, use_memory, "
+            "status, current_model_id, completed_models, error, created_at, updated_at "
+            "FROM chat_batches WHERE batch_id = ?", [batch_id]
+        ))
+        if not rows:
+            return None
+        rows[0]["selected_models"] = json.loads(rows[0].pop("selected_models_json"))
+        return rows[0]
+
+    def latest_chat_batch(self, session_id: str) -> dict[str, Any] | None:
+        row = self._con.execute(
+            "SELECT batch_id FROM chat_batches WHERE session_id = ? "
+            "ORDER BY created_at DESC LIMIT 1",
+            [session_id],
+        ).fetchone()
+        return self.get_chat_batch(str(row[0])) if row else None
+
+    def insert_chat_news(self, *, news_id: str, session_id: str, source_url: str,
+                         source: str, title: str, summary: str, published_at: str | None,
+                         entities: list[str], created_at: datetime) -> None:
+        self._con.execute(
+            "INSERT INTO chat_news (news_id, session_id, source_url, source, title, summary, "
+            "published_at, entities_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [news_id, session_id, source_url, source, title, summary, published_at,
+             json.dumps(entities, ensure_ascii=False), created_at],
+        )
+
+    def list_chat_news(self, session_id: str) -> list[dict[str, Any]]:
+        rows = _rows_to_dicts(self._con.execute(
+            "SELECT news_id, session_id, source_url, source, title, summary, published_at, "
+            "entities_json, created_at FROM chat_news WHERE session_id = ? ORDER BY created_at",
+            [session_id],
+        ))
+        for row in rows:
+            row["entities"] = json.loads(row.pop("entities_json") or "[]")
+        return rows
+
+    def update_chat_news(self, news_id: str, session_id: str, title: str, summary: str) -> None:
+        self._con.execute(
+            "UPDATE chat_news SET title = ?, summary = ? WHERE news_id = ? AND session_id = ?",
+            [title, summary, news_id, session_id],
+        )
+
+    def delete_chat_session(self, session_id: str) -> int:
+        exists_row = self._con.execute(
+            "SELECT count(*) FROM chat_sessions WHERE session_id = ?", [session_id]
+        ).fetchone()
+        exists = int(exists_row[0]) if exists_row else 0
+        for table in ("chat_messages", "chat_batches", "chat_news"):
+            self._con.execute(f"DELETE FROM {table} WHERE session_id = ?", [session_id])
+        self._con.execute("DELETE FROM chat_sessions WHERE session_id = ?", [session_id])
+        return exists
+
     def count(self, table: str) -> int:
         """Conta linhas de uma tabela conhecida."""
         known = {
@@ -1403,6 +1585,7 @@ class DuckDBRepository:
             "match_feature_snapshots",
             "llm_pool_rounds", "llm_phase_batches", "llm_model_runs", "llm_model_consensus",
             "user_reports", "player_ratings",
+            "chat_sessions", "chat_messages", "chat_batches", "chat_news",
         }
         if table not in known:
             raise ValueError(f"tabela desconhecida: {table}")

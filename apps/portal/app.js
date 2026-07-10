@@ -30,18 +30,35 @@ let activeTournamentStage = "group";
 const runningRuns = new Map();
 const recoveredProgressBatches = new Set();
 let sequentialBatch = null;
+let chatSessionId = localStorage.getItem("copamind_chat_session") || null;
+let chatModels = [];
+let chatSelectedModels = new Set();
+let chatNews = null;
+let chatPollTimer = null;
 
 document.getElementById("refresh-data").addEventListener("click", () => loadData(true));
+document.getElementById("btn-refresh-scores")?.addEventListener("click", triggerRefreshScores);
 document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
+document.getElementById("btn-export-ranking")?.addEventListener("click", exportRankingImage);
+document.getElementById("btn-export-benchmark")?.addEventListener("click", exportBenchmarkImage);
 document.querySelectorAll("[data-export-static]").forEach((button) => {
   button.addEventListener("click", exportStaticSite);
 });
 document.getElementById("context-note-form")?.addEventListener("submit", saveContextNote);
 document.getElementById("btn-extract-url")?.addEventListener("click", extractFromUrl);
+document.getElementById("chat-form")?.addEventListener("submit", sendChatQuestion);
+document.getElementById("chat-extract-news")?.addEventListener("click", extractChatNews);
+document.getElementById("chat-reset")?.addEventListener("click", resetChatSession);
+document.getElementById("chat-select-all")?.addEventListener("click", () => selectChatModels(true));
+document.getElementById("chat-select-none")?.addEventListener("click", () => selectChatModels(false));
+document.getElementById("chat-question")?.addEventListener("input", updateChatSendState);
 document.querySelectorAll(".main-nav button").forEach((button) => {
   button.addEventListener("click", () => {
     activeView = button.dataset.view || "bolao";
     renderMainNav();
+    if (activeView === "chat" && (!chatSessionId || !chatModels.length)) {
+      initializeChat().catch((error) => setChatStatus(`API do chat offline: ${error.message}`));
+    }
   });
 });
 document.querySelectorAll("[data-home-view]").forEach((button) => {
@@ -52,6 +69,7 @@ document.querySelectorAll("[data-home-view]").forEach((button) => {
   });
 });
 loadData();
+initializeChat().catch(() => setChatStatus("API do chat offline."));
 
 async function loadData(cacheBust = false) {
   if (window.COPAMIND_EMBEDDED_DATA) {
@@ -78,6 +96,256 @@ async function loadData(cacheBust = false) {
   reconcileRunningRuns();
   renderAll();
   recoverLatestBulkProgress().catch(() => {});
+}
+
+// -- Pergunte as IAs -------------------------------------------------------
+async function chatFetch(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, options);
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try { detail = (await response.json()).detail || detail; } catch (_err) { /* noop */ }
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return response.json();
+}
+
+async function initializeChat() {
+  const modelPayload = await chatFetch("/chat/models");
+  chatModels = modelPayload.models || [];
+  const availableIds = chatModels.filter((item) => item.available).map((item) => item.model_id);
+  if (!chatSelectedModels.size) {
+    const recommended = chatModels
+      .filter((item) => item.available && item.group_id === "fast")
+      .map((item) => item.model_id);
+    chatSelectedModels = new Set(recommended.length ? recommended : availableIds);
+  }
+  renderChatModels();
+  let payload = null;
+  if (chatSessionId) {
+    try { payload = await chatFetch(`/chat/sessions/${encodeURIComponent(chatSessionId)}`); }
+    catch (_err) { chatSessionId = null; }
+  }
+  if (!chatSessionId) {
+    payload = await chatFetch("/chat/sessions", { method: "POST" });
+    chatSessionId = payload.session.session_id;
+    localStorage.setItem("copamind_chat_session", chatSessionId);
+  }
+  hydrateChat(payload);
+}
+
+function hydrateChat(payload) {
+  renderChatTimeline(payload?.messages || []);
+  const news = payload?.news || [];
+  if (news.length) {
+    chatNews = news[news.length - 1];
+    document.getElementById("chat-news-url").value = chatNews.source_url || "";
+    document.getElementById("chat-news-title").value = chatNews.title || "";
+    document.getElementById("chat-news-summary").value = chatNews.summary || "";
+  }
+  const batch = payload?.active_batch;
+  if (batch && !["completed", "completed_with_errors", "failed"].includes(batch.status)) {
+    pollChatBatch(batch.batch_id);
+  } else {
+    setChatStatus("Pronto para perguntar.");
+  }
+  updateChatSendState();
+}
+
+function renderChatModels() {
+  const container = document.getElementById("chat-models");
+  if (!container) return;
+  const groups = [...new Map(
+    chatModels
+      .slice()
+      .sort((a, b) => (a.group_order || 99) - (b.group_order || 99))
+      .map((item) => [item.group_id || "other", {
+        id: item.group_id || "other", label: item.group_label || "Outros",
+        order: item.group_order || 99,
+      }])
+  ).values()];
+  container.innerHTML = chatModels.length ? groups.map((group) => {
+    const models = chatModels.filter((item) => (item.group_id || "other") === group.id);
+    const selectedCount = models.filter((item) => chatSelectedModels.has(item.model_id)).length;
+    return `<section class="chat-model-group group-${escapeAttr(group.id)}">
+      <div class="chat-model-group-head">
+        <strong>${escapeHtml(group.label)}</strong><span>${selectedCount}/${models.length}</span>
+        <button type="button" data-chat-group-select="${escapeAttr(group.id)}">Selecionar</button>
+        <button type="button" data-chat-group-clear="${escapeAttr(group.id)}">Limpar</button>
+      </div>
+      ${models.map((item) => `
+        <label class="chat-model-option ${item.available ? "" : "offline"}">
+          <input type="checkbox" data-chat-model="${escapeAttr(item.model_id)}"
+            ${chatSelectedModels.has(item.model_id) ? "checked" : ""} ${item.available ? "" : "disabled"} />
+          <span><strong>${escapeHtml(item.model_id)}</strong><small>${item.available ? "online" : "offline"}</small></span>
+        </label>`).join("")}
+    </section>`;
+  }).join("") : `<span>Nenhum modelo configurado.</span>`;
+  container.querySelectorAll("[data-chat-model]").forEach((input) => input.addEventListener("change", () => {
+    if (input.checked) chatSelectedModels.add(input.dataset.chatModel);
+    else chatSelectedModels.delete(input.dataset.chatModel);
+    updateChatSendState();
+  }));
+  container.querySelectorAll("[data-chat-group-select]").forEach((button) => button.addEventListener("click", () => {
+    selectChatModelGroup(button.dataset.chatGroupSelect, true);
+  }));
+  container.querySelectorAll("[data-chat-group-clear]").forEach((button) => button.addEventListener("click", () => {
+    selectChatModelGroup(button.dataset.chatGroupClear, false);
+  }));
+  updateChatSendState();
+}
+
+function selectChatModelGroup(groupId, select) {
+  chatModels.filter((item) => item.group_id === groupId && item.available).forEach((item) => {
+    if (select) chatSelectedModels.add(item.model_id);
+    else chatSelectedModels.delete(item.model_id);
+  });
+  renderChatModels();
+}
+
+function selectChatModels(select) {
+  chatSelectedModels = new Set(select ? chatModels.filter((item) => item.available).map((item) => item.model_id) : []);
+  renderChatModels();
+}
+
+function updateChatSendState() {
+  const button = document.getElementById("chat-send");
+  if (!button) return;
+  button.disabled = !document.getElementById("chat-question")?.value.trim() || !chatSelectedModels.size || Boolean(chatPollTimer);
+}
+
+function setChatStatus(message) {
+  const element = document.getElementById("chat-status");
+  if (element) element.textContent = message;
+}
+
+async function extractChatNews() {
+  const url = document.getElementById("chat-news-url")?.value.trim();
+  const status = document.getElementById("chat-news-status");
+  if (!url) { status.textContent = "Informe uma URL valida."; return; }
+  if (!chatSessionId) {
+    status.textContent = "Reconectando a API do chat...";
+    try { await initializeChat(); }
+    catch (error) { status.textContent = `API do chat indisponivel: ${error.message}`; return; }
+  }
+  status.textContent = "Buscando e extraindo noticia...";
+  try {
+    chatNews = await chatFetch(`/chat/sessions/${encodeURIComponent(chatSessionId)}/news/extract`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }),
+    });
+    document.getElementById("chat-news-title").value = chatNews.title || "";
+    document.getElementById("chat-news-summary").value = chatNews.summary || "";
+    status.textContent = `Fonte adicionada somente a esta conversa: ${chatNews.source}`;
+  } catch (error) {
+    chatNews = null;
+    status.textContent = `Nao foi possivel extrair: ${error.message}. Voce ainda pode perguntar normalmente.`;
+  }
+}
+
+async function sendChatQuestion(event) {
+  event.preventDefault();
+  const input = document.getElementById("chat-question");
+  const question = input.value.trim();
+  if (!chatSessionId || !chatModels.length) {
+    try { await initializeChat(); }
+    catch (error) { setChatStatus(`API do chat indisponivel: ${error.message}`); return; }
+  }
+  if (!question || !chatSelectedModels.size || !chatSessionId) return;
+  setChatStatus("Enfileirando modelos...");
+  try {
+    const payload = await chatFetch(`/chat/sessions/${encodeURIComponent(chatSessionId)}/ask`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question, model_ids: [...chatSelectedModels],
+        use_memory: Boolean(document.getElementById("chat-use-memory")?.checked),
+        news_id: chatNews?.news_id || null,
+        news_title: chatNews ? document.getElementById("chat-news-title")?.value.trim() : null,
+        news_summary: chatNews ? document.getElementById("chat-news-summary")?.value.trim() : null,
+      }),
+    });
+    input.value = "";
+    pollChatBatch(payload.batch_id);
+  } catch (error) {
+    setChatStatus(`Falha ao enviar: ${error.message}`);
+  }
+  updateChatSendState();
+}
+
+function pollChatBatch(batchId) {
+  if (chatPollTimer) clearInterval(chatPollTimer);
+  const poll = async () => {
+    try {
+      const payload = await chatFetch(`/chat/batches/${encodeURIComponent(batchId)}/progress`);
+      const batch = payload.batch;
+      renderChatTimelineForBatch(payload.messages || [], batch);
+      setChatStatus(batch.current_model_id
+        ? `${batch.completed_models}/${batch.selected_models.length} concluidos - ${batch.current_model_id}`
+        : "Preparando lote...");
+      if (["completed", "completed_with_errors", "failed"].includes(batch.status)) {
+        clearInterval(chatPollTimer); chatPollTimer = null;
+        const session = await chatFetch(`/chat/sessions/${encodeURIComponent(chatSessionId)}`);
+        hydrateChat(session);
+      }
+    } catch (error) {
+      clearInterval(chatPollTimer); chatPollTimer = null;
+      setChatStatus(`Falha ao acompanhar lote: ${error.message}`);
+      updateChatSendState();
+    }
+  };
+  chatPollTimer = setInterval(poll, PROGRESS_POLL_MS);
+  poll();
+  updateChatSendState();
+}
+
+function renderChatTimelineForBatch(messages, batch) {
+  const existing = document.querySelector(`[data-chat-batch="${cssEscape(batch.batch_id)}"]`);
+  if (existing) existing.remove();
+  const wrap = document.createElement("div");
+  wrap.dataset.chatBatch = batch.batch_id;
+  const answered = new Set(messages.filter((item) => item.model_id).map((item) => item.model_id));
+  const pending = (batch.selected_models || []).filter((modelId) => !answered.has(modelId)).map((modelId) => ({
+    role: "model", model_id: modelId, content: modelId === batch.current_model_id ? "Modelo respondendo..." : "Aguardando sua vez...",
+    status: modelId === batch.current_model_id ? "responding" : "waiting", latency_ms: null,
+  }));
+  wrap.innerHTML = chatMessagesHtml([...messages, ...pending]);
+  document.getElementById("chat-timeline")?.appendChild(wrap);
+}
+
+function renderChatTimeline(messages) {
+  const container = document.getElementById("chat-timeline");
+  if (!container) return;
+  container.innerHTML = messages.length ? chatMessagesHtml(messages) : `<div class="chat-empty">Inicie uma conversa sobre a Copa do Mundo.</div>`;
+  container.scrollTop = container.scrollHeight;
+}
+
+function chatMessagesHtml(messages) {
+  return messages.map((message) => {
+    const label = message.role === "user" ? "Voce" : message.role === "synthesis" ? "Sintese CopaMind" : message.model_id;
+    const meta = message.role === "model" && message.latency_ms != null ? ` - ${Math.round(message.latency_ms)} ms` : "";
+    const lists = message.role === "synthesis" ? synthesisListsHtml(message.metadata || {}) : "";
+    return `<article class="chat-message role-${escapeAttr(message.role)} status-${escapeAttr(message.status)}">
+      <div><strong>${escapeHtml(label || "IA")}</strong><span>${escapeHtml(message.status)}${meta}</span></div>
+      <p>${escapeHtml(message.content || "").replaceAll("\n", "<br>")}</p>${lists}</article>`;
+  }).join("");
+}
+
+function synthesisListsHtml(metadata) {
+  return ["consensus", "divergences", "uncertainties", "sources"].map((key) => {
+    const values = Array.isArray(metadata[key]) ? metadata[key] : [];
+    return values.length ? `<div class="chat-synthesis-list"><strong>${escapeHtml(key)}</strong><ul>${values.map((v) => `<li>${escapeHtml(String(v))}</li>`).join("")}</ul></div>` : "";
+  }).join("");
+}
+
+async function resetChatSession() {
+  if (!chatSessionId || !window.confirm("Resetar somente o historico desta conversa?")) return;
+  try {
+    await chatFetch(`/chat/sessions/${encodeURIComponent(chatSessionId)}`, { method: "DELETE" });
+    localStorage.removeItem("copamind_chat_session");
+    chatSessionId = null; chatNews = null;
+    document.getElementById("chat-news-url").value = "";
+    document.getElementById("chat-news-title").value = "";
+    document.getElementById("chat-news-summary").value = "";
+    await initializeChat();
+  } catch (error) { setChatStatus(`Nao foi possivel resetar: ${error.message}`); }
 }
 
 function renderMissingData() {
@@ -480,11 +748,15 @@ function renderRankingTable() {
   document.getElementById("ranking-table").innerHTML = `
     <div class="ranking-table">
       <div class="ranking-table-head">
-        <span>#</span><span>Modelo</span><span>Pontos</span><span>Acerto</span><span>Jogos</span><span>JSON</span><span>Lat.</span><span>Tok/s</span><span>Brier</span>
+        <span>#</span><span></span><span>Modelo</span><span>Pontos</span><span>Acerto</span><span>Jogos</span><span>JSON</span><span>Lat.</span><span>Tok/s</span><span>Brier</span>
       </div>
-      ${rows.map((row, index) => `
+      ${rows.map((row, index) => {
+        const imgSrc = escapeAttr(resolveModelImage(row) || avatarForModel(row));
+        const fallback = escapeAttr(avatarForModel(row));
+        return `
         <div class="ranking-table-row ${row.is_combo ? "combo-row" : ""}">
           <span>${index + 1}</span>
+          <img class="row-model-icon" src="${imgSrc}" alt="" onerror="this.onerror=null;this.src='${fallback}';" />
           <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
           <span>${row.points}</span>
           <span>${row.scored ? pct(row.accuracy) : "aguarda"}</span>
@@ -493,8 +765,8 @@ function renderRankingTable() {
           <span>${num(row.avg_latency_ms, 0)} ms</span>
           <span>${num(row.avg_tokens_per_second, 1)}</span>
           <span>${row.brier_avg == null ? "-" : num(row.brier_avg, 3)}</span>
-        </div>
-      `).join("")}
+        </div>`;
+      }).join("")}
     </div>`;
 }
 
@@ -586,6 +858,8 @@ function rankingRows() {
       return {
         model_id: model.model_id,
         display_name: model.display_name || model.model_id,
+        image_url: model.image_url || "",
+        family: model.family || "",
         is_combo: Boolean(model.is_combo),
         points,
         scored,
@@ -649,11 +923,15 @@ function renderBenchmarkTable(rows) {
   document.getElementById("benchmark-table").innerHTML = `
     <div class="benchmark-table">
       <div class="benchmark-table-head">
-        <span>#</span><span>Modelo</span><span>Bench</span><span>Bolao</span><span>JSON</span><span>Chamadas</span><span>Lat.</span><span>Tok/s</span><span>Uso</span><span>Orientacao</span>
+        <span>#</span><span></span><span>Modelo</span><span>Bench</span><span>Bolao</span><span>JSON</span><span>Chamadas</span><span>Lat.</span><span>Tok/s</span><span>Uso</span><span>Orientacao</span>
       </div>
-      ${rows.map((row, index) => `
+      ${rows.map((row, index) => {
+        const imgSrc = escapeAttr(resolveModelImage(row) || avatarForModel(row));
+        const fallback = escapeAttr(avatarForModel(row));
+        return `
         <div class="benchmark-table-row ${row.archived ? "archived-row" : ""}">
           <span>${index + 1}</span>
+          <img class="row-model-icon" src="${imgSrc}" alt="" onerror="this.onerror=null;this.src='${fallback}';" />
           <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
           <b>${num(row.benchmark_score, 0)}</b>
           <span>${row.scored ? `${row.points} pts / ${pct(row.accuracy)}` : "sem score"}</span>
@@ -663,8 +941,8 @@ function renderBenchmarkTable(rows) {
           <span>${num(row.avg_tokens_per_second, 1)}</span>
           <em>${escapeHtml(row.ease_label)}</em>
           <small>${escapeHtml(row.recommendation)}</small>
-        </div>
-      `).join("") || empty("Sem dados de benchmark ainda. Rode uma fase com LLMs e exporte o snapshot.")}
+        </div>`;
+      }).join("") || empty("Sem dados de benchmark ainda. Rode uma fase com LLMs e exporte o snapshot.")}
     </div>`;
 }
 
@@ -800,6 +1078,8 @@ function benchmarkRows() {
     const row = {
       model_id: modelId,
       display_name: model.display_name || score.display_name || modelId,
+      image_url: model.image_url || "",
+      family: model.family || "",
       archived: !modelById[modelId],
       available: model.available !== false,
       points: Number(score.points || 0),
@@ -886,6 +1166,385 @@ function _loadImg(src) {
   });
 }
 
+// ── Shared canvas helpers ────────────────────────────────────────────────────
+function _canvasPalette() {
+  return {
+    bg: "#161a22", panel: "#1e2433", border: "#2c3347",
+    accent: "#38d6a5", gold: "#f2c94c", red: "#fb7185", green: "#2fc76f",
+    text: "#e8edf5", muted: "#7080a0", dim: "#404a60",
+  };
+}
+
+function _canvasTxt(ctx, text, x, y, font, color, align = "left") {
+  ctx.textAlign = align;
+  ctx.fillStyle = color;
+  ctx.font = font;
+  ctx.fillText(text, x, y);
+  ctx.textAlign = "left";
+}
+
+function _canvasF(size, bold = false) {
+  return `${bold ? "bold " : ""}${size}px system-ui, ui-sans-serif, sans-serif`;
+}
+
+function _canvasDrawIcon(ctx, img, fallbackInitials, x, y, size, r) {
+  if (img) {
+    ctx.save();
+    _roundRect(ctx, x, y, size, size, r);
+    ctx.clip();
+    ctx.drawImage(img, x, y, size, size);
+    ctx.restore();
+  } else {
+    const C = _canvasPalette();
+    ctx.fillStyle = C.accent + "44";
+    _roundRect(ctx, x, y, size, size, r);
+    ctx.fill();
+    _canvasTxt(ctx, (fallbackInitials || "AI").slice(0, 2).toUpperCase(),
+      x + size / 2, y + size * 0.67, _canvasF(size * 0.38, true), C.accent, "center");
+  }
+}
+
+async function _loadIconMap(rows) {
+  const urls = rows.map((r) => resolveModelImage(r) || avatarForModel(r));
+  const imgs = await Promise.all(urls.map((u) => _loadImg(u)));
+  // fallback pass for failed real images
+  const resolved = await Promise.all(rows.map(async (r, i) => imgs[i] || await _loadImg(avatarForModel(r))));
+  return new Map(rows.map((r, i) => [r.model_id, resolved[i]]));
+}
+
+async function _canvasDownload(canvas, filename) {
+  await new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) { reject(new Error("toBlob null")); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = filename;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      resolve();
+    }, "image/png");
+  });
+}
+
+function _canvasHeader(ctx, W, HDR_H, PAD, logo, title, subtitle, C) {
+  const hGrad = ctx.createLinearGradient(0, 0, W, HDR_H);
+  hGrad.addColorStop(0, "#090e18");
+  hGrad.addColorStop(1, "#161a22");
+  ctx.fillStyle = hGrad;
+  ctx.fillRect(0, 0, W, HDR_H);
+
+  const LOGO = 56;
+  const ly = (HDR_H - LOGO) / 2;
+  if (logo) {
+    ctx.drawImage(logo, PAD, ly, LOGO, LOGO);
+  } else {
+    ctx.fillStyle = C.accent + "33";
+    _roundRect(ctx, PAD, ly, LOGO, LOGO, 8);
+    ctx.fill();
+    _canvasTxt(ctx, "CM", PAD + LOGO / 2, ly + LOGO * 0.62, _canvasF(18, true), C.accent, "center");
+  }
+  const tx = PAD + LOGO + 14;
+  _canvasTxt(ctx, "COPAMIND 2026", tx, HDR_H / 2 - 12, _canvasF(9, true), C.accent);
+  _canvasTxt(ctx, title, tx, HDR_H / 2 + 12, _canvasF(22, true), C.text);
+  _canvasTxt(ctx, subtitle, tx, HDR_H / 2 + 28, _canvasF(11), C.muted);
+
+  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  _canvasTxt(ctx, dateStr, W - PAD, PAD + 12, _canvasF(10), C.muted, "right");
+
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(0, HDR_H - 2, W, 2);
+}
+
+// ── Ranking canvas ───────────────────────────────────────────────────────────
+function buildRankingCanvas(rows, logo, iconMap) {
+  const C = _canvasPalette();
+  const SCALE = 2;
+  const PAD = 20;
+  const ROW_H = 52;
+  const HDR_H = 88;
+  const COL_H = 32;
+  const FOOT_H = 36;
+  const ICO = 32;
+
+  // columns: #, icon, name, pontos, acerto, jogos, json, lat, tok/s, brier
+  const COLS = [
+    { label: "#",      w: 40,  align: "center" },
+    { label: "",       w: 42,  align: "center" },   // icon
+    { label: "Modelo", w: 220, align: "left"   },
+    { label: "Pts",    w: 62,  align: "center" },
+    { label: "Acerto", w: 72,  align: "center" },
+    { label: "Jogos",  w: 58,  align: "center" },
+    { label: "JSON",   w: 58,  align: "center" },
+    { label: "Lat.",   w: 76,  align: "center" },
+    { label: "Tok/s",  w: 68,  align: "center" },
+    { label: "Brier",  w: 68,  align: "center" },
+  ];
+
+  const totalColW = COLS.reduce((s, c) => s + c.w, 0);
+  const W = PAD + totalColW + PAD;
+  const H = HDR_H + COL_H + rows.length * ROW_H + FOOT_H;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  _canvasHeader(ctx, W, HDR_H, PAD, logo, "Ranking das LLMs", "Score geral · Bolao CopaMind 2026", C);
+
+  // Column header
+  let cx = PAD;
+  COLS.forEach((col) => {
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(cx, HDR_H, col.w, COL_H);
+    if (col.label) {
+      _canvasTxt(ctx, col.label.toUpperCase(), cx + col.w / 2, HDR_H + 21,
+        _canvasF(9, true), C.muted, "center");
+    }
+    cx += col.w;
+  });
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(PAD, HDR_H + COL_H - 1, totalColW, 1);
+
+  // Data rows
+  rows.forEach((row, ri) => {
+    const ry = HDR_H + COL_H + ri * ROW_H;
+    const even = ri % 2 === 0;
+    ctx.fillStyle = even ? "#1a1f2c" : C.bg;
+    ctx.fillRect(PAD, ry, totalColW, ROW_H - 1);
+
+    const vals = [
+      { v: String(ri + 1), align: "center", color: C.gold, bold: true },
+      null, // icon handled separately
+      { v: row.display_name, align: "left",   color: C.text,  bold: false },
+      { v: String(row.points), align: "center", color: row.points > 0 ? C.accent : C.muted },
+      { v: row.scored ? pct(row.accuracy) : "–", align: "center", color: C.text },
+      { v: String(row.scored || row.predictions || 0), align: "center", color: C.text },
+      { v: row.json_rate == null ? "–" : `${Math.round(row.json_rate * 100)}%`, align: "center",
+        color: row.json_rate == null ? C.muted : row.json_rate >= 0.95 ? C.accent : row.json_rate >= 0.7 ? C.gold : C.red },
+      { v: row.avg_latency_ms == null ? "–" : `${Math.round(row.avg_latency_ms)} ms`, align: "center", color: C.muted },
+      { v: row.avg_tokens_per_second == null ? "–" : num(row.avg_tokens_per_second, 1), align: "center", color: C.text },
+      { v: row.brier_avg == null ? "–" : num(row.brier_avg, 3), align: "center", color: C.muted },
+    ];
+
+    let x = PAD;
+    COLS.forEach((col, ci) => {
+      if (ci === 1) {
+        // icon
+        const icoX = x + (col.w - ICO) / 2;
+        const icoY = ry + (ROW_H - ICO) / 2;
+        const modelIcon = iconMap?.get(row.model_id);
+        ctx.fillStyle = "#10141c";
+        _roundRect(ctx, icoX - 1, icoY - 1, ICO + 2, ICO + 2, 7);
+        ctx.fill();
+        _canvasDrawIcon(ctx, modelIcon,
+          (row.display_name || row.model_id).replace(/^[^/]+\//, ""),
+          icoX, icoY, ICO, 6);
+      } else {
+        const d = vals[ci];
+        if (d) {
+          // clip long text for name col
+          if (ci === 2) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x + 6, ry, col.w - 8, ROW_H);
+            ctx.clip();
+          }
+          _canvasTxt(ctx, d.v, d.align === "center" ? x + col.w / 2 : x + 6,
+            ry + ROW_H / 2 + 5, _canvasF(11, d.bold ?? false), d.color ?? C.text, d.align || "left");
+          if (ci === 2) ctx.restore();
+        }
+      }
+      x += col.w;
+    });
+
+    // Bottom divider
+    ctx.fillStyle = C.border;
+    ctx.fillRect(PAD, ry + ROW_H - 1, totalColW, 1);
+  });
+
+  // Footer
+  const fy = HDR_H + COL_H + rows.length * ROW_H;
+  ctx.fillStyle = C.border;
+  ctx.fillRect(PAD, fy + 8, totalColW, 1);
+  _canvasTxt(ctx, "github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · benchmark auditavel",
+    W / 2, fy + 26, _canvasF(10), C.muted, "center");
+
+  return canvas;
+}
+
+// ── Benchmark canvas ─────────────────────────────────────────────────────────
+function buildBenchmarkCanvas(rows, logo, iconMap) {
+  const C = _canvasPalette();
+  const SCALE = 2;
+  const PAD = 20;
+  const ROW_H = 58;
+  const HDR_H = 88;
+  const COL_H = 32;
+  const FOOT_H = 36;
+  const ICO = 34;
+
+  // columns: #, icon, name, bench, bolao, json, chamadas, lat, tok/s, uso, orientacao
+  const COLS = [
+    { label: "#",           w: 40,  align: "center" },
+    { label: "",            w: 44,  align: "center" },
+    { label: "Modelo",      w: 210, align: "left"   },
+    { label: "Bench",       w: 68,  align: "center" },
+    { label: "Bolão",       w: 108, align: "center" },
+    { label: "JSON",        w: 60,  align: "center" },
+    { label: "Chamadas",    w: 80,  align: "center" },
+    { label: "Lat.",        w: 80,  align: "center" },
+    { label: "Tok/s",       w: 68,  align: "center" },
+    { label: "Uso",         w: 100, align: "center" },
+    { label: "Orientação",  w: 200, align: "left"   },
+  ];
+
+  const totalColW = COLS.reduce((s, c) => s + c.w, 0);
+  const W = PAD + totalColW + PAD;
+  const H = HDR_H + COL_H + rows.length * ROW_H + FOOT_H;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * SCALE;
+  canvas.height = H * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  _canvasHeader(ctx, W, HDR_H, PAD, logo, "Benchmark LLMs", "Score técnico + velocidade + facilidade · CopaMind 2026", C);
+
+  // Column headers
+  let cx = PAD;
+  COLS.forEach((col) => {
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(cx, HDR_H, col.w, COL_H);
+    if (col.label) {
+      _canvasTxt(ctx, col.label.toUpperCase(), cx + col.w / 2, HDR_H + 21,
+        _canvasF(9, true), C.muted, "center");
+    }
+    cx += col.w;
+  });
+  ctx.fillStyle = C.accent;
+  ctx.fillRect(PAD, HDR_H + COL_H - 1, totalColW, 1);
+
+  // Data rows
+  rows.forEach((row, ri) => {
+    const ry = HDR_H + COL_H + ri * ROW_H;
+    const even = ri % 2 === 0;
+    ctx.fillStyle = row.archived ? "#191c25" : (even ? "#1a1f2c" : C.bg);
+    ctx.fillRect(PAD, ry, totalColW, ROW_H - 1);
+
+    const jsonColor = row.json_rate == null ? C.muted
+      : row.json_rate >= 0.95 ? C.accent
+      : row.json_rate >= 0.7 ? C.gold : C.red;
+
+    const vals = [
+      { v: String(ri + 1), align: "center", color: C.gold, bold: true },
+      null, // icon
+      { v: row.display_name, align: "left", color: row.archived ? C.muted : C.text },
+      { v: num(row.benchmark_score, 0), align: "center", color: C.green, bold: true },
+      { v: row.scored ? `${row.points}pts / ${pct(row.accuracy)}` : "sem score", align: "center", color: C.text },
+      { v: row.runs ? `${Math.round(row.json_rate * 100)}%` : "–", align: "center", color: jsonColor },
+      { v: `${row.valid_runs}/${row.runs}`, align: "center", color: C.text },
+      { v: row.avg_latency_ms == null ? "–" : `${Math.round(row.avg_latency_ms)} ms`, align: "center", color: C.muted },
+      { v: row.avg_tokens_per_second == null ? "–" : num(row.avg_tokens_per_second, 1), align: "center", color: C.text },
+      { v: row.ease_label || "–", align: "center", color: "#dbe8ff" },
+      { v: row.recommendation || "–", align: "left", color: C.muted },
+    ];
+
+    let x = PAD;
+    COLS.forEach((col, ci) => {
+      if (ci === 1) {
+        const icoX = x + (col.w - ICO) / 2;
+        const icoY = ry + (ROW_H - ICO) / 2;
+        const modelIcon = iconMap?.get(row.model_id);
+        ctx.fillStyle = "#10141c";
+        _roundRect(ctx, icoX - 1, icoY - 1, ICO + 2, ICO + 2, 7);
+        ctx.fill();
+        _canvasDrawIcon(ctx, modelIcon,
+          (row.display_name || row.model_id).replace(/^[^/]+\//, ""),
+          icoX, icoY, ICO, 6);
+      } else {
+        const d = vals[ci];
+        if (d) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x + (d.align === "left" ? 6 : 0), ry + 2, col.w - 8, ROW_H - 4);
+          ctx.clip();
+          _canvasTxt(ctx, d.v,
+            d.align === "center" ? x + col.w / 2 : x + 6,
+            ry + ROW_H / 2 + 5,
+            _canvasF(11, d.bold ?? false), d.color ?? C.text, d.align || "left");
+          ctx.restore();
+        }
+      }
+      x += col.w;
+    });
+
+    ctx.fillStyle = C.border;
+    ctx.fillRect(PAD, ry + ROW_H - 1, totalColW, 1);
+  });
+
+  const fy = HDR_H + COL_H + rows.length * ROW_H;
+  ctx.fillStyle = C.border;
+  ctx.fillRect(PAD, fy + 8, totalColW, 1);
+  _canvasTxt(ctx, "github.com/Phemassa/copamind-2026  •  IA local · benchmark auditavel · LM Studio / Ollama",
+    W / 2, fy + 26, _canvasF(10), C.muted, "center");
+
+  return canvas;
+}
+
+async function exportRankingImage() {
+  const rows = rankingRows();
+  if (!rows.length) { alert("Sem dados de ranking ainda."); return; }
+  const btn = document.getElementById("btn-export-ranking");
+  const orig = btn?.textContent;
+  if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
+  try {
+    const [logo, iconMap] = await Promise.all([
+      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadIconMap(rows),
+    ]);
+    const canvas = buildRankingCanvas(rows, logo, iconMap);
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    await _canvasDownload(canvas, `copamind_ranking_${date}.png`);
+  } catch (err) {
+    console.error("Erro ao exportar ranking:", err);
+    alert("Erro ao gerar imagem. Veja o console.");
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
+async function exportBenchmarkImage() {
+  const rows = benchmarkRows();
+  if (!rows.length) { alert("Sem dados de benchmark ainda."); return; }
+  const btn = document.getElementById("btn-export-benchmark");
+  const orig = btn?.textContent;
+  if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
+  try {
+    const [logo, iconMap] = await Promise.all([
+      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadIconMap(rows),
+    ]);
+    const canvas = buildBenchmarkCanvas(rows, logo, iconMap);
+    const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    await _canvasDownload(canvas, `copamind_benchmark_${date}.png`);
+  } catch (err) {
+    console.error("Erro ao exportar benchmark:", err);
+    alert("Erro ao gerar imagem. Veja o console.");
+  } finally {
+    if (btn) { btn.textContent = orig; btn.disabled = false; }
+  }
+}
+
 function _shortName(name) {
   if (!name) return "?";
   const first = name.trim().split(/\s+/)[0];
@@ -923,7 +1582,6 @@ function _roundRect(ctx, x, y, w, h, r) {
 }
 
 function buildLinkedInCanvas(rows, phase, icon, iconMap) {
-  const SCALE   = 2;           // retina
   const PAD     = 20;
   const MCW     = 130;         // match column width
   const CW      = 64;          // cell width per model
@@ -958,6 +1616,11 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   const nG = matchOrder.length;
   const W  = PAD + MCW + nM * CW + PAD;
   const H  = HDR_H + SUM_H + MOD_H + nG * ROW_H + FOOT_H;
+
+  // Escala adaptativa: retina (2x) para tabelas pequenas, 1x para tabelas largas
+  // Limita a ~8192px de largura para compatibilidade com todos os browsers
+  const MAX_PX = 8192;
+  const SCALE  = Math.min(2, Math.floor(MAX_PX / W)) || 1;
 
   const canvas = document.createElement("canvas");
   canvas.width  = W * SCALE;
@@ -1214,10 +1877,22 @@ async function exportLinkedInImage() {
 
     const canvas = buildLinkedInCanvas(rows, phase, icon, iconMap);
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const link = document.createElement("a");
-    link.download = `copamind_resumo_${phase}_${date}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    const filename = `copamind_resumo_${phase}_${date}.png`;
+    // toBlob é mais confiável que toDataURL para canvas grandes (sem limite de tamanho da data-URL)
+    await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error("canvas.toBlob retornou null — canvas muito grande ou bloqueado")); return; }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        resolve();
+      }, "image/png");
+    });
   } catch (err) {
     console.error("Erro ao gerar imagem:", err);
     alert("Erro ao gerar imagem. Veja o console.");
@@ -1263,6 +1938,8 @@ function renderLinkedInCaptures() {
       matchStats[m._key] = { home, away: 100 - home };
     }
   });
+  // Ranking de equipes: avanco + campea
+  renderLinkedInTeamRanking(phase, matchOrder, matchStats);
   // Header: jogo | modelo1 | modelo2 | ...
   const modelHead = rows.map((row) => `
     <th class="resumo-model-header-th">
@@ -1315,6 +1992,134 @@ function shortTeamName(name) {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/);
   return parts[0].length <= 8 ? parts[0] : parts[0].slice(0, 3).toUpperCase();
+}
+
+function renderLinkedInTeamRanking(phase, matchOrder, matchStats) {
+  const container = document.getElementById("linkedin-team-ranking");
+  if (!container) return;
+  if (!matchOrder.length) { container.innerHTML = ""; return; }
+
+  const isFinal = phase === "final";
+  const isThirdPlace = phase === "third_place";
+
+  // Label da coluna de avanco (proxima fase / campea / 3o lugar)
+  const advanceLabel = isFinal
+    ? "Vencer final = Campeã"
+    : isThirdPlace
+      ? "Vencer = 3º lugar"
+      : "Próxima fase";
+  const advanceTooltip = isFinal
+    ? "% dos modelos que prevêm esta seleção vencendo a Final (soma 100%)"
+    : isThirdPlace
+      ? "Probabilidade média dos modelos de vencer a disputa pelo 3º lugar"
+      : "Probabilidade média dos modelos de avançar (vencer esta partida)";
+
+  // Monta mapa team_id → { advance (média), name, flag_url }
+  // Fases projetadas têm um match_id único por modelo, então um time pode aparecer
+  // em múltiplas entradas de matchOrder. Acumula soma + contagem para calcular média.
+  const advanceAccum = {}; // team_id → { sumAdv, count, name, flag_url }
+  matchOrder.forEach((m) => {
+    const stats = matchStats[m._key];
+    if (!stats) return;
+    const addSide = (teamId, name, flagUrl, pct) => {
+      if (!teamId) return;
+      if (!advanceAccum[teamId]) advanceAccum[teamId] = { sumAdv: 0, count: 0, name: name || teamId, flag_url: flagUrl || "" };
+      advanceAccum[teamId].sumAdv += pct / 100;
+      advanceAccum[teamId].count += 1;
+    };
+    addSide(m.home_team_id, m.home, m.home_flag_url, stats.home);
+    addSide(m.away_team_id, m.away, m.away_flag_url, stats.away);
+  });
+  const advanceByTeam = Object.fromEntries(
+    Object.entries(advanceAccum).map(([id, d]) => [id, { name: d.name, flag_url: d.flag_url, advance: d.sumAdv / d.count }])
+  );
+
+  // ── Final: usa votos de campeão (share de "vence a final") ──────────────────
+  // Cada modelo tem 1 voto → porcentagem real, soma 100%, Noruega some se nenhum modelo a elegeu.
+  // ── Outras fases: usa média de win% por partida projetada ────────────────────
+  let rankRows;
+  let maxAdvance;
+  if (isFinal) {
+    const finalVoteRows = winnerVotesForPhase("final");
+    rankRows = finalVoteRows
+      .filter((r) => r.votes > 0)
+      .map((r) => ({ team_id: r.team_id, name: r.name, flag_url: r.flag_url, advance: r.share, champion: null }));
+    maxAdvance = 1;
+  } else {
+    // Champion probability: prefer final phase votes over accumulated title score.
+    const finalVoteRows = winnerVotesForPhase("final");
+    const totalFinalVotes = finalVoteRows.reduce((s, r) => s + r.votes, 0);
+    const finalChampionMap = totalFinalVotes > 0
+      ? Object.fromEntries(finalVoteRows.map((r) => [r.team_id, r.votes / totalFinalVotes]))
+      : null;
+
+    const titleMap = Object.fromEntries(teamTitleRows().map((r) => [r.team_id, r]));
+
+    rankRows = Object.entries(advanceByTeam)
+      .map(([teamId, info]) => {
+        const title = titleMap[teamId] || {};
+        const champion = isThirdPlace
+          ? null
+          : finalChampionMap
+            ? (finalChampionMap[teamId] ?? 0)
+            : (title.chance ?? 0);
+        return {
+          team_id: teamId,
+          name: title.name || info.name,
+          flag_url: title.flag_url || info.flag_url,
+          advance: info.advance,
+          champion,
+        };
+      })
+      .sort((a, b) =>
+        isThirdPlace
+          ? b.advance - a.advance
+          : (b.champion ?? 0) - (a.champion ?? 0) || b.advance - a.advance
+      );
+    maxAdvance = Math.max(...rankRows.map((r) => r.advance), 0.01);
+  }
+
+  const finalVoteRowsForLabel = winnerVotesForPhase("final");
+  const hasFinalVotes = finalVoteRowsForLabel.some((r) => r.votes > 0);
+  const championSourceLabel = hasFinalVotes
+    ? "% dos modelos que prevêm esta seleção campeã (votos na Final)"
+    : "Score combinado: votos LLM em todas as fases + perfil estatístico";
+  const maxChampion = Math.max(...rankRows.map((r) => r.champion ?? 0), 0.01);
+  const showChampion = !isFinal && !isThirdPlace;
+
+  container.innerHTML = `
+    <div class="team-phase-ranking">
+      <div class="team-ranking-header">
+        <p>Previsão das LLMs</p>
+        <h3>Chances por seleção</h3>
+      </div>
+      <div class="team-ranking-grid ${showChampion ? "" : "team-ranking-grid--single"}">
+        <div class="team-ranking-head">
+          <span>#</span>
+          <span>Seleção</span>
+          <span title="${escapeAttr(advanceTooltip)}">${escapeHtml(advanceLabel)}</span>
+          ${showChampion ? `<span title="${escapeAttr(championSourceLabel)}">Campeã${hasFinalVotes ? " (via Final)" : " (acum.)*"}</span>` : ""}
+        </div>
+        ${rankRows.map((row, i) => `
+          <div class="team-ranking-row">
+            <span class="team-ranking-pos">${i + 1}</span>
+            <div class="team-ranking-id">
+              <img src="${escapeAttr(row.flag_url)}" alt="" />
+              <strong>${escapeHtml(row.name)}</strong>
+            </div>
+            <div class="team-ranking-advance">
+              <span>${pct(row.advance)}</span>
+              <div class="team-ranking-bar"><div style="width:${Math.round(row.advance / maxAdvance * 100)}%"></div></div>
+            </div>
+            ${showChampion ? `
+            <div class="team-ranking-champion">
+              <b>${pct(row.champion ?? 0)}</b>
+              <div class="team-ranking-bar team-ranking-bar--gold"><div style="width:${Math.round((row.champion ?? 0) / maxChampion * 100)}%"></div></div>
+            </div>` : ""}
+          </div>`).join("")}
+      </div>
+      ${!hasFinalVotes && showChampion ? `<p class="team-ranking-note">* Sem previsões da Final ainda. Campeã calculado por votos acumulados em todas as fases + perfil estatístico.</p>` : ""}
+    </div>`;
 }
 
 function renderLinkedInPhaseTabs(selectedPhase) {
@@ -1878,44 +2683,30 @@ async function runModelPhase(modelId) {
 
 async function runAllModelsForPhase() {
   if (!canRunAllModelsForPhase()) return;
-  if (sequentialBatch) return;
+  if (runningRuns.has(runKey(activePhase, "__all__"))) return;
 
   const phase = activePhase;
-  const matchCount = matchesForPhase(phase).length || projectedMatchesForPhase(phase, "combo").length;
-  const statusByModel = Object.fromEntries(
-    (state.phase_model_run_status || [])
-      .filter((item) => item.phase === phase)
-      .map((item) => [item.model_id, item])
-  );
-  const modelsToRun = runnableModels().filter((model) => {
-    const runs = Number(statusByModel[model.model_id]?.runs || 0);
-    return Math.max(0, matchCount - runs) > 0;
-  });
-  if (!modelsToRun.length) return;
-
-  sequentialBatch = {
-    phase,
-    total: modelsToRun.length,
-    current: 0,
-    currentModelId: null,
-    aborted: false,
-    progress: null,
-  };
-  renderModelActions();
-
-  for (let i = 0; i < modelsToRun.length; i++) {
-    if (sequentialBatch?.aborted || sequentialBatch?.phase !== activePhase) break;
-    sequentialBatch.current = i + 1;
-    sequentialBatch.currentModelId = modelsToRun[i].model_id;
-    sequentialBatch.progress = null;
-    renderModelActions();
-    await runOneModelAndWait(modelsToRun[i].model_id, phase);
-    await loadData(true).catch(() => {});
+  try {
+    const response = await fetch(`${API_BASE}/pool/llm/phase/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Sem model_id → servidor roda todos os modelos pendentes num unico subprocess.
+      // Resiliente a reload de pagina: recoverLatestBulkProgress retoma automaticamente.
+      body: JSON.stringify({ phase, samples: 1, include_heavy: true, finished_only: false }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const batchId = payload.batch_id;
+    if (!batchId) return;
+    startBulkPolling(phase, batchId);
+  } catch (_err) {
+    const btn = document.getElementById("run-all-models");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "API offline";
+      btn.title = "Inicie a API: copamind api serve";
+    }
   }
-
-  sequentialBatch = null;
-  renderModelActions();
-  await loadData(true).catch(() => {});
 }
 
 function cancelSequentialBatch() {
@@ -2918,7 +3709,11 @@ function comboConsensusBlock(phase, comboMatches) {
   const allModelPreds = (state.phase_predictions_by_model || [])
     .filter((item) => item.phase === phase && item.model_id !== "combo");
 
-  const blocks = [...matchDefs.values()].map(({ home, away, latestCombo }) => {
+  const totalModelsInPhase = allModelPreds.length;
+  // Multiple distinct matchups = projected phase (LLMs predicted different bracket outcomes)
+  const isProjected = matchDefs.size > 1;
+
+  const blocks = [...matchDefs.values()].flatMap(({ home, away, latestCombo }) => {
     // One vote per model: latest valid prediction for this match
     const modelVotes = allModelPreds
       .map((item) => {
@@ -2929,11 +3724,16 @@ function comboConsensusBlock(phase, comboMatches) {
       })
       .filter(Boolean);
 
+    // Skip solo-minority projected matchups (< 2 models) when phase has multiple matchups
+    if (isProjected && modelVotes.length < 2) return [];
+
     // Primary: individual model votes; fallback: combo's own rounds
     const comboRounds = valid.filter((m) => m.home === home && m.away === away);
     const votes = modelVotes.length > 0 ? modelVotes : comboRounds;
     const sourceLabel = modelVotes.length > 0
-      ? `${votes.length} modelo${votes.length !== 1 ? "s" : ""}`
+      ? (totalModelsInPhase > 0
+          ? `${votes.length} de ${totalModelsInPhase} modelos`
+          : `${votes.length} modelo${votes.length !== 1 ? "s" : ""}`)
       : `${votes.length} rodada${votes.length !== 1 ? "s" : ""}`;
 
     const total = votes.length;
@@ -2974,7 +3774,10 @@ function comboConsensusBlock(phase, comboMatches) {
         <div class="combo-result-pts"><span>${escapeHtml(pts)}</span></div>
       </div>`;
   });
-  return blocks.join("") + pending.map(predictionRow).join("") || emptyPrediction("Sem palpites nesta fase.");
+  const projectedNote = isProjected
+    ? `<div class="combo-projected-note">⚡ Fase ainda não confirmada — LLMs projetaram chaves diferentes com base em seus palpites das QFs. Cada bloco mostra quantos modelos previu aquela partida.</div>`
+    : "";
+  return projectedNote + blocks.join("") + pending.map(predictionRow).join("") || emptyPrediction("Sem palpites nesta fase.");
 }
 
 function predictionRow(prediction) {
@@ -3178,7 +3981,7 @@ function isStaleProgress(progress) {
   const updatedAt = progress?.updated_at ? Date.parse(progress.updated_at) : 0;
   const ageMs = updatedAt ? Date.now() - updatedAt : Number.POSITIVE_INFINITY;
   if (progress?.status === "starting") return ageMs > 90 * 1000;
-  if (progress?.status === "running") return ageMs > 3 * 60 * 60 * 1000;
+  if (progress?.status === "running") return ageMs > 20 * 60 * 1000;
   return false;
 }
 
@@ -3580,6 +4383,57 @@ function formatDuration(value) {
   if (hours) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
   if (minutes) return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
   return `${seconds}s`;
+}
+
+// ── Sincronizar dados (refresh scores sem chamada LLM) ────────────────────────
+
+let _refreshScoresTimer = null;
+
+async function triggerRefreshScores() {
+  const btn = document.getElementById("btn-refresh-scores");
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "Atualizando...";
+  try {
+    const res = await fetch(`${API_BASE}/pool/refresh-scores`, { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    _pollRefreshScores();
+  } catch (_err) {
+    btn.disabled = false;
+    btn.textContent = "API offline";
+    setTimeout(() => { if (btn) btn.textContent = "Sincronizar dados"; }, 3000);
+  }
+}
+
+function _pollRefreshScores() {
+  if (_refreshScoresTimer) clearInterval(_refreshScoresTimer);
+  _refreshScoresTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/pool/refresh-scores/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const btn = document.getElementById("btn-refresh-scores");
+      if (!btn) { clearInterval(_refreshScoresTimer); return; }
+      const STEP_LABELS = ["Ingerindo resultados...", "Calculando scores...", "Exportando portal..."];
+      if (data.status === "running") {
+        btn.textContent = STEP_LABELS[data.step] || "Atualizando...";
+      } else if (data.status === "completed") {
+        clearInterval(_refreshScoresTimer);
+        btn.disabled = false;
+        btn.textContent = "✓ " + (data.message || "Atualizado");
+        setTimeout(async () => {
+          if (btn) btn.textContent = "Sincronizar dados";
+          await loadData(true);
+        }, 2500);
+      } else if (data.status === "failed") {
+        clearInterval(_refreshScoresTimer);
+        btn.disabled = false;
+        btn.textContent = "Erro — tentar novamente";
+        btn.title = data.message || "Falha no refresh";
+        setTimeout(() => { if (btn) { btn.textContent = "Sincronizar dados"; btn.title = ""; } }, 5000);
+      }
+    } catch (_err) { /* continua polling */ }
+  }, 1500);
 }
 
 // Official icon per provider — keyed by family name and model_id provider prefix.
