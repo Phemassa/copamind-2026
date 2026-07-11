@@ -36,7 +36,24 @@ let chatSelectedModels = new Set();
 let chatNews = null;
 let chatPollTimer = null;
 
+const CHAT_HARDWARE_DETAILS = {
+  "mistralai/devstral-small-2-2512":"15,2 GB · muito CPU", "qwen/qwen3.6-27b":"17,5 GB · muito CPU", "google/gemma-4-31b-qat":"18,9 GB · muito lento", "allenai/olmo-3-32b-think":"19,5 GB · lento + raciocínio longo", "google/gemma-4-31b":"19,9 GB · muito lento", "bytedance/seed-oss-36b":"21,8 GB · extremamente pesado",
+  "openai/gpt-oss-20b":"12,1 GB · MoE 3,6B ativos · utilizável", "baidu/ernie-4.5-21b-a3b":"13,5 GB · MoE 3B · depende da RAM", "liquid/lfm2-24b-a2b":"14,4 GB · MoE 2B ativos", "google/gemma-4-26b-a4b-qat":"15,6 GB · MoE 4B · moderadamente lento", "zai-org/glm-4.7-flash":"18,1 GB · MoE 3B · CPU pesada", "qwen/qwen3.6-35b-a3b":"22,1 GB · MoE 3B · muita RAM", "nvidia/nemotron-3-nano-omni":"26,1 GB · MoE ~3B · limite de 32 GB",
+  "microsoft/phi-4-reasoning-plus":"9,1 GB · ~1/3 na CPU", "microsoft/phi-4":"9,1 GB · CPU parcial", "mistralai/ministral-3-14b-reasoning":"9,1 GB · CPU parcial + reasoning",
+  "google/gemma-4-12b-qat":"7,2 GB · pequeno offload", "google/gemma-4-12b":"7,6 GB · offload moderado",
+  "qwen/qwen3.5-9b":"6,5 GB · excelente equilíbrio", "mistralai/mistral-nemo-instruct-2407":"6,6 GB · quase toda GPU",
+  "microsoft/phi-4-mini-reasoning":"2,5 GB · muito rápido", "nvidia/nemotron-3-nano-4b":"2,8 GB · muito rápido", "ibm/granite-4-h-tiny":"4,2 GB · muito rápido", "google/gemma-4-e2b":"4,4 GB · rápido", "ibm/granite-3.2-8b":"4,9 GB · rápido", "deepseek/deepseek-r1-0528-qwen3-8b":"5,0 GB · rápido, reasoning longo", "essentialai/rnj-1":"5,1 GB · rápido"
+};
+
 document.getElementById("refresh-data").addEventListener("click", () => loadData(true));
+document.getElementById("open-chat-header")?.addEventListener("click", () => {
+  activeView = "chat";
+  renderMainNav();
+  if (!chatSessionId || !chatModels.length) {
+    initializeChat().catch((error) => setChatStatus(`API do chat offline: ${error.message}`));
+  }
+  document.querySelector('[data-section="chat"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 document.getElementById("btn-refresh-scores")?.addEventListener("click", triggerRefreshScores);
 document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
 document.getElementById("btn-export-ranking")?.addEventListener("click", exportRankingImage);
@@ -176,7 +193,7 @@ function renderChatModels() {
         <label class="chat-model-option ${item.available ? "" : "offline"}">
           <input type="checkbox" data-chat-model="${escapeAttr(item.model_id)}"
             ${chatSelectedModels.has(item.model_id) ? "checked" : ""} ${item.available ? "" : "disabled"} />
-          <span><strong>${escapeHtml(item.model_id)}</strong><small>${item.available ? "online" : "offline"}</small></span>
+          <span><strong>${escapeHtml(item.model_id)}</strong><small>${item.available ? "online" : "offline"} · ${escapeHtml(CHAT_HARDWARE_DETAILS[item.model_id] || "perfil não medido")}</small></span>
         </label>`).join("")}
     </section>`;
   }).join("") : `<span>Nenhum modelo configurado.</span>`;
@@ -968,6 +985,10 @@ function renderBenchmarkGuidance(rows) {
     <article>
       <h4>O que a nota mede</h4>
       <p>Ela combina score do bolao, taxa de JSON valido, velocidade, latencia e disponibilidade. Assim um modelo pode ser bom no palpite, mas perder pontos se for dificil de operar.</p>
+    </article>
+    <article class="hardware-method-note">
+      <h4>CPU/offload × acurácia</h4>
+      <p><strong>CPU afeta diretamente velocidade e latência, não a capacidade lógica do modelo.</strong> A acurácia só pode ser afetada indiretamente quando o limite local provoca timeout, truncamento, contexto menor, quantização diferente ou raciocínio interrompido. Por isso, o ranking não penaliza acertos apenas por um modelo usar CPU.</p>
     </article>`;
 }
 
@@ -997,34 +1018,58 @@ function svgHBar({ rows, getValue, title, color, unit = "", labelW = 170, barZon
   </svg>`;
 }
 
+function metricCell(value, max, { format = (v) => num(v, 0), inverse = false } = {}) {
+  if (value == null || Number.isNaN(Number(value))) return `<div class="metric-cell is-empty"><span>—</span></div>`;
+  const ratio = Math.max(0, Math.min(1, Number(value) / Math.max(Number(max), 0.001)));
+  const quality = inverse ? 1 - ratio : ratio;
+  return `<div class="metric-cell" style="--metric:${Math.round(quality * 100)}%">
+    <i style="width:${Math.max(4, Math.round(quality * 100))}%"></i><strong>${format(Number(value))}</strong>
+  </div>`;
+}
+
 function renderBenchmarkCharts() {
   const container = document.getElementById("benchmark-charts");
   if (!container) return;
   const active = benchmarkRows().filter((r) => !r.archived && (r.runs > 0 || r.scored > 0));
   if (!active.length) { container.innerHTML = ""; return; }
-  const TOP = 20;
-  const byScore  = active.slice().sort((a, b) => b.benchmark_score - a.benchmark_score).slice(0, TOP);
-  const byPoints = active.slice().sort((a, b) => b.points - a.points).filter((r) => r.scored > 0).slice(0, TOP);
-  const byJson   = active.filter((r) => r.runs > 0).sort((a, b) => (b.json_rate ?? 0) - (a.json_rate ?? 0)).slice(0, TOP);
-  const byAccur  = active.filter((r) => r.accuracy != null).sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0)).slice(0, TOP);
-  const bySpeed  = active.filter((r) => r.avg_tokens_per_second != null).sort((a, b) => b.avg_tokens_per_second - a.avg_tokens_per_second).slice(0, TOP);
-  const byBrier  = active.filter((r) => r.brier_avg != null).sort((a, b) => a.brier_avg - b.brier_avg).slice(0, TOP);
-  const charts = [
-    { title: "Score Total",          rows: byScore,  getValue: (r) => r.benchmark_score,                                             color: "#38d6a5", unit: ""       },
-    { title: "Pontos no Bolao",      rows: byPoints, getValue: (r) => r.points,                                                      color: "#f2c94c", unit: " pts"   },
-    { title: "JSON Valido %",        rows: byJson,   getValue: (r) => r.json_rate != null ? +(r.json_rate * 100).toFixed(1) : null,  color: "#57a7ff", unit: "%"      },
-    { title: "Acerto % (corretos)",  rows: byAccur,  getValue: (r) => r.accuracy != null ? +(r.accuracy * 100).toFixed(1) : null,   color: "#ff9d5c", unit: "%"      },
-    { title: "Tokens / segundo",     rows: bySpeed,  getValue: (r) => r.avg_tokens_per_second != null ? +r.avg_tokens_per_second.toFixed(1) : null, color: "#c084fc", unit: " tok/s" },
-    { title: "Brier (menor=melhor)", rows: byBrier,  getValue: (r) => r.brier_avg != null ? +r.brier_avg.toFixed(3) : null,         color: "#fb7185", unit: ""       },
-  ].filter((c) => c.rows.length > 0);
+  const rows = active.slice().sort((a, b) => b.benchmark_score - a.benchmark_score);
+  const maxPoints = Math.max(...rows.map((r) => r.points || 0), 1);
+  const maxSpeed = Math.max(...rows.map((r) => r.avg_tokens_per_second || 0), 1);
+  const maxBrier = Math.max(...rows.map((r) => r.brier_avg || 0), 1);
   container.innerHTML = `
-    <div class="section-title bench-charts-title">
-      <p>Estatisticas de execucao</p>
-      <h3>Graficos comparativos das LLMs</h3>
+    <div class="bench-dashboard-head">
+      <div class="section-title bench-charts-title">
+        <p>Estatisticas de execucao</p>
+        <h3>Painel comparativo consolidado</h3>
+        <span>${rows.length} modelos avaliados. Barras mais longas indicam melhor desempenho.</span>
+      </div>
+      <button id="btn-export-benchmark-dashboard" class="btn-export-table" type="button">📸 Exportar quadro completo</button>
     </div>
-    <div class="bench-charts-grid">
-      ${charts.map((c) => `<div class="bench-chart-panel">${svgHBar(c)}</div>`).join("")}
-    </div>`;
+    <aside class="structured-output-callout">
+      <span class="structured-output-icon">{ }</span>
+      <div><strong>Structured Output · JSON Schema</strong>
+      <p><b>Advanced:</b> you can provide a JSON Schema to enforce a particular output format from the model. Read the documentation to learn more.</p></div>
+      <em>${rows.filter((row) => row.invalid_runs > 0).length} modelos exigiram ajuste no LM Studio</em>
+    </aside>
+    <div class="benchmark-matrix-wrap"><div class="benchmark-matrix">
+      <div class="benchmark-matrix-head"><span>Modelo</span><span>Score</span><span>Pontos</span><span class="json-head">JSON válido<small>Structured Output</small></span><span>Acerto</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
+      ${rows.map((row, index) => `<div class="benchmark-matrix-row">
+        <div class="matrix-model"><b>${index + 1}</b><img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt=""><span><strong>${escapeHtml(row.display_name)}</strong><small>${row.runs} execuções</small></span></div>
+        ${metricCell(row.benchmark_score, 100)}
+        ${metricCell(row.points, maxPoints, { format: (v) => `${num(v, 0)} pts` })}
+        <div class="json-metric-wrap">${metricCell(row.json_rate == null ? null : row.json_rate * 100, 100, { format: (v) => `${num(v, 0)}%` })}<small class="schema-status ${row.invalid_runs > 0 ? "was-adjusted" : ""}">${row.invalid_runs > 0 ? `↻ Ajustado no LM Studio · ${row.invalid_runs} falha${row.invalid_runs === 1 ? "" : "s"}` : "✓ Schema aplicado"}</small></div>
+        ${metricCell(row.accuracy == null ? null : row.accuracy * 100, 100, { format: (v) => `${num(v, 0)}%` })}
+        ${metricCell(row.avg_tokens_per_second, maxSpeed, { format: (v) => `${num(v, 1)} tok/s` })}
+        ${metricCell(row.brier_avg, maxBrier, { inverse: true, format: (v) => num(v, 3) })}
+        <span class="capability-pill ${/omni|vision|vl/i.test(row.model_id) ? "is-visual" : ""}">${/omni|vision|vl/i.test(row.model_id) ? "◉ Visão" : "Texto"}</span>
+      </div>`).join("")}
+      <div class="benchmark-matrix-row image-model-row">
+        <div class="matrix-model"><b>+</b><span class="image-model-icon">✦</span><span><strong>FLUX.1-dev</strong><small>modelo visual de referência</small></span></div>
+        <div class="matrix-na">fora do benchmark</div><div class="matrix-na">—</div><div class="matrix-na">—</div><div class="matrix-na">—</div><div class="matrix-na">—</div><div class="matrix-na">—</div>
+        <span class="capability-pill is-generator">✦ Gera imagem</span>
+      </div>
+    </div></div>`;
+  document.getElementById("btn-export-benchmark-dashboard")?.addEventListener("click", exportBenchmarkDashboardImage);
 }
 
 function benchmarkRows() {
@@ -1213,9 +1258,29 @@ async function _loadIconMap(rows) {
 }
 
 async function _canvasDownload(canvas, filename) {
+  if (typeof canvas.toBlob !== "function") {
+    const a = document.createElement("a");
+    a.download = filename;
+    a.href = canvas.toDataURL("image/png");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
   await new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
-      if (!blob) { reject(new Error("toBlob null")); return; }
+      if (!blob) {
+        try {
+          const a = document.createElement("a");
+          a.download = filename;
+          a.href = canvas.toDataURL("image/png");
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          resolve();
+        } catch (error) { reject(error); }
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.download = filename;
@@ -1523,12 +1588,69 @@ async function exportRankingImage() {
   }
 }
 
-async function exportBenchmarkImage() {
-  const rows = benchmarkRows();
+function buildBenchmarkDashboardCanvas(rows, banner, iconMap) {
+  const C = _canvasPalette(), S = 2, PAD = 24, HEADER = 188, HEAD = 38, ROW = 54, FOOT = 40;
+  const cols = [250, 105, 105, 105, 105, 125, 105, 135];
+  const labels = ["MODELO", "SCORE", "PONTOS", "JSON VÁLIDO", "ACERTO", "VELOCIDADE", "BRIER ↓", "CAPACIDADE"];
+  const W = PAD * 2 + cols.reduce((a, b) => a + b, 0);
+  const BANNER_H = Math.round(W / 3), BODY_H = HEADER + HEAD + (rows.length + 1) * ROW + FOOT, H = BANNER_H + BODY_H;
+  const canvas = document.createElement("canvas"); canvas.width = W * S; canvas.height = H * S;
+  const ctx = canvas.getContext("2d"); ctx.scale(S, S); ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  if (banner) ctx.drawImage(banner, 0, 0, W, BANNER_H);
+  else { ctx.fillStyle = "#090e18"; ctx.fillRect(0, 0, W, BANNER_H); }
+  ctx.translate(0, BANNER_H);
+  _canvasHeader(ctx, W, 80, PAD, null, "Painel comparativo consolidado", `${rows.length} modelos avaliados · barras maiores indicam melhor desempenho`, C);
+  _canvasTxt(ctx, "ESTATÍSTICAS DE EXECUÇÃO", PAD, 101, _canvasF(10, true), C.accent);
+  const adjustedCount = rows.filter((row) => row.invalid_runs > 0).length;
+  ctx.fillStyle = "#17283a"; _roundRect(ctx, PAD, 116, W - PAD * 2, 60, 10); ctx.fill();
+  ctx.strokeStyle = "#57a7ff88"; ctx.lineWidth = 1; _roundRect(ctx, PAD, 116, W - PAD * 2, 60, 10); ctx.stroke();
+  ctx.fillStyle = "#57a7ff"; ctx.fillRect(PAD, 116, 4, 60);
+  ctx.fillStyle = "#243d58"; _roundRect(ctx, PAD + 14, 127, 38, 38, 8); ctx.fill();
+  _canvasTxt(ctx, "{ }", PAD + 33, 151, "bold 13px monospace", "#9dccff", "center");
+  _canvasTxt(ctx, "Structured Output · JSON Schema", PAD + 64, 137, _canvasF(12, true), "#dcecff");
+  _canvasTxt(ctx, "Advanced: you can provide a JSON Schema to enforce a particular output format from the model. Read the documentation to learn more.", PAD + 64, 158, _canvasF(9), C.muted);
+  const badge = `${adjustedCount} modelos exigiram ajuste no LM Studio`;
+  ctx.font = _canvasF(9, true); const badgeW = ctx.measureText(badge).width + 22;
+  ctx.fillStyle = "#40371f"; _roundRect(ctx, W - PAD - badgeW - 12, 128, badgeW, 28, 14); ctx.fill();
+  _canvasTxt(ctx, badge, W - PAD - badgeW / 2 - 12, 147, _canvasF(9, true), C.gold, "center");
+  let x = PAD; labels.forEach((label, i) => { ctx.fillStyle = C.panel; ctx.fillRect(x, HEADER, cols[i], HEAD); _canvasTxt(ctx, label, x + (i ? cols[i] / 2 : 8), HEADER + 24, _canvasF(9, true), C.muted, i ? "center" : "left"); x += cols[i]; });
+  const maxPoints = Math.max(...rows.map(r => r.points || 0), 1), maxSpeed = Math.max(...rows.map(r => r.avg_tokens_per_second || 0), 1), maxBrier = Math.max(...rows.map(r => r.brier_avg || 0), 1);
+  const metric = (value, max, inverse = false) => value == null ? null : (inverse ? 1 - Math.min(1, value / max) : Math.min(1, value / max));
+  rows.forEach((r, ri) => {
+    const y = HEADER + HEAD + ri * ROW; ctx.fillStyle = ri % 2 ? C.bg : "#1a1f2c"; ctx.fillRect(PAD, y, W - PAD * 2, ROW - 1);
+    const img = iconMap?.get(r.model_id); _canvasDrawIcon(ctx, img, r.display_name, PAD + 30, y + 10, 34, 6);
+    _canvasTxt(ctx, String(ri + 1), PAD + 14, y + 32, _canvasF(10, true), C.gold, "center");
+    _canvasTxt(ctx, (r.display_name || r.model_id).slice(0, 26), PAD + 72, y + 25, _canvasF(11, true), C.text); _canvasTxt(ctx, `${r.runs} execuções`, PAD + 72, y + 41, _canvasF(9), C.muted);
+    const values = [
+      [r.benchmark_score, 100, num(r.benchmark_score, 0)], [r.points, maxPoints, `${r.points} pts`],
+      [r.json_rate == null ? null : r.json_rate * 100, 100, r.json_rate == null ? "—" : `${Math.round(r.json_rate * 100)}%`],
+      [r.accuracy == null ? null : r.accuracy * 100, 100, r.accuracy == null ? "—" : `${Math.round(r.accuracy * 100)}%`],
+      [r.avg_tokens_per_second, maxSpeed, r.avg_tokens_per_second == null ? "—" : `${num(r.avg_tokens_per_second, 1)} tok/s`],
+      [r.brier_avg, maxBrier, r.brier_avg == null ? "—" : num(r.brier_avg, 3), true]
+    ];
+    let mx = PAD + cols[0]; values.forEach(([v, max, label, inverse], i) => { const q = metric(v, max, inverse); ctx.fillStyle = "#252b38"; _roundRect(ctx, mx + 8, y + 8, cols[i + 1] - 16, i === 2 ? 27 : 34, 6); ctx.fill(); if (q != null) { ctx.fillStyle = C.accent + "88"; _roundRect(ctx, mx + 8, y + 8, Math.max(4, (cols[i + 1] - 16) * q), i === 2 ? 27 : 34, 6); ctx.fill(); } _canvasTxt(ctx, label, mx + cols[i + 1] / 2, y + 29, _canvasF(10, true), C.text, "center"); if (i === 2) _canvasTxt(ctx, r.invalid_runs > 0 ? "AJUSTADO LM STUDIO" : "SCHEMA APLICADO", mx + cols[i + 1] / 2, y + 47, _canvasF(7, true), r.invalid_runs > 0 ? C.gold : C.accent, "center"); mx += cols[i + 1]; });
+    const visual = /omni|vision|vl/i.test(r.model_id); _canvasTxt(ctx, visual ? "◉ Visão" : "Texto", mx + cols[7] / 2, y + 32, _canvasF(10, true), visual ? "#9dccff" : C.muted, "center");
+  });
+  const fy = HEADER + HEAD + rows.length * ROW; ctx.fillStyle = "#251d30"; ctx.fillRect(PAD, fy, W - PAD * 2, ROW - 1); _canvasTxt(ctx, "+", PAD + 14, fy + 32, _canvasF(12, true), "#f0abfc", "center"); _canvasTxt(ctx, "✦  FLUX.1-dev", PAD + 38, fy + 25, _canvasF(11, true), C.text); _canvasTxt(ctx, "modelo visual de referência", PAD + 38, fy + 41, _canvasF(9), C.muted); _canvasTxt(ctx, "fora do benchmark", PAD + cols[0] + cols.slice(1, 7).reduce((a,b)=>a+b,0) / 2, fy + 32, _canvasF(10), C.muted, "center"); _canvasTxt(ctx, "✦ Gera imagem", W - PAD - cols[7] / 2, fy + 32, _canvasF(10, true), "#f0abfc", "center");
+  _canvasTxt(ctx, "CopaMind 2026 · Benchmark de LLMs locais", W / 2, BODY_H - 14, _canvasF(10), C.muted, "center"); return canvas;
+}
+
+async function exportBenchmarkDashboardImage() {
+  const rows = benchmarkRows().filter(r => !r.archived && (r.runs > 0 || r.scored > 0)).sort((a,b) => b.benchmark_score - a.benchmark_score);
+  const btn = document.getElementById("btn-export-benchmark-dashboard"), label = btn?.textContent;
   if (!rows.length) { alert("Sem dados de benchmark ainda."); return; }
-  const btn = document.getElementById("btn-export-benchmark");
-  const orig = btn?.textContent;
-  if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
+  if (btn) { btn.textContent = "Gerando PNG..."; btn.disabled = true; }
+  try { const [banner, icons] = await Promise.all([_loadImg("../../docs/assets/banner.png"), _loadIconMap(rows)]); await _canvasDownload(buildBenchmarkDashboardCanvas(rows, banner, icons), `copamind_painel_comparativo_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`); }
+  catch (err) { console.error("Erro ao exportar painel:", err); alert("Erro ao gerar o quadro completo. Veja o console."); }
+  finally { if (btn) { btn.textContent = label; btn.disabled = false; } }
+}
+
+async function exportBenchmarkImage() {
+  const rows = benchmarkRows().filter((row) => !row.archived);
+  if (!rows.length) { alert("Sem dados de benchmark ainda."); return; }
+  const buttons = [document.getElementById("btn-export-benchmark"), document.getElementById("btn-export-benchmark-dashboard")].filter(Boolean);
+  const labels = buttons.map((button) => button.textContent);
+  buttons.forEach((button) => { button.textContent = "Gerando PNG..."; button.disabled = true; });
   try {
     const [logo, iconMap] = await Promise.all([
       _loadImg("../../docs/assets/copamind_2026.png"),
@@ -1541,7 +1663,7 @@ async function exportBenchmarkImage() {
     console.error("Erro ao exportar benchmark:", err);
     alert("Erro ao gerar imagem. Veja o console.");
   } finally {
-    if (btn) { btn.textContent = orig; btn.disabled = false; }
+    buttons.forEach((button, index) => { button.textContent = labels[index]; button.disabled = false; });
   }
 }
 

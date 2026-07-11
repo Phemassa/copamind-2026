@@ -7,6 +7,7 @@ import re
 import unicodedata
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from threading import Lock
 from typing import Annotated, Any
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -28,6 +29,7 @@ from copamind.llm.orchestrator import SequentialOrchestrator, build_evidence_pac
 router = APIRouter(tags=["chat"], prefix="/chat")
 
 RepoDep = Annotated[DuckDBRepository, Depends(get_repository)]
+_CHAT_RUN_LOCK = Lock()
 
 _CHAT_MODEL_GROUPS: dict[str, tuple[str, str, int]] = {
     "mistralai/devstral-small-2-2512": ("very_slow", "Muito lentos - densos grandes", 1),
@@ -263,12 +265,12 @@ def _copamind_context(
         match for match in all_matches
         if match.home_team_id in relevant_ids or match.away_team_id in relevant_ids
     ] if relevant_ids else all_matches[-40:]
-    matches = matches[-80:]
+    matches = matches[-20:]
     relevant_match_ids = {match.match_id for match in matches}
     results = {row.match_id: row for row in repo.list_pool_results()}
     predictions = [
         item for item in repo.list_pool_predictions() if item.match_id in relevant_match_ids
-    ][-60:]
+    ][-30:]
     notes = [
         item for item in repo.list_team_context_notes(active_only=True)
         if not relevant_ids or item.get("team_id") in relevant_ids
@@ -291,7 +293,20 @@ def _copamind_context(
             }
             for match in matches
         ],
-        "stored_predictions": [item.model_dump(mode="json") for item in predictions],
+        "stored_predictions": [
+            {
+                "data_kind": "statistical_or_llm_prediction",
+                "predictor_name": item.predictor_name,
+                "match_id": item.match_id,
+                "home_team_id": item.home_team_id,
+                "away_team_id": item.away_team_id,
+                "prob_home": item.prob_home,
+                "prob_draw": item.prob_draw,
+                "prob_away": item.prob_away,
+                "predicted_score": [item.predicted_home_goals, item.predicted_away_goals],
+            }
+            for item in predictions
+        ],
         "active_context_notes": notes,
         "session_news": news,
     }
@@ -307,12 +322,12 @@ def _copamind_context(
             }
         )
     serialized = json.dumps(payload, ensure_ascii=False, default=str)
-    if len(serialized) <= 60000:
+    if len(serialized) <= 24000:
         return serialized
     # Reducao preserva JSON valido e prioriza dados/resultados mais recentes.
-    payload["matches_and_real_results"] = payload["matches_and_real_results"][-80:]
-    payload["stored_predictions"] = payload["stored_predictions"][-60:]
-    payload["active_context_notes"] = payload["active_context_notes"][-40:]
+    payload["matches_and_real_results"] = payload["matches_and_real_results"][-12:]
+    payload["stored_predictions"] = payload["stored_predictions"][-15:]
+    payload["active_context_notes"] = payload["active_context_notes"][-20:]
     payload["analytics_fifa_v2"] = [
         {key: item[key] for key in ("team_id", "indexes", "core_metrics")}
         for item in payload["analytics_fifa_v2"]
@@ -329,7 +344,7 @@ def _compile_memory(question: str, answers: list[dict[str, object]], synthesis: 
     return (previous + "\n\n" + entry).strip()[-12000:]
 
 
-def _run_chat_batch(db_path: str, batch_id: str, news_id: str | None = None) -> None:
+def _run_chat_batch_unlocked(db_path: str, batch_id: str, news_id: str | None = None) -> None:
     with DuckDBRepository(db_path) as repo:
         repo.create_schema()
         batch = repo.get_chat_batch(batch_id)
@@ -344,8 +359,11 @@ def _run_chat_batch(db_path: str, batch_id: str, news_id: str | None = None) -> 
         )
         news = next((row for row in repo.list_chat_news(str(batch["session_id"]))
                      if row["news_id"] == news_id), None)
-        context = _copamind_context(repo, str(question_row["content"]), news)
         memory = str(session["memory_summary"]) if batch["use_memory"] else ""
+        memory = memory[-4000:]
+        context = _copamind_context(
+            repo, f"{question_row['content']}\n{memory}", news
+        )
         repo.update_chat_batch(batch_id, status="running", updated_at=_now())
     client = LMStudioClient()
     answers: list[dict[str, object]] = []
@@ -369,7 +387,7 @@ def _run_chat_batch(db_path: str, batch_id: str, news_id: str | None = None) -> 
             )
             raw = client.complete(messages=[{"role": "system", "content": system},
                                             {"role": "user", "content": prompt}],
-                                  model_id=model_id, temperature=0.2)
+                                  model_id=model_id, temperature=0.2, max_tokens=1000)
             answer = {"model_id": model_id, "content": raw.content,
                       "latency_ms": raw.latency_ms, "status": "completed"}
         except LLMError as exc:
@@ -391,15 +409,19 @@ def _run_chat_batch(db_path: str, batch_id: str, news_id: str | None = None) -> 
     }
     if valid:
         synth_model = get_settings().chat_synthesizer_model_id or str(valid[0]["model_id"])
+        compact_valid = [
+            {"model_id": item["model_id"], "content": str(item["content"])[:500]}
+            for item in valid
+        ]
         synth_prompt = (
             "Consolide as respostas abaixo. Retorne JSON com answer (string), consensus, "
             "divergences, uncertainties e sources (listas de strings). Nao invente fatos.\n" +
-            json.dumps(valid, ensure_ascii=False)
+            json.dumps(compact_valid, ensure_ascii=False)
         )
         try:
             raw = client.complete(messages=[{"role": "system", "content": system},
                                             {"role": "user", "content": synth_prompt}],
-                                  model_id=synth_model, temperature=0.0)
+                                  model_id=synth_model, temperature=0.0, max_tokens=1200)
             data = extract_json(raw.content)
             synthesis = str(data.get("answer") or raw.content)
             synthesis_meta = {key: data.get(key, []) for key in synthesis_meta}
@@ -422,11 +444,20 @@ def _run_chat_batch(db_path: str, batch_id: str, news_id: str | None = None) -> 
                                completed_models=total)
 
 
+def _run_chat_batch(db_path: str, batch_id: str, news_id: str | None = None) -> None:
+    """Serializa lotes para impedir dois modelos disputando o LM Studio local."""
+    with _CHAT_RUN_LOCK:
+        _run_chat_batch_unlocked(db_path, batch_id, news_id)
+
+
 @router.post("/sessions/{session_id}/ask", status_code=202)
 def ask_chat(session_id: str, request: AskRequest, background_tasks: BackgroundTasks,
              repo: RepoDep) -> dict[str, str]:
     if repo.get_chat_session(session_id) is None:
         raise HTTPException(status_code=404, detail="chat session not found")
+    latest = repo.latest_chat_batch(session_id)
+    if latest and latest["status"] in {"queued", "running"}:
+        raise HTTPException(status_code=409, detail="ja existe uma pergunta em processamento")
     selected = list(dict.fromkeys(request.model_ids))
     try:
         available = set(LMStudioClient(timeout=5).list_models())

@@ -57,6 +57,7 @@ class LLMClient(Protocol):
         model_id: str,
         temperature: float = 0.2,
         response_schema: dict[str, Any] | None = None,
+        max_tokens: int = 3000,
     ) -> LLMResponse:
         """Gera uma resposta a partir das mensagens."""
         ...
@@ -81,6 +82,7 @@ class FakeLLMClient:
         model_id: str,
         temperature: float = 0.2,
         response_schema: dict[str, Any] | None = None,
+        max_tokens: int = 3000,
     ) -> LLMResponse:
         if model_id not in self._responses:
             raise LLMError(f"modelo nao configurado no fake: {model_id}")
@@ -89,6 +91,7 @@ class FakeLLMClient:
                 "model_id": model_id,
                 "temperature": temperature,
                 "response_schema": response_schema is not None,
+                "max_tokens": max_tokens,
                 "messages": messages,
             }
         )
@@ -135,8 +138,9 @@ class LMStudioClient:
         model_id: str,
         temperature: float = 0.2,
         response_schema: dict[str, Any] | None = None,
+        max_tokens: int = 3000,
     ) -> LLMResponse:
-        payloads = self._payloads(model_id, messages, temperature, response_schema)
+        payloads = self._payloads(model_id, messages, temperature, response_schema, max_tokens)
         start = time.perf_counter()
         attempts: list[dict[str, object]] = []
         last_error: Exception | None = None
@@ -214,12 +218,13 @@ class LMStudioClient:
         messages: list[dict[str, str]],
         temperature: float,
         response_schema: dict[str, Any] | None,
+        max_tokens: int = 3000,
     ) -> list[tuple[str, dict[str, Any]]]:
         base: dict[str, Any] = {
             "model": model_id,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": 3000,
+            "max_tokens": max_tokens,
             "repeat_penalty": 1.1,
         }
         payloads: list[tuple[str, dict[str, Any]]] = []
@@ -259,13 +264,14 @@ class OllamaClient:
         model_id: str,
         temperature: float = 0.2,
         response_schema: dict[str, Any] | None = None,
+        max_tokens: int = 3000,
     ) -> LLMResponse:
         payload = {
             "model": model_id,
             "messages": messages,
             "stream": False,
             "format": "json",
-            "options": {"temperature": temperature},
+            "options": {"temperature": temperature, "num_predict": max_tokens},
         }
         start = time.perf_counter()
         try:
