@@ -1870,6 +1870,27 @@ h3 { font-size: 22px; }
   opacity: .28;
 }
 
+/* ── impossible match (team already eliminated) ── */
+.resumo-impossible td {
+  opacity: .32;
+  text-decoration: line-through;
+  filter: grayscale(.8);
+}
+.resumo-impossible .resumo-match-td {
+  text-decoration: none;
+  position: relative;
+}
+.resumo-impossible .resumo-match-td::after {
+  content: "não ocorre";
+  display: block;
+  font-size: 9px;
+  color: var(--red, #f05);
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
 /* ── champion hit: gold header ── */
 .resumo-champion-hit {
   background: rgba(245, 200, 76, .1) !important;

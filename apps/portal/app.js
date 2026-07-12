@@ -1943,7 +1943,11 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
       const grad = ctx.createLinearGradient(cx + 20, 0, cx + 20 + bw, 0);
       grad.addColorStop(0, C.accent); grad.addColorStop(1, "#f2c94c");
       ctx.fillStyle = grad; ctx.fillRect(cx + 20, ty + 38, bw, 8);
-      txt("prob. de avançar", cx + 20, ty + 60, F(9), C.muted);
+      const advLbl = phase === "final"       ? "prob. de ser campeã"
+        : phase === "third_place"            ? "prob. vencer (3º lugar)"
+        : phase === "semifinal"              ? "prob. ir à Final"
+        : "prob. de avançar";
+      txt(advLbl, cx + 20, ty + 60, F(9), C.muted);
     });
     ctx.fillStyle = C.border;
     ctx.fillRect(0, secY + TEAMS_H - 1, W, 1);
@@ -2012,6 +2016,13 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   sy += MOD_H;
 
+  // Build match result lookup for correct-prediction highlighting
+  const canvasResultMap = {};
+  matchOrder.forEach((m) => {
+    const official = _findOfficial(m);
+    if (official) canvasResultMap[m._key] = actualWinner(official);
+  });
+
   // ── Summary row: acertos por modelo ──────────────────────────────────────
   const canvasFinishedKeys = [];
   matchOrder.forEach((m) => {
@@ -2067,13 +2078,6 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   ctx.fillRect(PAD, sy + SUMROW_H - 1, W - PAD, 1);
 
   sy += SUMROW_H;
-
-  // Build match result lookup for correct-prediction highlighting
-  const canvasResultMap = {};
-  matchOrder.forEach((m) => {
-    const official = _findOfficial(m);
-    if (official) canvasResultMap[m._key] = actualWinner(official);
-  });
 
   // ── Data rows ──────────────────────────────────────────────────────────────
   matchOrder.forEach((m, mi) => {
@@ -2396,10 +2400,18 @@ function renderLinkedInCaptures() {
       </td>`;
     }).join("")}
   </tr>` : "";
+  // Teams already eliminated by official results (losers of finished matches)
+  const eliminatedIds = eliminatedTeamIds();
+
   // Body: one row per match
   const body = matchOrder.map((m) => {
     const actual = matchResultMap[m._key] ?? null;  // "home"|"away"|null
     const officialMatch = findOfficial(m);
+    // Mark row as impossible if the match has no official result yet
+    // but at least one team is already eliminated from the tournament
+    const homeElim = m.home_team_id && eliminatedIds.has(m.home_team_id);
+    const awayElim = m.away_team_id && eliminatedIds.has(m.away_team_id);
+    const isImpossible = !actual && (homeElim || awayElim);
     const hasScore = officialMatch && officialMatch.home_score != null;
     const scoreDisplay = hasScore ? `${officialMatch.home_score}–${officialMatch.away_score}` : null;
     const cells = rows.map((row) => {
@@ -2437,7 +2449,7 @@ function renderLinkedInCaptures() {
         </span>
       </td>`;
     }).join("");
-    return `<tr>
+    return `<tr${isImpossible ? ' class="resumo-impossible"' : ''}>
       <td class="resumo-match-td">
         <div class="resumo-match-inline">
           <span class="resumo-match-team${actual === "home" ? " is-winner" : ""}">
