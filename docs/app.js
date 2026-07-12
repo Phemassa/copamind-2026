@@ -87,7 +87,9 @@ document.querySelectorAll("[data-home-view]").forEach((button) => {
   });
 });
 loadData();
-initializeChat().catch(() => setChatStatus("API do chat offline."));
+if (!window.COPAMIND_OFFLINE) {
+  initializeChat().catch(() => setChatStatus("API do chat offline."));
+}
 
 async function loadData(cacheBust = false) {
   if (window.COPAMIND_EMBEDDED_DATA) {
@@ -395,6 +397,10 @@ function renderAll() {
 function renderMainNav() {
   document.querySelectorAll(".main-nav button").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === activeView);
+    if (window.COPAMIND_OFFLINE && button.dataset.view === "chat") {
+      button.disabled = true;
+      button.title = "Chat desativado no modo estático";
+    }
   });
   document.querySelectorAll(".view-section").forEach((section) => {
     section.classList.toggle("is-hidden", section.dataset.section !== activeView);
@@ -568,6 +574,13 @@ function renderModels() {
 }
 
 function renderModelActions() {
+  if (window.COPAMIND_OFFLINE) {
+    document.getElementById("model-actions").innerHTML = `
+      <div class="model-actions-main offline-notice">
+        <span>🔒 Modo estático — controles de execução desativados</span>
+      </div>`;
+    return;
+  }
   const canRunAll = canRunAllModelsForPhase();
   const phase = currentPhase();
   const pendingResults = pendingPhaseMatches(activePhase).length;
@@ -5073,16 +5086,32 @@ async function exportStaticSite() {
     const externalAssetMap = await loadExternalAssetMap(externalUrls);
     const assetMap = { ...localAssetMap, ...externalAssetMap };
     const embeddedData = replaceUrlsInData(data, externalAssetMap);
+    const offlineFlag = `<script>window.COPAMIND_OFFLINE = true;<\/script>\n`;
+    const offlineCss = `<style>
+#btn-refresh-scores, #run-all-models, #reset-phase-history, #reset-all-history,
+#cancel-sequential, [data-export-static], #btn-publish-static, #open-chat-header,
+.model-action-buttons, .context-note-form, #chat-form, #chat-reset,
+#btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }
+.offline-notice { display: flex !important; }
+<\/style>\n`;
     let outputCss = replaceAssets(css, assetMap);
     let outputJs = replaceAssets(js, assetMap).replaceAll("</script>", "<\\/script>");
     let outputHtml = replaceAssets(html, assetMap);
+    // Remove botoes de controle local (nao fazem sentido no HTML exportado)
+    outputHtml = outputHtml
+      .replace(/<button[^>]+id="refresh-data"[^>]*>.*?<\/button>/s, "")
+      .replace(/<button[^>]+data-export-static[^>]*>.*?<\/button>/gs, "")
+      .replace(/<button[^>]+id="btn-publish-static"[^>]*>.*?<\/button>/s, "")
+      .replace(/<a[^>]+href="http:\/\/localhost:8501"[^>]*>.*?<\/a>/s, "")
+      .replace(/<button[^>]+id="open-chat-header"[^>]*>.*?<\/button>/s, "")
+      .replace(/<div[^>]+class="header-actions"[^>]*>\s*<\/div>/s, "");
     outputHtml = outputHtml.replace(
       '<link rel="stylesheet" href="styles.css" />',
       `<style>\n${outputCss}\n</style>`
     );
     outputHtml = outputHtml.replace(
       '<script src="app.js"></script>',
-      `<script>window.COPAMIND_EMBEDDED_DATA=${safeJson(embeddedData)};<\/script>\n<script>\n${outputJs}\n<\/script>`
+      `${offlineFlag}${offlineCss}<script>window.COPAMIND_EMBEDDED_DATA=${safeJson(embeddedData)};<\/script>\n<script>\n${outputJs}\n<\/script>`
     );
     downloadFile(
       `copamind-2026-portal-${new Date().toISOString().slice(0, 10)}.html`,
