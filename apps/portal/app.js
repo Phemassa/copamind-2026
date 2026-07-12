@@ -1076,10 +1076,10 @@ function renderBenchmarkCharts() {
       <span class="structured-output-icon">{ }</span>
       <div><strong>Structured Output · JSON Schema</strong>
       <p><b>Advanced:</b> you can provide a JSON Schema to enforce a particular output format from the model. Read the documentation to learn more.</p></div>
-      <em>${rows.filter((row) => row.invalid_runs > 0).length} modelos exigiram ajuste no LM Studio</em>
+      <em>${rows.filter((row) => row.invalid_runs > 0).length} modelos exigiram ajuste no LM Studio <span title="Modelos que precisaram de ajuste de configuracao recebem penalizacao de usabilidade no Score do Benchmark (-8 pts). O Ranking das LLMs é independente: pontos do bolao nao sofrem esta penalizacao.">⚠ penaliza benchmark</span></em>
     </aside>
     <div class="benchmark-matrix-wrap"><div class="benchmark-matrix">
-      <div class="benchmark-matrix-head"><span>Modelo</span><span>Score</span><span>Pontos</span><span class="json-head">JSON válido<small>Structured Output</small></span><span>Acerto</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
+      <div class="benchmark-matrix-head"><span>Modelo</span><span title="Usabilidade (JSON+facilidade) 45% · Acertividade 30% · Performance 20% · Disponib. 5% — NÃO inclui pontos do bolão (ver Ranking das LLMs)">Score Benchmark</span><span title="Pontos do Bolão (ver Ranking das LLMs) — referência apenas, NÃO compõe o Score Benchmark">Pontos Bolão ↗</span><span class="json-head">JSON válido<small>Structured Output</small></span><span>Acerto %</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
       ${rows.map((row, index) => `<div class="benchmark-matrix-row">
         <div class="matrix-model"><b>${index + 1}</b><img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt=""><span><strong>${escapeHtml(row.display_name)}</strong><small>${row.runs} execuções</small></span></div>
         ${metricCell(row.benchmark_score, 100)}
@@ -1182,23 +1182,41 @@ function benchmarkRows() {
 
 function benchmarkScore(row) {
   if (!row.runs && !row.scored) return 0;
-  const json = row.json_rate == null ? 0 : row.json_rate * 40;
-  const bolao = Math.min(25, Number(row.points || 0) * 2.5);
-  const accuracy = row.accuracy == null ? 0 : row.accuracy * 15;
-  const speed = row.avg_tokens_per_second == null ? 0 : Math.min(12, row.avg_tokens_per_second / 2);
-  const latency = row.avg_latency_ms == null ? 0 : Math.max(0, 8 - row.avg_latency_ms / 30000);
+
+  // ── Usabilidade (0–45) ────────────────────────────────────────────────────
+  // JSON válido: 0-30
+  const json = row.json_rate == null ? 0 : row.json_rate * 30;
+  // Facilidade de configuração: 15 = pronto sem ajuste | 7 = precisou ⚠ ajuste | 0 = instável
+  const noAdjust = row.invalid_runs === 0 && row.runs > 0;
+  const goodWithAdjust = !noAdjust && (row.json_rate ?? 0) >= 0.7;
+  const ease = noAdjust ? 15 : goodWithAdjust ? 7 : 0;
+
+  // ── Acertividade (0–30) ───────────────────────────────────────────────────
+  // % de vencedores corretos (accuracy)
+  const accuracy = row.accuracy == null ? 0 : row.accuracy * 30;
+
+  // ── Performance técnica (0–20) ────────────────────────────────────────────
+  // Velocidade (tok/s): 0-15
+  const speed = row.avg_tokens_per_second == null ? 0 : Math.min(15, row.avg_tokens_per_second * 0.75);
+  // Latência (inversamente): 0-5
+  const latency = row.avg_latency_ms == null ? 0 : Math.max(0, 5 - row.avg_latency_ms / 60000);
+
+  // ── Disponibilidade (0–5) ─────────────────────────────────────────────────
   const available = row.archived || row.available === false ? 0 : 5;
-  return Math.max(0, Math.min(100, json + bolao + accuracy + speed + latency + available));
+
+  return Math.max(0, Math.min(100, json + ease + accuracy + speed + latency + available));
+  // Distribuição: Usabilidade 45% | Acertividade 30% | Performance 20% | Disponib. 5%
 }
 
 function easeLabel(row) {
   if (row.archived) return "fora da lista";
   if (!row.runs) return "sem teste";
   if (row.json_rate >= 0.95 && row.invalid_runs === 0) return "pronto";
+  if (row.json_rate >= 0.75 && row.invalid_runs > 0) return "ajuste necessário";
   if (row.json_rate >= 0.75) return "bom com ajuste";
   if (row.dominant_issue === "lmstudio_error") return "corrigir ambiente";
   if (row.dominant_issue === "context_error") return "reduzir contexto";
-  if (row.dominant_issue === "json_invalid") return "testar JSON";
+  if (row.dominant_issue === "json_invalid") return "ajustar JSON";
   return "instavel";
 }
 
@@ -1482,19 +1500,19 @@ function buildBenchmarkCanvas(rows, logo, iconMap) {
   const FOOT_H = 36;
   const ICO = 34;
 
-  // columns: #, icon, name, bench, bolao, json, chamadas, lat, tok/s, uso, orientacao
+  // columns: #, icon, name, bench, bolao (ref), json, chamadas, lat, tok/s, uso, orientacao
   const COLS = [
-    { label: "#",           w: 40,  align: "center" },
-    { label: "",            w: 44,  align: "center" },
-    { label: "Modelo",      w: 210, align: "left"   },
-    { label: "Bench",       w: 68,  align: "center" },
-    { label: "Bolão",       w: 108, align: "center" },
-    { label: "JSON",        w: 60,  align: "center" },
-    { label: "Chamadas",    w: 80,  align: "center" },
-    { label: "Lat.",        w: 80,  align: "center" },
-    { label: "Tok/s",       w: 68,  align: "center" },
-    { label: "Uso",         w: 100, align: "center" },
-    { label: "Orientação",  w: 200, align: "left"   },
+    { label: "#",            w: 40,  align: "center" },
+    { label: "",             w: 44,  align: "center" },
+    { label: "Modelo",       w: 210, align: "left"   },
+    { label: "Score",        w: 68,  align: "center" },
+    { label: "Pts Bolão ↗",  w: 108, align: "center" },
+    { label: "JSON",         w: 60,  align: "center" },
+    { label: "Chamadas",     w: 80,  align: "center" },
+    { label: "Lat.",         w: 80,  align: "center" },
+    { label: "Tok/s",        w: 68,  align: "center" },
+    { label: "Uso",          w: 100, align: "center" },
+    { label: "Orientação",   w: 200, align: "left"   },
   ];
 
   const totalColW = COLS.reduce((s, c) => s + c.w, 0);
@@ -1510,7 +1528,7 @@ function buildBenchmarkCanvas(rows, logo, iconMap) {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
 
-  _canvasHeader(ctx, W, HDR_H, PAD, logo, "Benchmark LLMs", "Score técnico + velocidade + facilidade · CopaMind 2026", C);
+  _canvasHeader(ctx, W, HDR_H, PAD, logo, "Benchmark LLMs", "Usabilidade · Acertividade · Performance técnica (independente do Bolão)", C);
 
   // Column headers
   let cx = PAD;
