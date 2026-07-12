@@ -58,6 +58,7 @@ document.getElementById("btn-refresh-scores")?.addEventListener("click", trigger
 document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
 document.getElementById("btn-export-ranking")?.addEventListener("click", exportRankingImage);
 document.getElementById("btn-export-benchmark")?.addEventListener("click", exportBenchmarkImage);
+document.getElementById("btn-publish-static")?.addEventListener("click", publishStaticSite);
 document.querySelectorAll("[data-export-static]").forEach((button) => {
   button.addEventListener("click", exportStaticSite);
 });
@@ -2189,6 +2190,26 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   );
 
   return canvas;
+}
+
+async function publishStaticSite() {
+  const btn = document.getElementById("btn-publish-static");
+  if (!btn) return;
+  const orig = btn.textContent;
+  btn.textContent = "Publicando...";
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/admin/publish`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    const log = (data.log || []).join("\n");
+    alert(`✅ Publicado!\n\n${log}\n\nURL: ${data.url || ""}`);
+  } catch (err) {
+    alert(`❌ Erro ao publicar: ${err.message}\n\nVerifique se a API está rodando (http://localhost:8000) e se o git push está configurado.`);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
 }
 
 async function exportLinkedInImage() {

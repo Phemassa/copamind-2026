@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from copamind import __version__
 from copamind.api.routes import (
+    admin_router,
     chat_router,
     data_router,
     health_router,
@@ -47,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(admin_router)
     app.include_router(health_router)
     app.include_router(data_router)
     app.include_router(predictions_router)
