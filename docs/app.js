@@ -13,11 +13,11 @@ const PROGRESS_POLL_MS = 2000;
 const RUN_TIMEOUT_MS = 15 * 60 * 1000;
 const BULK_PHASES = ["round_of_16", "quarterfinal", "semifinal", "third_place", "final"];
 const STATIC_ASSETS = [
-  "assets/banner.png",
-  "assets/copamind_2026.png",
-  "assets/fundo_clean1.png",
-  "assets/fundo_taca.png",
-  "assets/icon.png",
+  "../../docs/assets/banner.png",
+  "../../docs/assets/copamind_2026.png",
+  "../../docs/assets/fundo_clean1.png",
+  "../../docs/assets/fundo_taca.png",
+  "../../docs/assets/icon.png",
 ];
 
 let state = null;
@@ -58,6 +58,7 @@ document.getElementById("btn-refresh-scores")?.addEventListener("click", trigger
 document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
 document.getElementById("btn-export-ranking")?.addEventListener("click", exportRankingImage);
 document.getElementById("btn-export-benchmark")?.addEventListener("click", exportBenchmarkImage);
+document.getElementById("btn-publish-static")?.addEventListener("click", publishStaticSite);
 document.querySelectorAll("[data-export-static]").forEach((button) => {
   button.addEventListener("click", exportStaticSite);
 });
@@ -1076,10 +1077,10 @@ function renderBenchmarkCharts() {
       <span class="structured-output-icon">{ }</span>
       <div><strong>Structured Output · JSON Schema</strong>
       <p><b>Advanced:</b> you can provide a JSON Schema to enforce a particular output format from the model. Read the documentation to learn more.</p></div>
-      <em>${rows.filter((row) => row.invalid_runs > 0).length} modelos exigiram ajuste no LM Studio</em>
+      <em>${rows.filter((row) => row.invalid_runs > 0).length} modelos exigiram ajuste no LM Studio <span title="Modelos que precisaram de ajuste de configuracao recebem penalizacao de usabilidade no Score do Benchmark (-8 pts). O Ranking das LLMs é independente: pontos do bolao nao sofrem esta penalizacao.">⚠ penaliza benchmark</span></em>
     </aside>
     <div class="benchmark-matrix-wrap"><div class="benchmark-matrix">
-      <div class="benchmark-matrix-head"><span>Modelo</span><span>Score</span><span>Pontos</span><span class="json-head">JSON válido<small>Structured Output</small></span><span>Acerto</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
+      <div class="benchmark-matrix-head"><span>Modelo</span><span title="Usabilidade (JSON+facilidade) 45% · Acertividade 30% · Performance 20% · Disponib. 5% — NÃO inclui pontos do bolão (ver Ranking das LLMs)">Score Benchmark</span><span title="Pontos do Bolão (ver Ranking das LLMs) — referência apenas, NÃO compõe o Score Benchmark">Pontos Bolão ↗</span><span class="json-head">JSON válido<small>Structured Output</small></span><span>Acerto %</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
       ${rows.map((row, index) => `<div class="benchmark-matrix-row">
         <div class="matrix-model"><b>${index + 1}</b><img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt=""><span><strong>${escapeHtml(row.display_name)}</strong><small>${row.runs} execuções</small></span></div>
         ${metricCell(row.benchmark_score, 100)}
@@ -1182,23 +1183,41 @@ function benchmarkRows() {
 
 function benchmarkScore(row) {
   if (!row.runs && !row.scored) return 0;
-  const json = row.json_rate == null ? 0 : row.json_rate * 40;
-  const bolao = Math.min(25, Number(row.points || 0) * 2.5);
-  const accuracy = row.accuracy == null ? 0 : row.accuracy * 15;
-  const speed = row.avg_tokens_per_second == null ? 0 : Math.min(12, row.avg_tokens_per_second / 2);
-  const latency = row.avg_latency_ms == null ? 0 : Math.max(0, 8 - row.avg_latency_ms / 30000);
+
+  // ── Usabilidade (0–45) ────────────────────────────────────────────────────
+  // JSON válido: 0-30
+  const json = row.json_rate == null ? 0 : row.json_rate * 30;
+  // Facilidade de configuração: 15 = pronto sem ajuste | 7 = precisou ⚠ ajuste | 0 = instável
+  const noAdjust = row.invalid_runs === 0 && row.runs > 0;
+  const goodWithAdjust = !noAdjust && (row.json_rate ?? 0) >= 0.7;
+  const ease = noAdjust ? 15 : goodWithAdjust ? 7 : 0;
+
+  // ── Acertividade (0–30) ───────────────────────────────────────────────────
+  // % de vencedores corretos (accuracy)
+  const accuracy = row.accuracy == null ? 0 : row.accuracy * 30;
+
+  // ── Performance técnica (0–20) ────────────────────────────────────────────
+  // Velocidade (tok/s): 0-15
+  const speed = row.avg_tokens_per_second == null ? 0 : Math.min(15, row.avg_tokens_per_second * 0.75);
+  // Latência (inversamente): 0-5
+  const latency = row.avg_latency_ms == null ? 0 : Math.max(0, 5 - row.avg_latency_ms / 60000);
+
+  // ── Disponibilidade (0–5) ─────────────────────────────────────────────────
   const available = row.archived || row.available === false ? 0 : 5;
-  return Math.max(0, Math.min(100, json + bolao + accuracy + speed + latency + available));
+
+  return Math.max(0, Math.min(100, json + ease + accuracy + speed + latency + available));
+  // Distribuição: Usabilidade 45% | Acertividade 30% | Performance 20% | Disponib. 5%
 }
 
 function easeLabel(row) {
   if (row.archived) return "fora da lista";
   if (!row.runs) return "sem teste";
   if (row.json_rate >= 0.95 && row.invalid_runs === 0) return "pronto";
+  if (row.json_rate >= 0.75 && row.invalid_runs > 0) return "ajuste necessário";
   if (row.json_rate >= 0.75) return "bom com ajuste";
   if (row.dominant_issue === "lmstudio_error") return "corrigir ambiente";
   if (row.dominant_issue === "context_error") return "reduzir contexto";
-  if (row.dominant_issue === "json_invalid") return "testar JSON";
+  if (row.dominant_issue === "json_invalid") return "ajustar JSON";
   return "instavel";
 }
 
@@ -1482,19 +1501,19 @@ function buildBenchmarkCanvas(rows, logo, iconMap) {
   const FOOT_H = 36;
   const ICO = 34;
 
-  // columns: #, icon, name, bench, bolao, json, chamadas, lat, tok/s, uso, orientacao
+  // columns: #, icon, name, bench, bolao (ref), json, chamadas, lat, tok/s, uso, orientacao
   const COLS = [
-    { label: "#",           w: 40,  align: "center" },
-    { label: "",            w: 44,  align: "center" },
-    { label: "Modelo",      w: 210, align: "left"   },
-    { label: "Bench",       w: 68,  align: "center" },
-    { label: "Bolão",       w: 108, align: "center" },
-    { label: "JSON",        w: 60,  align: "center" },
-    { label: "Chamadas",    w: 80,  align: "center" },
-    { label: "Lat.",        w: 80,  align: "center" },
-    { label: "Tok/s",       w: 68,  align: "center" },
-    { label: "Uso",         w: 100, align: "center" },
-    { label: "Orientação",  w: 200, align: "left"   },
+    { label: "#",            w: 40,  align: "center" },
+    { label: "",             w: 44,  align: "center" },
+    { label: "Modelo",       w: 210, align: "left"   },
+    { label: "Score",        w: 68,  align: "center" },
+    { label: "Pts Bolão ↗",  w: 108, align: "center" },
+    { label: "JSON",         w: 60,  align: "center" },
+    { label: "Chamadas",     w: 80,  align: "center" },
+    { label: "Lat.",         w: 80,  align: "center" },
+    { label: "Tok/s",        w: 68,  align: "center" },
+    { label: "Uso",          w: 100, align: "center" },
+    { label: "Orientação",   w: 200, align: "left"   },
   ];
 
   const totalColW = COLS.reduce((s, c) => s + c.w, 0);
@@ -1510,7 +1529,7 @@ function buildBenchmarkCanvas(rows, logo, iconMap) {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
 
-  _canvasHeader(ctx, W, HDR_H, PAD, logo, "Benchmark LLMs", "Score técnico + velocidade + facilidade · CopaMind 2026", C);
+  _canvasHeader(ctx, W, HDR_H, PAD, logo, "Benchmark LLMs", "Usabilidade · Acertividade · Performance técnica (independente do Bolão)", C);
 
   // Column headers
   let cx = PAD;
@@ -1601,7 +1620,7 @@ async function exportRankingImage() {
   if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
   try {
     const [logo, iconMap] = await Promise.all([
-      _loadImg("assets/copamind_2026.png"),
+      _loadImg("../../docs/assets/copamind_2026.png"),
       _loadIconMap(rows),
     ]);
     const canvas = buildRankingCanvas(rows, logo, iconMap);
@@ -1667,7 +1686,7 @@ async function exportBenchmarkDashboardImage() {
   const btn = document.getElementById("btn-export-benchmark-dashboard"), label = btn?.textContent;
   if (!rows.length) { alert("Sem dados de benchmark ainda."); return; }
   if (btn) { btn.textContent = "Gerando PNG..."; btn.disabled = true; }
-  try { const [banner, icons] = await Promise.all([_loadImg("assets/banner.png"), _loadIconMap(rows)]); await _canvasDownload(buildBenchmarkDashboardCanvas(rows, banner, icons), `copamind_painel_comparativo_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`); }
+  try { const [banner, icons] = await Promise.all([_loadImg("../../docs/assets/banner.png"), _loadIconMap(rows)]); await _canvasDownload(buildBenchmarkDashboardCanvas(rows, banner, icons), `copamind_painel_comparativo_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`); }
   catch (err) { console.error("Erro ao exportar painel:", err); alert("Erro ao gerar o quadro completo. Veja o console."); }
   finally { if (btn) { btn.textContent = label; btn.disabled = false; } }
 }
@@ -1680,7 +1699,7 @@ async function exportBenchmarkImage() {
   buttons.forEach((button) => { button.textContent = "Gerando PNG..."; button.disabled = true; });
   try {
     const [logo, iconMap] = await Promise.all([
-      _loadImg("assets/copamind_2026.png"),
+      _loadImg("../../docs/assets/copamind_2026.png"),
       _loadIconMap(rows),
     ]);
     const canvas = buildBenchmarkCanvas(rows, logo, iconMap);
@@ -2173,6 +2192,26 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   return canvas;
 }
 
+async function publishStaticSite() {
+  const btn = document.getElementById("btn-publish-static");
+  if (!btn) return;
+  const orig = btn.textContent;
+  btn.textContent = "Publicando...";
+  btn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/admin/publish`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    const log = (data.log || []).join("\n");
+    alert(`✅ Publicado!\n\n${log}\n\nURL: ${data.url || ""}`);
+  } catch (err) {
+    alert(`❌ Erro ao publicar: ${err.message}\n\nVerifique se a API está rodando (http://localhost:8000) e se o git push está configurado.`);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
 async function exportLinkedInImage() {
   const phase = activeCapturePhase || defaultCapturePhase();
   const rows  = linkedInRows(phase);
@@ -2188,7 +2227,7 @@ async function exportLinkedInImage() {
     // Load banner icon and all model icons in parallel
     const modelUrls = rows.map((row) => resolveModelImage(row) || avatarForModel(row));
     const [icon, ...rawIcons] = await Promise.all([
-      _loadImg("assets/copamind_2026.png"),
+      _loadImg("../../docs/assets/copamind_2026.png"),
       ...modelUrls.map((url) => _loadImg(url)),
     ]);
     // Fallback to SVG avatar if real image failed
@@ -2428,18 +2467,23 @@ function renderLinkedInTeamRanking(phase, matchOrder, matchStats) {
 
   const isFinal = phase === "final";
   const isThirdPlace = phase === "third_place";
+  const isSemifinal = phase === "semifinal";
 
-  // Label da coluna de avanco (proxima fase / campea / 3o lugar)
+  // Label da coluna de avanco (proxima fase / campea / 3o lugar / final)
   const advanceLabel = isFinal
     ? "Vencer final = Campeã"
     : isThirdPlace
       ? "Vencer = 3º lugar"
-      : "Próxima fase";
+      : isSemifinal
+        ? "→ Final"
+        : "Próxima fase";
   const advanceTooltip = isFinal
     ? "% dos modelos que prevêm esta seleção vencendo a Final (soma 100%)"
     : isThirdPlace
       ? "Probabilidade média dos modelos de vencer a disputa pelo 3º lugar"
-      : "Probabilidade média dos modelos de avançar (vencer esta partida)";
+      : isSemifinal
+        ? "Probabilidade média dos modelos de esta seleção VENCER a semifinal e ir à Final. Quem perder disputa o 3º lugar."
+        : "Probabilidade média dos modelos de avançar (vencer esta partida)";
 
   // Monta mapa team_id → { advance (média), name, flag_url }
   // Fases projetadas têm um match_id único por modelo, então um time pode aparecer
@@ -4931,11 +4975,11 @@ const MODEL_IMAGE_OVERRIDES = {
   "mistral":     "https://cdn.simpleicons.org/mistralai/FA520F",
   "mistralai":   "https://cdn.simpleicons.org/mistralai/FA520F",
   // Microsoft
-  "phi":         "icons/phi.png",
-  "microsoft":   "icons/phi.png",
+  "phi":         "../../pictures/icons/phi.png",
+  "microsoft":   "../../pictures/icons/phi.png",
   // Zhipu AI / ZAI
-  "glm":         "icons/glm.png",
-  "zai-org":     "icons/glm.png",
+  "glm":         "../../pictures/icons/glm.png",
+  "zai-org":     "../../pictures/icons/glm.png",
   // Meta
   "llama":       "https://cdn.simpleicons.org/meta/0081FB",
   "meta-llama":  "https://cdn.simpleicons.org/meta/0081FB",
@@ -4943,27 +4987,27 @@ const MODEL_IMAGE_OVERRIDES = {
   "nvidia":      "https://cdn.simpleicons.org/nvidia/76B900",
   "nemotron":    "https://cdn.simpleicons.org/nvidia/76B900",
   // OpenAI
-  "openai":      "icons/gpt.png",
+  "openai":      "../../pictures/icons/gpt.png",
   // DeepSeek
   "deepseek":    "https://cdn.simpleicons.org/deepseek/4D6BFF",
   // IBM
-  "ibm":         "icons/granite.png",
-  "granite":     "icons/granite.png",
+  "ibm":         "../../pictures/icons/granite.png",
+  "granite":     "../../pictures/icons/granite.png",
   // Baidu
   "baidu":       "https://cdn.simpleicons.org/baidu/2932E1",
   "ernie":       "https://cdn.simpleicons.org/baidu/2932E1",
   // AllenAI
-  "allenai":     "icons/olm.png",
-  "olmo":        "icons/olm.png",
+  "allenai":     "../../pictures/icons/olm.png",
+  "olmo":        "../../pictures/icons/olm.png",
   // ByteDance
-  "bytedance":   "icons/oss.png",
-  "seed":        "icons/oss.png",
+  "bytedance":   "../../pictures/icons/oss.png",
+  "seed":        "../../pictures/icons/oss.png",
   // Essential AI
   "essentialai": "https://essential.ai/favicon.ico",
   "rnj":         "https://essential.ai/favicon.ico",
   // Liquid AI
-  "liquid":      "icons/lfm2.png",
-  "lfm":         "icons/lfm2.png",
+  "liquid":      "../../pictures/icons/lfm2.png",
+  "lfm":         "../../pictures/icons/lfm2.png",
 };
 
 function resolveModelImage(model) {

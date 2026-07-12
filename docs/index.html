@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CopaMind 2026 | Bolao das LLMs</title>
-  <link rel="icon" type="image/png" href="assets/icon.png" />
+  <link rel="icon" type="image/png" href="../../docs/assets/icon.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="app">
     <header class="app-header">
       <div class="brand-line">
-        <img src="assets/icon.png" alt="" />
+        <img src="../../docs/assets/icon.png" alt="" />
         <div>
           <span>CopaMind 2026</span>
           <h1>Bolao das LLMs</h1>
@@ -21,7 +21,8 @@
         <button id="open-chat-header" class="header-chat-button" type="button">Pergunte as IAs</button>
         <button id="refresh-data" type="button">Recarregar</button>
         <button type="button" data-export-static>Exportar HTML</button>
-        <a aria-disabled="true" title="Disponivel apenas no servidor local" style="opacity:.35;pointer-events:none;cursor:default">Admin</a>
+        <button id="btn-publish-static" type="button" title="Exporta dados, copia para docs/ e faz git commit + push para o GitHub Pages">🚀 Publicar</button>
+        <a href="http://localhost:8501" target="_blank" rel="noreferrer">Admin</a>
       </div>
     </header>
 
@@ -187,7 +188,7 @@
         <button id="btn-export-linkedin" type="button">📸 Exportar imagem</button>
       </div>
       <div class="linkedin-cover">
-        <img src="assets/copamind_2026.png" alt="CopaMind 2026" />
+        <img src="../../docs/assets/copamind_2026.png" alt="CopaMind 2026" />
         <div>
           <p>Benchmark de LLMs locais</p>
           <h2>CopaMind 2026</h2>
@@ -373,7 +374,7 @@
       <div class="reference-grid">
         <!-- Row 1: Autor | Hardware | Fontes -->
         <article class="author-card">
-          <img src="assets/icon.png" alt="" />
+          <img src="../../docs/assets/icon.png" alt="" />
           <div>
             <span>Autor / idealizador</span>
             <h3>Phellype Flaibam Massarente</h3>

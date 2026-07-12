@@ -2467,18 +2467,23 @@ function renderLinkedInTeamRanking(phase, matchOrder, matchStats) {
 
   const isFinal = phase === "final";
   const isThirdPlace = phase === "third_place";
+  const isSemifinal = phase === "semifinal";
 
-  // Label da coluna de avanco (proxima fase / campea / 3o lugar)
+  // Label da coluna de avanco (proxima fase / campea / 3o lugar / final)
   const advanceLabel = isFinal
     ? "Vencer final = Campeã"
     : isThirdPlace
       ? "Vencer = 3º lugar"
-      : "Próxima fase";
+      : isSemifinal
+        ? "→ Final"
+        : "Próxima fase";
   const advanceTooltip = isFinal
     ? "% dos modelos que prevêm esta seleção vencendo a Final (soma 100%)"
     : isThirdPlace
       ? "Probabilidade média dos modelos de vencer a disputa pelo 3º lugar"
-      : "Probabilidade média dos modelos de avançar (vencer esta partida)";
+      : isSemifinal
+        ? "Probabilidade média dos modelos de esta seleção VENCER a semifinal e ir à Final. Quem perder disputa o 3º lugar."
+        : "Probabilidade média dos modelos de avançar (vencer esta partida)";
 
   // Monta mapa team_id → { advance (média), name, flag_url }
   // Fases projetadas têm um match_id único por modelo, então um time pode aparecer
