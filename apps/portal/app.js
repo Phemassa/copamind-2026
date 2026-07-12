@@ -779,6 +779,7 @@ function renderRankingSummary() {
 
 function renderRankingTable() {
   const rows = rankingRows();
+  const phases = (state.phases || []).filter((p) => p.key !== "group");
   document.getElementById("ranking-table").innerHTML = `
     <div class="ranking-table">
       <div class="ranking-table-head">
@@ -787,12 +788,21 @@ function renderRankingTable() {
       ${rows.map((row, index) => {
         const imgSrc = escapeAttr(resolveModelImage(row) || avatarForModel(row));
         const fallback = escapeAttr(avatarForModel(row));
+        const phaseDetail = phases
+          .filter((p) => row.phase_scores[p.key]?.points > 0 || row.phase_scores[p.key]?.scored > 0)
+          .map((p) => {
+            const s = row.phase_scores[p.key];
+            return s ? `<em>${escapeHtml(p.label)}: <b>${s.points}pts</b>${s.scored ? ` ${pct(s.accuracy)}` : ""}</em>` : "";
+          }).join("  ");
         return `
         <div class="ranking-table-row ${row.is_combo ? "combo-row" : ""}">
           <span>${index + 1}</span>
           <img class="row-model-icon" src="${imgSrc}" alt="" onerror="this.onerror=null;this.src='${fallback}';" />
           <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
-          <span>${row.points}</span>
+          <span class="pts-cell">
+            <b>${row.points}</b>
+            ${phaseDetail ? `<small class="pts-phases">${phaseDetail}</small>` : ""}
+          </span>
           <span>${row.scored ? pct(row.accuracy) : "aguarda"}</span>
           <span>${row.scored || row.predictions}</span>
           <span>${row.json_rate == null ? "-" : `${Math.round(row.json_rate * 100)}%`}</span>
@@ -1764,7 +1774,8 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   const W  = PAD + MCW + nM * CW + PAD;
   const TEAMS_H = 110;  // top-4 teams section
   const LEG_H   = 34;   // star legend bar
-  const H  = HDR_H + SUM_H + TEAMS_H + MOD_H + nG * ROW_H + LEG_H + FOOT_H;
+  const SUMROW_H = 44;  // star count summary row
+  const H  = HDR_H + SUM_H + TEAMS_H + MOD_H + SUMROW_H + nG * ROW_H + LEG_H + FOOT_H;
 
   // Escala adaptativa: retina (2x) para tabelas pequenas, 1x para tabelas largas
   // Limita a ~8192px de largura para compatibilidade com todos os browsers
@@ -1861,32 +1872,37 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   // ── Top-4 seleções esperadas ───────────────────────────────────────────────
   {
-    const top4 = winnerVotesForPhase(phase).slice(0, 4);
+    // Usa a probabilidade média dos modelos por jogo (mesma fonte do quadro "Chances por seleção")
+    const teamChancesMap = {};
+    matchOrder.forEach((m) => {
+      const stats = matchStats[m._key];
+      if (!stats) return;
+      const hName = m.home || m.home_team_id || "";
+      const aName = m.away || m.away_team_id || "";
+      if (hName) teamChancesMap[hName] = { name: hName, prob: stats.home };
+      if (aName) teamChancesMap[aName] = { name: aName, prob: stats.away };
+    });
+    const allTeams = Object.values(teamChancesMap).filter((t) => t.name).sort((a, b) => b.prob - a.prob);
+    const top4 = allTeams.slice(0, 4);
     const secY = HDR_H + SUM_H;
     ctx.fillStyle = C.panel;
     ctx.fillRect(0, secY, W, TEAMS_H);
-    txt("CHANCES POR SELEÇÃO  —  expectativa das LLMs", PAD, secY + 18, F(9, true), C.accent);
-    const maxVotes = Math.max(1, top4[0]?.votes || 1);
-    const totalVotes = top4.reduce((s, t) => s + t.votes, 0) || 1;
-    const barW = Math.min(260, W * 0.32);
+    txt("CHANCES POR SELEÇÃO  —  probabilidade média das LLMs por jogo", PAD, secY + 18, F(9, true), C.accent);
+    const barMaxW = Math.min(260, W * 0.30);
     const colW = (W - PAD * 2) / Math.max(1, top4.length);
     top4.forEach((team, i) => {
       const cx = PAD + i * colW;
       const ty = secY + 30;
-      // rank badge
-      const medal = ["🥇", "🥈", "🥉", ""  ][i];
       txt(`${i + 1}.`, cx + 4, ty + 15, F(10, true), C.gold);
-      txt(team.name || team.team_id, cx + 20, ty + 15, F(11, true), C.text);
-      const sharePct = Math.round(team.votes / totalVotes * 100);
-      txt(`${sharePct}%`, cx + 20, ty + 30, F(10, true), C.accent);
-      // bar
-      const bw = Math.round(barW * team.votes / maxVotes);
-      ctx.fillStyle = C.border; ctx.fillRect(cx + 20, ty + 36, barW, 8);
+      txt(team.name, cx + 20, ty + 15, F(11, true), C.text);
+      txt(`${team.prob}%`, cx + 20, ty + 30, F(13, true), C.accent);
+      // bar proporcional à probabilidade (0–100%)
+      const bw = Math.round(barMaxW * team.prob / 100);
+      ctx.fillStyle = C.border; ctx.fillRect(cx + 20, ty + 38, barMaxW, 8);
       const grad = ctx.createLinearGradient(cx + 20, 0, cx + 20 + bw, 0);
       grad.addColorStop(0, C.accent); grad.addColorStop(1, "#f2c94c");
-      ctx.fillStyle = grad; ctx.fillRect(cx + 20, ty + 36, bw, 8);
-      // votes
-      txt(`${team.votes} votos`, cx + 20, ty + 58, F(9), C.muted);
+      ctx.fillStyle = grad; ctx.fillRect(cx + 20, ty + 38, bw, 8);
+      txt("prob. de avançar", cx + 20, ty + 60, F(9), C.muted);
     });
     ctx.fillStyle = C.border;
     ctx.fillRect(0, secY + TEAMS_H - 1, W, 1);
@@ -1955,6 +1971,57 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   sy += MOD_H;
 
+  // ── Summary row: acertos por modelo ──────────────────────────────────────
+  const canvasFinishedKeys = [];
+  matchOrder.forEach((m) => {
+    if (canvasResultMap[m._key]) canvasFinishedKeys.push(m._key);
+  });
+  const canvasStarCounts = {};
+  rows.forEach((row) => { canvasStarCounts[row.model_id] = [0, 0, 0, 0, 0, 0]; });
+  canvasFinishedKeys.forEach((key) => {
+    const m = matchOrder.find((x) => x._key === key);
+    const actual = canvasResultMap[key];
+    const off = _findOfficial(m);
+    rows.forEach((row) => {
+      const pred = _findPred(row.predictions || [], key);
+      if (!pred) return;
+      const s = starRating(pred, off, actual);
+      canvasStarCounts[row.model_id][s]++;
+    });
+  });
+
+  const nCanvasFinished = canvasFinishedKeys.length;
+  ctx.fillStyle = "#1a1e2c";
+  ctx.fillRect(PAD, sy, W - PAD, SUMROW_H);
+  ctx.fillStyle = C.muted;
+  ctx.font = F(9, true);
+  ctx.fillText("ACERTOS", PAD + 6, sy + 16);
+  ctx.fillText(nCanvasFinished > 0 ? `${nCanvasFinished} jogos` : "aguard.", PAD + 6, sy + 30);
+  rows.forEach((row, ri) => {
+    const cx = tableX + ri * CW;
+    ctx.fillStyle = ri % 2 === 0 ? "#1a1e2c" : "#161b28";
+    ctx.fillRect(cx, sy, CW - 1, SUMROW_H);
+    if (nCanvasFinished > 0) {
+      const sc = canvasStarCounts[row.model_id] || [];
+      const correct = [1, 2, 3, 4, 5].reduce((s, n) => s + (sc[n] || 0), 0);
+      const topStars = [5, 4, 3, 2, 1].find((n) => sc[n] > 0) || 0;
+      const scoreColor = correct === nCanvasFinished ? C.gold : correct > 0 ? "#5af0a0" : C.muted;
+      txt(`${correct}/${nCanvasFinished}`, cx + CW / 2, sy + 16, F(12, true), scoreColor, "center");
+      if (topStars > 0) {
+        const starColor = topStars >= 5 ? C.gold : topStars >= 4 ? "#a8e6c0" : "#5af0a0";
+        txt("\u2605".repeat(topStars), cx + CW / 2, sy + 32, F(topStars > 3 ? 7 : 8, true), starColor, "center");
+      }
+    } else {
+      txt("—", cx + CW / 2, sy + SUMROW_H / 2 + 4, F(11), C.dim, "center");
+    }
+    ctx.fillStyle = C.border;
+    ctx.fillRect(cx + CW - 1, sy, 1, SUMROW_H);
+  });
+  ctx.fillStyle = C.accent + "44";
+  ctx.fillRect(PAD, sy + SUMROW_H - 1, W - PAD, 1);
+
+  sy += SUMROW_H;
+
   // Build match result lookup for correct-prediction highlighting
   const canvasResultMap = {};
   matchOrder.forEach((m) => {
@@ -2002,7 +2069,7 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
       const cx = tableX + ri * CW;
       const pred = _findPred(row.predictions || [], m._key);
       const side = pred ? predictedSide(pred) : null;
-      const stars = pred ? starRating(pred, _findOfficial(m), actualSide) : 0;
+      const stars = pred ? (pred.star_rating != null ? Number(pred.star_rating) : starRating(pred, _findOfficial(m), actualSide)) : 0;
       const isWrong = actualSide != null && stars === 0 && !!pred;
 
       // Cell bg
@@ -2222,6 +2289,22 @@ function renderLinkedInCaptures() {
     }
   }
 
+  // Compute star counts per model (only for finished matches)
+  const finishedMatchKeys = matchOrder.filter((m) => matchResultMap[m._key]).map((m) => m._key);
+  const modelStarCounts = {};
+  rows.forEach((row) => { modelStarCounts[row.model_id] = [0, 0, 0, 0, 0, 0]; }); // idx 0-5
+  finishedMatchKeys.forEach((key) => {
+    const m = matchOrder.find((x) => x._key === key);
+    const actual = matchResultMap[key];
+    const offMatch = findOfficial(m);
+    rows.forEach((row) => {
+      const pred = findPred(row.predictions || [], key);
+      if (!pred) return;
+      const s = starRating(pred, offMatch, actual);
+      modelStarCounts[row.model_id][s]++;
+    });
+  });
+
   // Header: jogo | modelo1 | modelo2 | ...
   const modelHead = rows.map((row) => {
     const hitChampion = actualChampionId && modelChampionMap[row.model_id] === actualChampionId;
@@ -2231,6 +2314,22 @@ function renderLinkedInCaptures() {
       <div class="resumo-model-name">${escapeHtml(row.display_name)}</div>
     </th>`;
   }).join("");
+  // Summary row: star counts per model
+  const nFinished = finishedMatchKeys.length;
+  const summaryRow = nFinished > 0 ? `<tr class="resumo-summary-row">
+    <td class="resumo-match-td resumo-summary-label">
+      <small>Acertos</small><b>${nFinished} jog.</b>
+    </td>
+    ${rows.map((row) => {
+      const sc = modelStarCounts[row.model_id] || [];
+      const correct = [1,2,3,4,5].reduce((s, n) => s + (sc[n] || 0), 0);
+      const breakdown = [5,4,3,2,1].filter((n) => sc[n] > 0)
+        .map((n) => `<span class="sc sc-${n}">${"★".repeat(n)}<i>${sc[n]}</i></span>`).join("");
+      return `<td class="resumo-cell resumo-summary-cell">
+        <b class="sc-total">${correct}/${nFinished}</b>${breakdown}
+      </td>`;
+    }).join("")}
+  </tr>` : "";
   // Body: one row per match
   const body = matchOrder.map((m) => {
     const actual = matchResultMap[m._key] ?? null;  // "home"|"away"|null
@@ -2241,7 +2340,9 @@ function renderLinkedInCaptures() {
       const pred = findPred(row.predictions || [], m._key);
       if (!pred) return `<td class="resumo-cell resumo-empty">—</td>`;
       const side = predictedSide(pred);
-      const stars = starRating(pred, officialMatch, actual);
+      const stars = pred.star_rating != null
+        ? Number(pred.star_rating)
+        : starRating(pred, officialMatch, actual);
       const isWrong = actual !== null && actual !== undefined && stars === 0 && side !== actual;
       const starsStr = stars > 0 ? "★".repeat(stars) : "";
       const baseScore = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
@@ -2301,7 +2402,7 @@ function renderLinkedInCaptures() {
     <div class="resumo-table-wrapper">
       <table class="resumo-table">
         <thead><tr><th class="resumo-game-header-th"></th>${modelHead}</tr></thead>
-        <tbody>${body}</tbody>
+        <tbody>${summaryRow}${body}</tbody>
       </table>
     </div>
     <div class="resumo-star-legend">${legendHtml}</div>`;

@@ -387,20 +387,18 @@ def _prediction_result(
         }
     actual = _actual_knockout_outcome(result.home_score, result.away_score, extra)
     predicted = _predicted_knockout_outcome(prediction, pick_payload)
-    exact_score = (
-        prediction.predicted_home_goals == result.home_score
-        and prediction.predicted_away_goals == result.away_score
-        and predicted == actual
-    )
+    stars = _calc_star_rating(prediction, pick_payload, result, extra, actual, predicted)
+    exact_score = stars >= 3
     return {
-        "points": POINTS_EXACT_SCORE if exact_score else POINTS_CORRECT_RESULT if predicted == actual else 0,
+        "points": STAR_POINTS[stars],
+        "star_rating": stars,
         "brier": brier_score(
             prediction.prob_home,
             prediction.prob_draw,
             prediction.prob_away,
             actual,
         ),
-        "winner_hit": predicted == actual,
+        "winner_hit": stars >= 1,
         "exact_score": exact_score,
         "actual_home_goals": result.home_score,
         "actual_away_goals": result.away_score,
@@ -415,6 +413,52 @@ def _prediction_result(
 
 POINTS_EXACT_SCORE = 5
 POINTS_CORRECT_RESULT = 3
+
+# Pontuacao baseada no sistema de estrelas (espelha starRating() em app.js)
+# 1★ vencedor=3  2★ +1gol=4  3★ placar exato=5  4★ +tempo=6  5★ tudo=7
+STAR_POINTS: dict[int, int] = {0: 0, 1: 3, 2: 4, 3: 5, 4: 6, 5: 7}
+
+
+def _calc_star_rating(
+    prediction: Any,
+    pick_payload: dict[str, Any],
+    result: Any,
+    extra: dict[str, Any],
+    actual: str,
+    predicted: str,
+) -> int:
+    """Replica exata do starRating() JavaScript."""
+    if predicted != actual:
+        return 0
+    stars = 1
+    ph = prediction.predicted_home_goals
+    pa = prediction.predicted_away_goals
+    oh = result.home_score
+    oa = result.away_score
+    home_right = ph is not None and ph == oh
+    away_right = pa is not None and pa == oa
+    if home_right or away_right:
+        stars = 2
+    if home_right and away_right:
+        stars = 3
+    if stars >= 3:
+        went_to_et = oh == oa  # placar igual em mata-mata = prorrogação
+        pred_et = bool(pick_payload.get("goes_to_extra_time"))
+        pred_pens = bool(pick_payload.get("goes_to_penalties"))
+        time_right = (went_to_et and (pred_et or pred_pens)) or (
+            not went_to_et and not pred_et and not pred_pens
+        )
+        if time_right:
+            stars = 4
+    if stars >= 4:
+        went_to_et = oh == oa
+        if went_to_et and pick_payload.get("goes_to_penalties"):
+            pw = str(pick_payload.get("penalty_winner") or "")
+            if pw and pw not in ("none", "") and pw == actual:
+                stars = 5
+        else:
+            stars = 5  # tempo normal ou prorroga s/ pen = máximo
+    return stars
 
 
 def _actual_knockout_outcome(home_score: int, away_score: int, extra: dict[str, Any]) -> str:
@@ -556,18 +600,18 @@ def _build_phase_model_scores(predictions: list[dict[str, Any]]) -> list[dict[st
         key = (prediction["phase"], model_id)
         item = grouped.setdefault(
             key,
-            {
-                "phase": prediction["phase"],
-                "phase_label": prediction["phase_label"],
-                "model_id": model_id,
-                "display_name": _display_model_name(model_id),
-                "is_combo": bool(prediction.get("is_combo")),
-                "predictions": 0,
-                "scored": 0,
-                "points": 0,
-                "winner_hits": 0,
-                "exact_hits": 0,
-                "brier_sum": 0.0,
+            {"phase": prediction["phase"],
+             "phase_label": prediction["phase_label"],
+             "model_id": model_id,
+             "display_name": _display_model_name(model_id),
+             "is_combo": bool(prediction.get("is_combo")),
+             "predictions": 0,
+             "scored": 0,
+             "points": 0,
+             "winner_hits": 0,
+             "exact_hits": 0,
+             "s1": 0, "s2": 0, "s3": 0, "s4": 0, "s5": 0,
+             "brier_sum": 0.0,
             },
         )
         item["predictions"] += 1
@@ -577,6 +621,9 @@ def _build_phase_model_scores(predictions: list[dict[str, Any]]) -> list[dict[st
         item["points"] += int(prediction["points"])
         item["winner_hits"] += int(bool(prediction["winner_hit"]))
         item["exact_hits"] += int(bool(prediction["exact_score"]))
+        sr = int(prediction.get("star_rating") or 0)
+        if sr > 0:
+            item[f"s{sr}"] = item.get(f"s{sr}", 0) + 1
         item["brier_sum"] += float(prediction["brier"] or 0)
     scores = []
     for item in grouped.values():

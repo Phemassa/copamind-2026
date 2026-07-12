@@ -1253,15 +1253,22 @@ h3 { font-size: 22px; }
 
 .ranking-layout {
   display: grid;
-  grid-template-columns: minmax(0, 62%) minmax(300px, 32%);
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: start;
 }
 
-.ranking-left,
-.ranking-right {
+.ranking-left {
   display: grid;
   gap: 12px;
+}
+
+/* aside at top: 2 panels side by side */
+.ranking-right {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
 .ranking-panel {
@@ -1295,6 +1302,29 @@ h3 { font-size: 22px; }
   background: rgba(17, 21, 29, .74);
   padding: 9px 10px;
 }
+
+/* points cell: big number + phase detail below */
+.pts-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pts-cell b {
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1.2;
+}
+.pts-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.pts-phases em { font-style: normal; }
+.pts-phases b  { font-size: 10px; font-weight: 700; color: var(--text); }
 
 .ranking-table-row.combo-row {
   border-color: rgba(245, 200, 76, .64);
@@ -1759,6 +1789,52 @@ h3 { font-size: 22px; }
 .resumo-stars-5 .resumo-stars-badge { color: var(--gold); }
 
 /* ── star legend ── */
+/* ── summary row: star counts per model ── */
+.resumo-summary-row .resumo-match-td.resumo-summary-label {
+  text-align: center;
+  background: #131720;
+}
+.resumo-summary-label small {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.resumo-summary-label b {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.resumo-summary-cell {
+  background: #131720 !important;
+  padding: 5px 4px;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid var(--line);
+}
+.sc-total {
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--accent);
+  line-height: 1.4;
+}
+.sc {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: -.3px;
+  margin: 1px 1px 0;
+}
+.sc i { font-style: normal; color: var(--muted); font-size: 8px; margin-left: 1px; }
+.sc-5 { color: var(--gold); }
+.sc-4 { color: #a8e6c0; }
+.sc-3 { color: #5af0a0; }
+.sc-2 { color: rgba(90,240,160,.7); }
+.sc-1 { color: rgba(90,240,160,.45); }
+
 .resumo-star-legend {
   display: flex;
   flex-wrap: wrap;
