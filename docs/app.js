@@ -5088,9 +5088,10 @@ async function exportStaticSite() {
     const embeddedData = replaceUrlsInData(data, externalAssetMap);
     const offlineFlag = `<script>window.COPAMIND_OFFLINE = true;<\/script>\n`;
     const offlineCss = `<style>
+/* modo offline: oculta controles locais */
+.header-actions { display: none !important; }
 #btn-refresh-scores, #run-all-models, #reset-phase-history, #reset-all-history,
-#cancel-sequential, [data-export-static], #btn-publish-static, #open-chat-header,
-.model-action-buttons, .context-note-form, #chat-form, #chat-reset,
+#cancel-sequential, .model-action-buttons, .context-note-form, #chat-form, #chat-reset,
 #btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }
 .offline-notice { display: flex !important; }
 <\/style>\n`;
