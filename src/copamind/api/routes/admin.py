@@ -53,10 +53,42 @@ def publish_static(request: Request) -> dict[str, object]:
     docs_data.mkdir(parents=True, exist_ok=True)
     docs_icons.mkdir(parents=True, exist_ok=True)
 
+    import re
+
+    _OFFLINE_INJECT = (
+        '<script>window.COPAMIND_OFFLINE = true;</script>\n'
+        '<style>\n'
+        '#btn-refresh-scores, #run-all-models, #reset-phase-history, #reset-all-history,\n'
+        '#cancel-sequential, [data-export-static], #btn-publish-static, #open-chat-header,\n'
+        '.model-action-buttons, .context-note-form, #chat-form, #chat-reset,\n'
+        '#btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }\n'
+        '.offline-notice { display: flex !important; }\n'
+        '</style>\n'
+    )
+
+    def _strip_local_controls(html: str) -> str:
+        """Remove botoes de controle local e injeta modo offline."""
+        patterns = [
+            r'<button[^>]+id="refresh-data"[^>]*>.*?</button>',
+            r'<button[^>]+data-export-static[^>]*>.*?</button>',
+            r'<button[^>]+id="btn-publish-static"[^>]*>.*?</button>',
+            r'<button[^>]+id="open-chat-header"[^>]*>.*?</button>',
+            r'<a[^>]+href="http://localhost:8501"[^>]*>.*?</a>',
+            r'<div[^>]+class="header-actions"[^>]*>\s*</div>',
+        ]
+        for pat in patterns:
+            html = re.sub(pat, "", html, flags=re.DOTALL)
+        # Injeta flag offline antes de </head>
+        html = html.replace("</head>", f"{_OFFLINE_INJECT}</head>", 1)
+        return html
+
     for fname in ("index.html", "app.js", "styles.css"):
         src = portal / fname
         if src.exists():
-            shutil.copy2(src, docs / fname)
+            content = src.read_text(encoding="utf-8")
+            if fname == "index.html":
+                content = _strip_local_controls(content)
+            (docs / fname).write_text(content, encoding="utf-8")
     src_json = portal / "data" / "copamind.json"
     if src_json.exists():
         shutil.copy2(src_json, docs_data / "copamind.json")
