@@ -797,7 +797,7 @@ function renderRankingTable() {
   document.getElementById("ranking-table").innerHTML = `
     <div class="ranking-table">
       <div class="ranking-table-head">
-        <span>#</span><span></span><span>Modelo</span><span>Pontos</span><span>Acerto</span><span>Jogos</span><span>JSON</span><span>Lat.</span><span>Tok/s</span><span>Brier</span>
+        <span>#</span><span></span><span>Modelo</span><span title="Pontos efetivos = pts brutos − 1pt por cada vencedor errado. Tooltip na célula mostra o detalhe.">Pts Efetivos</span><span>Acerto</span><span>Jogos</span><span>JSON</span><span>Lat.</span><span>Tok/s</span><span>Brier</span>
       </div>
       ${rows.map((row, index) => {
         const imgSrc = escapeAttr(resolveModelImage(row) || avatarForModel(row));
@@ -813,9 +813,10 @@ function renderRankingTable() {
           <span>${index + 1}</span>
           <img class="row-model-icon" src="${imgSrc}" alt="" onerror="this.onerror=null;this.src='${fallback}';" />
           <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
-          <span class="pts-cell">
-            <b>${row.points}</b>
+          <span class="pts-cell" title="${row.wrong > 0 ? `${row.points} pts brutos − ${row.wrong} erro(s) = ${row.net_score} pts efetivos` : `${row.points} pts — sem erros penalizados`}">
+            <b>${row.net_score}</b>
             ${phaseDetail ? `<small class="pts-phases">${phaseDetail}</small>` : ""}
+            ${row.wrong > 0 ? `<small class="pts-penalty">−${row.wrong} erro${row.wrong > 1 ? "s" : ""}</small>` : ""}
           </span>
           <span>${row.scored ? pct(row.accuracy) : "aguarda"}</span>
           <span>${row.scored || row.predictions}</span>
@@ -913,6 +914,9 @@ function rankingRows() {
       const brier = brierValues.length
         ? brierValues.reduce((sum, value) => sum + Number(value), 0) / brierValues.length
         : null;
+      const winnerHits = phaseList.reduce((sum, item) => sum + Number(item.winner_hits || 0), 0);
+      const wrong = scored - winnerHits;          // previsões com vencedor errado
+      const netScore = points - wrong;             // penalidade: -1pt por erro
       return {
         model_id: model.model_id,
         display_name: model.display_name || model.model_id,
@@ -920,6 +924,8 @@ function rankingRows() {
         family: model.family || "",
         is_combo: Boolean(model.is_combo),
         points,
+        net_score: netScore,
+        wrong,
         scored,
         predictions: phaseList.reduce((sum, item) => sum + Number(item.predictions || 0), 0),
         accuracy: weightedAccuracy,
@@ -933,8 +939,9 @@ function rankingRows() {
     })
     .sort((a, b) => (
       Number(b.is_combo) - Number(a.is_combo)
+      || accuracySortValue(b.accuracy) - accuracySortValue(a.accuracy)   // acerto% = critério principal
+      || (b.net_score || 0) - (a.net_score || 0)                          // pts efetivos (desempate)
       || b.points - a.points
-      || accuracySortValue(b.accuracy) - accuracySortValue(a.accuracy)
       || b.exact - a.exact
       || brierSortValue(a.brier_avg) - brierSortValue(b.brier_avg)
       || a.display_name.localeCompare(b.display_name)
