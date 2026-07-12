@@ -179,7 +179,24 @@ class LMStudioClient:
                 break
 
         if data is None:
-            raise LLMError(f"falha na chamada ao LM Studio: {last_error}") from last_error
+            body_hint = ""
+            if isinstance(last_error, httpx.HTTPStatusError):
+                try:
+                    detail = last_error.response.json()
+                    msg_field = (
+                        detail.get("error", {}).get("message")
+                        or detail.get("message")
+                        or detail.get("detail")
+                    )
+                    if msg_field:
+                        body_hint = f" — LM Studio: {msg_field}"
+                except Exception:
+                    raw = last_error.response.text[:300].strip()
+                    if raw:
+                        body_hint = f" — LM Studio: {raw}"
+            raise LLMError(
+                f"falha na chamada ao LM Studio: {last_error}{body_hint}"
+            ) from last_error
 
         latency_ms = (time.perf_counter() - start) * 1000.0
         msg = data["choices"][0]["message"]
@@ -227,6 +244,12 @@ class LMStudioClient:
             "max_tokens": max_tokens,
             "repeat_penalty": 1.1,
         }
+        base_no_repeat: dict[str, Any] = {
+            "model": model_id,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
         payloads: list[tuple[str, dict[str, Any]]] = []
         if response_schema is not None:
             payloads.append(
@@ -247,6 +270,8 @@ class LMStudioClient:
             )
             payloads.append(("json_object", base | {"response_format": {"type": "json_object"}}))
         payloads.append(("text", base))
+        # fallback sem repeat_penalty para backends que rejeitam esse parâmetro
+        payloads.append(("text_no_repeat", base_no_repeat))
         return payloads
 
 

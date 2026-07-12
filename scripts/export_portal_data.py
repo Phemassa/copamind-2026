@@ -61,8 +61,8 @@ MODEL_IMAGES = {
     "baidu": "https://cdn.simpleicons.org/baidu/2932E1",
     "ernie": "https://cdn.simpleicons.org/baidu/2932E1",
     # AllenAI
-    "allenai": "https://allenai.org/favicon.ico",
-    "olmo": "https://allenai.org/favicon.ico",
+    "allenai": "../../pictures/icons/olm.png",
+    "olmo": "../../pictures/icons/olm.png",
     # ByteDance
     "bytedance": "../../pictures/icons/oss.png",
     "seed": "../../pictures/icons/oss.png",
@@ -700,14 +700,41 @@ def _complete_phase_predictions(
 ) -> list[dict[str, Any]]:
     if not phase_matches:
         return [item | {"has_prediction": True} for item in predictions]
-    by_match = {str(item.get("match_id")): item | {"has_prediction": True} for item in predictions}
-    completed = []
+
+    by_match_id = {str(item.get("match_id")): item | {"has_prediction": True} for item in predictions}
+    completed: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+
     for match in sorted(phase_matches, key=lambda item: (item.match_date, item.match_id)):
-        prediction = by_match.get(str(match.match_id))
-        if prediction is not None:
-            completed.append(prediction)
+        mid = str(match.match_id)
+        pred = by_match_id.get(mid)
+        if pred is not None:
+            completed.append(pred)
+            used_ids.add(mid)
             continue
-        completed.append(_missing_prediction_payload(phase, model_id, match))
+        # Fall back: look for a projected prediction with the same team IDs
+        proj = next(
+            (
+                p | {"has_prediction": True}
+                for p in predictions
+                if str(p.get("match_id", "")).startswith("projected:")
+                and p.get("home_team_id") == match.home_team_id
+                and p.get("away_team_id") == match.away_team_id
+            ),
+            None,
+        )
+        if proj is not None:
+            used_ids.add(str(proj.get("match_id", "")))
+            completed.append(proj)
+        else:
+            completed.append(_missing_prediction_payload(phase, model_id, match))
+
+    # Append projected predictions that have no corresponding real match yet
+    for pred in predictions:
+        pmid = str(pred.get("match_id", ""))
+        if pmid.startswith("projected:") and pmid not in used_ids:
+            completed.append(pred | {"has_prediction": True, "is_projection": True})
+
     return completed
 
 

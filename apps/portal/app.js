@@ -529,7 +529,22 @@ function renderModels() {
         || (scoreB.points || 0) - (scoreA.points || 0)
         || a.display_name.localeCompare(b.display_name);
     });
+
+  // Champion per model (Final predictions)
+  const actualChampionId = officialWinnersForPhase("final")[0] ?? null;
+  const modelChampionPick = {};
+  for (const item of state.phase_predictions_by_model || []) {
+    if (item.phase !== "final" || item.model_id === "combo") continue;
+    for (const pred of item.predictions || []) {
+      const side = predictedSide(pred);
+      if (!side) continue;
+      const tid = side === "away" ? pred.away_team_id : pred.home_team_id;
+      if (tid) modelChampionPick[item.model_id] = tid;
+    }
+  }
+
   document.getElementById("llm-card-grid").innerHTML = cards.map((model) => {
+    const isChampionHit = actualChampionId != null && modelChampionPick[model.model_id] === actualChampionId;
     return modelCard(
       model,
       scoresByModel[model.model_id],
@@ -539,7 +554,8 @@ function renderModels() {
         predictionsByModel[model.model_id] || [],
         runStatusByModel[model.model_id]
       ),
-      runStatusByModel[model.model_id]
+      runStatusByModel[model.model_id],
+      isChampionHit,
     );
   }).join("") || empty("Sem palpites nesta fase. Use o Admin para processar a fase com LLMs e exporte o snapshot.");
   document.querySelectorAll("[data-run-model]").forEach((button) => {
@@ -628,7 +644,7 @@ function needsStructuredOutput(modelId) {
   return [...STRUCTURED_OUTPUT_MODELS].some((key) => id.includes(key));
 }
 
-function modelCard(model, score, predictions, runStatus) {
+function modelCard(model, score, predictions, runStatus, isChampionHit = false) {
   const telemetry = model.telemetry || {};
   const accuracy = score?.accuracy == null ? null : Math.round(score.accuracy * 100);
   const exactRate = score?.exact_rate == null ? null : score.exact_rate;
@@ -641,7 +657,8 @@ function modelCard(model, score, predictions, runStatus) {
   const phaseRunLabel = phaseRunSummary(score, predictions, runStatus);
   const disqualifiedReason = DISQUALIFIED_MODELS[model.model_id];
   return `
-    <article class="llm-card ${model.is_combo ? "combo-card" : ""} ${disqualifiedReason ? "disqualified-card" : ""}">
+    <article class="llm-card ${model.is_combo ? "combo-card" : ""} ${disqualifiedReason ? "disqualified-card" : ""} ${isChampionHit ? "llm-card--champion-hit" : ""}">
+      ${isChampionHit ? `<div class="champion-banner">🏆 Acertou o campeão!</div>` : ""}
       ${disqualifiedReason ? `<div class="disqualified-banner">🚫 ${escapeHtml(disqualifiedReason)}</div>` : ""}
       <div class="llm-card-head">
         <img class="model-avatar" src="${escapeAttr(avatar)}" alt="" onerror="this.onerror=null;this.src='${escapeAttr(fallbackAvatar)}';" />
@@ -1714,19 +1731,27 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   const ROW_H   = 68;          // data row height
   const FOOT_H  = 38;
 
-  // Collect ordered matches
+  // Collect ordered matches — deduplicate by canonical team pair
   const matchOrder = [];
   const seenKeys = new Set();
   rows.forEach((row) => (row.predictions || []).forEach((pred) => {
-    const key = pred.match_id || `${pred.home}x${pred.away}`;
-    if (!seenKeys.has(key)) { seenKeys.add(key); matchOrder.push({ ...pred, _key: key }); }
+    const canonical = `${pred.home || pred.home_team_id || ""}×${pred.away || pred.away_team_id || ""}`;
+    if (!seenKeys.has(canonical)) { seenKeys.add(canonical); matchOrder.push({ ...pred, _key: canonical }); }
   }));
+
+  const _findPred = (preds, canonical) =>
+    preds.find((p) => `${p.home || p.home_team_id || ""}×${p.away || p.away_team_id || ""}` === canonical);
+  const _findOfficial = (m) =>
+    (state.matches || []).find((mx) =>
+      (mx.home_team_id && mx.home_team_id === m.home_team_id && mx.away_team_id === m.away_team_id)
+      || mx.match_id === m.match_id,
+    );
 
   // Avg prob per match across models
   const matchStats = {};
   matchOrder.forEach((m) => {
     const preds = rows
-      .map((row) => (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key))
+      .map((row) => _findPred(row.predictions || [], m._key))
       .filter((p) => p && (p.prob_home || 0) + (p.prob_away || 0) > 0);
     if (preds.length) {
       const avgH = preds.reduce((s, p) => s + p.prob_home / (p.prob_home + p.prob_away), 0) / preds.length;
@@ -1737,7 +1762,9 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   const nM = rows.length;
   const nG = matchOrder.length;
   const W  = PAD + MCW + nM * CW + PAD;
-  const H  = HDR_H + SUM_H + MOD_H + nG * ROW_H + FOOT_H;
+  const TEAMS_H = 110;  // top-4 teams section
+  const LEG_H   = 34;   // star legend bar
+  const H  = HDR_H + SUM_H + TEAMS_H + MOD_H + nG * ROW_H + LEG_H + FOOT_H;
 
   // Escala adaptativa: retina (2x) para tabelas pequenas, 1x para tabelas largas
   // Limita a ~8192px de largura para compatibilidade com todos os browsers
@@ -1795,9 +1822,9 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   }
 
   const tx = PAD + LOGO + 16;
-  txt("BENCHMARK DE LLMS LOCAIS", tx, HDR_H / 2 - 20, F(10, true), C.accent);
-  txt("CopaMind 2026", tx, HDR_H / 2 + 12, F(30, true), C.text);
-  txt("Mesmo contexto, mesma regra JSON, previsoes auditaveis e ranking por qualidade.", tx, HDR_H / 2 + 30, F(12), C.muted);
+  txt("PREVISÃO DAS LLMS · COPAMIND 2026", tx, HDR_H / 2 - 20, F(10, true), C.accent);
+  txt("Previsão das LLMs", tx, HDR_H / 2 + 12, F(30, true), C.text);
+  txt("Chances por seleção · mesmos dados · mesma regra JSON · previsões auditáveis", tx, HDR_H / 2 + 30, F(12), C.muted);
 
   const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
   txt(dateStr, W - PAD, PAD + 14, F(11), C.muted, "right");
@@ -1832,9 +1859,42 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   ctx.fillStyle = C.border;
   ctx.fillRect(0, HDR_H + SUM_H - 1, W, 1);
 
+  // ── Top-4 seleções esperadas ───────────────────────────────────────────────
+  {
+    const top4 = winnerVotesForPhase(phase).slice(0, 4);
+    const secY = HDR_H + SUM_H;
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(0, secY, W, TEAMS_H);
+    txt("CHANCES POR SELEÇÃO  —  expectativa das LLMs", PAD, secY + 18, F(9, true), C.accent);
+    const maxVotes = Math.max(1, top4[0]?.votes || 1);
+    const totalVotes = top4.reduce((s, t) => s + t.votes, 0) || 1;
+    const barW = Math.min(260, W * 0.32);
+    const colW = (W - PAD * 2) / Math.max(1, top4.length);
+    top4.forEach((team, i) => {
+      const cx = PAD + i * colW;
+      const ty = secY + 30;
+      // rank badge
+      const medal = ["🥇", "🥈", "🥉", ""  ][i];
+      txt(`${i + 1}.`, cx + 4, ty + 15, F(10, true), C.gold);
+      txt(team.name || team.team_id, cx + 20, ty + 15, F(11, true), C.text);
+      const sharePct = Math.round(team.votes / totalVotes * 100);
+      txt(`${sharePct}%`, cx + 20, ty + 30, F(10, true), C.accent);
+      // bar
+      const bw = Math.round(barW * team.votes / maxVotes);
+      ctx.fillStyle = C.border; ctx.fillRect(cx + 20, ty + 36, barW, 8);
+      const grad = ctx.createLinearGradient(cx + 20, 0, cx + 20 + bw, 0);
+      grad.addColorStop(0, C.accent); grad.addColorStop(1, "#f2c94c");
+      ctx.fillStyle = grad; ctx.fillRect(cx + 20, ty + 36, bw, 8);
+      // votes
+      txt(`${team.votes} votos`, cx + 20, ty + 58, F(9), C.muted);
+    });
+    ctx.fillStyle = C.border;
+    ctx.fillRect(0, secY + TEAMS_H - 1, W, 1);
+  }
+
   // ── Model header row ───────────────────────────────────────────────────────
   const tableX = PAD + MCW;
-  let sy = HDR_H + SUM_H;
+  let sy = HDR_H + SUM_H + TEAMS_H;
 
   // Empty match-col corner
   ctx.fillStyle = C.panel;
@@ -1895,10 +1955,18 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   sy += MOD_H;
 
+  // Build match result lookup for correct-prediction highlighting
+  const canvasResultMap = {};
+  matchOrder.forEach((m) => {
+    const official = _findOfficial(m);
+    if (official) canvasResultMap[m._key] = actualWinner(official);
+  });
+
   // ── Data rows ──────────────────────────────────────────────────────────────
   matchOrder.forEach((m, mi) => {
     const ry = sy + mi * ROW_H;
     const even = mi % 2 === 0;
+    const actualSide = canvasResultMap[m._key] ?? null;
 
     // Match info column
     ctx.fillStyle = even ? "#1a1f2c" : "#161a24";
@@ -1909,10 +1977,21 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
     const awayShort = _shortName(m.away);
     const mPad = PAD + 8;
 
-    txt(homeShort, mPad, ry + 18, F(11, true), C.text);
+    // Home row: dim name if lost, bright if won
+    const homeColor = actualSide ? (actualSide === "home" ? C.text : C.muted) : C.text;
+    const awayColor = actualSide ? (actualSide === "away" ? C.text : C.muted) : C.text;
+    txt(homeShort, mPad, ry + 18, F(11, true), homeColor);
     if (stats) txt(`${stats.home}%`, mPad, ry + 31, F(10, true), C.accent);
-    txt("×", mPad, ry + ROW_H / 2 + 4, F(10), C.dim);
-    txt(awayShort, mPad, ry + ROW_H - 22, F(11, true), C.text);
+
+    // Actual score or × separator
+    const officialMatch = _findOfficial(m);
+    if (officialMatch && officialMatch.home_score != null) {
+      txt(`${officialMatch.home_score}–${officialMatch.away_score}`, mPad, ry + ROW_H / 2 + 5, F(10, true), C.gold);
+    } else {
+      txt("×", mPad, ry + ROW_H / 2 + 4, F(10), C.dim);
+    }
+
+    txt(awayShort, mPad, ry + ROW_H - 22, F(11, true), awayColor);
     if (stats) txt(`${stats.away}%`, mPad, ry + ROW_H - 9, F(10, true), C.muted);
 
     ctx.fillStyle = C.border;
@@ -1921,13 +2000,35 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
     // Model cells
     rows.forEach((row, ri) => {
       const cx = tableX + ri * CW;
-      const pred = (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key);
+      const pred = _findPred(row.predictions || [], m._key);
       const side = pred ? predictedSide(pred) : null;
+      const stars = pred ? starRating(pred, _findOfficial(m), actualSide) : 0;
+      const isWrong = actualSide != null && stars === 0 && !!pred;
 
       // Cell bg
       const baseBg = even ? "#181d28" : C.bg;
-      ctx.fillStyle = side === "home" ? C.cHome : side === "away" ? C.cAway : side === "draw" ? C.cDraw : baseBg;
+      ctx.fillStyle = isWrong
+        ? (side === "home" ? "#0d1a14" : side === "away" ? "#0a1020" : side === "draw" ? "#16140a" : baseBg)
+        : (side === "home" ? C.cHome : side === "away" ? C.cAway : side === "draw" ? C.cDraw : baseBg);
       ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
+
+      // Star-based tint + border
+      if (stars >= 5) {
+        ctx.fillStyle = "rgba(242,201,76,0.20)"; ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
+        ctx.strokeStyle = "#f2c94ccc"; ctx.lineWidth = 2;
+        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3); ctx.lineWidth = 1;
+      } else if (stars >= 4) {
+        ctx.fillStyle = "rgba(90,240,160,0.14)"; ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
+        ctx.strokeStyle = "#2fc76fcc"; ctx.lineWidth = 2;
+        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3); ctx.lineWidth = 1;
+      } else if (stars >= 3) {
+        ctx.fillStyle = "rgba(47,199,111,0.09)"; ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
+        ctx.strokeStyle = "#2fc76f88"; ctx.lineWidth = 1.5;
+        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3); ctx.lineWidth = 1;
+      } else if (stars >= 1) {
+        ctx.strokeStyle = "#2fc76f44"; ctx.lineWidth = 1;
+        ctx.strokeRect(cx, ry, CW - 1, ROW_H - 1); ctx.lineWidth = 1;
+      }
 
       if (!pred) {
         txt("—", cx + CW / 2, ry + ROW_H / 2 + 5, F(12), C.dim, "center");
@@ -1937,17 +2038,25 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
         const hasPen = isDrawScore && pred.goes_to_penalties
           && pred.penalty_winner && pred.penalty_winner !== "none";
 
-        const tColor = side === "home" ? C.tHome : side === "away" ? C.tAway : C.tDraw;
+        const dimFactor = isWrong ? 0.32 : 1;
+        const tColor = stars >= 5 ? "#f2c94c" : stars >= 3 ? "#5af0a0" : stars >= 1 ? C.tHome : (side === "home" ? C.tHome : side === "away" ? C.tAway : C.tDraw);
         const scoreStr = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
-        const penStr   = hasPen
-          ? `(${pred.penalty_winner === "home" ? 4 : 3}–${pred.penalty_winner === "away" ? 4 : 3})`
-          : "";
+        const penStr = hasPen ? `(${pred.penalty_winner === "home" ? 4 : 3}–${pred.penalty_winner === "away" ? 4 : 3})` : "";
 
+        ctx.globalAlpha = dimFactor;
         txt(scoreStr, cx + CW / 2, ry + (hasPen ? 22 : 26), F(13, true), tColor, "center");
         if (penStr) txt(penStr, cx + CW / 2, ry + 36, F(9), C.muted, "center");
-
         const winner = side === "home" ? homeShort : side === "away" ? awayShort : "EMP";
-        txt(winner.slice(0, 7), cx + CW / 2, ry + ROW_H - 10, F(9, true), C.muted, "center");
+        txt(winner.slice(0, 7), cx + CW / 2, ry + ROW_H - 10, F(9, true), stars >= 1 ? "#5af0a0" : C.muted, "center");
+        ctx.globalAlpha = 1;
+
+        // Stars badge top-right
+        if (stars > 0) {
+          const starsStr = "★".repeat(stars);
+          const starColor = stars >= 5 ? "#f2c94c" : stars >= 4 ? "#a8e6c0" : "#5af0a0";
+          const starFont = stars <= 2 ? F(7, true) : stars <= 3 ? F(8, true) : F(9, true);
+          txt(starsStr, cx + CW - 4, ry + 10, starFont, starColor, "right");
+        }
       }
 
       // Right divider
@@ -1962,7 +2071,24 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   sy += nG * ROW_H;
 
+  // ── Star legend bar ────────────────────────────────────────────────────────
+  ctx.fillStyle = C.panel;
+  ctx.fillRect(0, sy, W, LEG_H);
+  ctx.fillStyle = C.border;
+  ctx.fillRect(0, sy, W, 1);
+  const legendDefs = [
+    ["★", "Vencedor"], ["★★", "+1 gol"], ["★★★", "Placar exato"],
+    ["★★★★", "+Tempo"], ["★★★★★", "Tudo certo!"],
+  ];
+  const legSlot = W / legendDefs.length;
+  legendDefs.forEach(([stars, label], i) => {
+    const lx = i * legSlot + legSlot / 2;
+    txt(stars, lx, sy + 14, F(9, true), "#f2c94c", "center");
+    txt(label, lx, sy + 28, F(8), C.muted, "center");
+  });
+
   // ── Footer ─────────────────────────────────────────────────────────────────
+  sy += LEG_H;
   ctx.fillStyle = C.border;
   ctx.fillRect(PAD, sy + 8, W - PAD * 2, 1);
   txt(
@@ -2041,18 +2167,31 @@ function renderLinkedInCaptures() {
     document.getElementById("linkedin-capture-grid").innerHTML = empty("Nenhum palpite valido nesta fase ainda. Rode os modelos e exporte o snapshot.");
     return;
   }
-  // Collect match order
+  // Collect match order — deduplicate by team pair (home×away) to avoid
+  // duplicate rows when different models used different match_id formats.
   const matchOrder = [];
   const seen = new Set();
   rows.forEach((row) => row.predictions.forEach((pred) => {
-    const key = pred.match_id || `${pred.home}x${pred.away}`;
-    if (!seen.has(key)) { seen.add(key); matchOrder.push({ ...pred, _key: key }); }
+    const canonical = `${pred.home || pred.home_team_id || ""}×${pred.away || pred.away_team_id || ""}`;
+    if (!seen.has(canonical)) {
+      seen.add(canonical);
+      matchOrder.push({ ...pred, _key: canonical });
+    }
   }));
+  // Helper: find a prediction for a canonical key
+  const findPred = (preds, canonical) =>
+    preds.find((p) => `${p.home || p.home_team_id || ""}×${p.away || p.away_team_id || ""}` === canonical);
+  // Helper: find official match by team IDs (also tries match_id as fallback)
+  const findOfficial = (m) =>
+    (state.matches || []).find((mx) =>
+      (mx.home_team_id && mx.home_team_id === m.home_team_id && mx.away_team_id === m.away_team_id)
+      || mx.match_id === m.match_id,
+    );
   // Compute avg win % per match across all LLMs
   const matchStats = {};
   matchOrder.forEach((m) => {
     const preds = rows
-      .map((row) => (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key))
+      .map((row) => findPred(row.predictions || [], m._key))
       .filter((p) => p && (p.prob_home || 0) + (p.prob_away || 0) > 0);
     if (preds.length) {
       const avgHome = preds.reduce((s, p) => s + p.prob_home / (p.prob_home + p.prob_away), 0) / preds.length;
@@ -2062,19 +2201,49 @@ function renderLinkedInCaptures() {
   });
   // Ranking de equipes: avanco + campea
   renderLinkedInTeamRanking(phase, matchOrder, matchStats);
+
+  // Mapa de resultados reais: match_key → "home"|"away"|null
+  const matchResultMap = {};
+  matchOrder.forEach((m) => {
+    const official = findOfficial(m);
+    if (official) matchResultMap[m._key] = actualWinner(official);
+  });
+
+  // Campea real (Final) e previsões por modelo
+  const actualChampionId = officialWinnersForPhase("final")[0] ?? null;
+  const modelChampionMap = {};
+  for (const item of state.phase_predictions_by_model || []) {
+    if (item.phase !== "final" || item.model_id === "combo") continue;
+    for (const pred of item.predictions || []) {
+      const side = predictedSide(pred);
+      if (!side) continue;
+      const tid = side === "away" ? pred.away_team_id : pred.home_team_id;
+      if (tid) modelChampionMap[item.model_id] = tid;
+    }
+  }
+
   // Header: jogo | modelo1 | modelo2 | ...
-  const modelHead = rows.map((row) => `
-    <th class="resumo-model-header-th">
+  const modelHead = rows.map((row) => {
+    const hitChampion = actualChampionId && modelChampionMap[row.model_id] === actualChampionId;
+    return `
+    <th class="resumo-model-header-th${hitChampion ? " resumo-champion-hit" : ""}">
       <img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt="" onerror="this.onerror=null;this.src='${avatarForModel(row)}';" />
       <div class="resumo-model-name">${escapeHtml(row.display_name)}</div>
-    </th>`).join("");
+    </th>`;
+  }).join("");
   // Body: one row per match
   const body = matchOrder.map((m) => {
-    const stats = matchStats[m._key];
+    const actual = matchResultMap[m._key] ?? null;  // "home"|"away"|null
+    const officialMatch = findOfficial(m);
+    const hasScore = officialMatch && officialMatch.home_score != null;
+    const scoreDisplay = hasScore ? `${officialMatch.home_score}–${officialMatch.away_score}` : null;
     const cells = rows.map((row) => {
-      const pred = (row.predictions || []).find((p) => (p.match_id || `${p.home}x${p.away}`) === m._key);
+      const pred = findPred(row.predictions || [], m._key);
       if (!pred) return `<td class="resumo-cell resumo-empty">—</td>`;
       const side = predictedSide(pred);
+      const stars = starRating(pred, officialMatch, actual);
+      const isWrong = actual !== null && actual !== undefined && stars === 0 && side !== actual;
+      const starsStr = stars > 0 ? "★".repeat(stars) : "";
       const baseScore = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
       let penLine = "";
       let ext = "";
@@ -2085,29 +2254,57 @@ function renderLinkedInCaptures() {
         const ap = pred.penalty_winner === "away" ? 4 : 3;
         penLine = `<small class="resumo-pen">(${hp}–${ap})</small>`;
       } else if (isDrawScore && pred.goes_to_extra_time) {
-        ext = " P";
+        ext = " ET";
       }
-      const winner = side === "home" ? shortTeamName(pred.home) : side === "away" ? shortTeamName(pred.away) : "EMP";
-      return `<td class="resumo-cell resumo-${escapeAttr(side)}">
-        <b>${escapeHtml(baseScore)}</b>${penLine}<span>${escapeHtml(winner)}${ext}</span>
+      const total = (pred.prob_home || 0) + (pred.prob_away || 0);
+      const homeProb = total > 0 ? Math.round(pred.prob_home / total * 100) : null;
+      const awayProb = total > 0 ? 100 - homeProb : null;
+      return `<td class="resumo-cell resumo-${escapeAttr(side)}${stars > 0 ? ` resumo-stars-${stars}` : ""}${isWrong ? " resumo-wrong" : ""}">
+        ${starsStr ? `<span class="resumo-stars-badge">${escapeHtml(starsStr)}</span>` : ""}
+        <span class="resumo-cell-team${side === "home" ? " is-predicted" : ""}">
+          <b>${escapeHtml(shortTeamName(m.home))}</b>${homeProb != null ? `<em>${homeProb}%</em>` : ""}
+        </span>
+        <b class="resumo-cell-score">${escapeHtml(baseScore)}${ext}</b>${penLine}
+        <span class="resumo-cell-team${side === "away" ? " is-predicted" : ""}">
+          <b>${escapeHtml(shortTeamName(m.away))}</b>${awayProb != null ? `<em>${awayProb}%</em>` : ""}
+        </span>
       </td>`;
     }).join("");
     return `<tr>
       <td class="resumo-match-td">
         <div class="resumo-match-inline">
-          <b>${escapeHtml(shortTeamName(m.home))}</b>${stats ? `<em>${stats.home}%</em>` : ""}<span class="resumo-sep">×</span>${stats ? `<em>${stats.away}%</em>` : ""}<b>${escapeHtml(shortTeamName(m.away))}</b>
+          <span class="resumo-match-team${actual === "home" ? " is-winner" : ""}">
+            <b>${escapeHtml(shortTeamName(m.home))}</b>
+          </span>
+          ${scoreDisplay
+            ? `<span class="resumo-match-score">${scoreDisplay}</span>`
+            : `<span class="resumo-match-vs">×</span>`}
+          <span class="resumo-match-team${actual === "away" ? " is-winner" : ""}">
+            <b>${escapeHtml(shortTeamName(m.away))}</b>
+          </span>
         </div>
       </td>
       ${cells}
     </tr>`;
   }).join("");
+  const legendItems = [
+    ["★",     "Acertou o vencedor"],
+    ["★★",    "+ 1 gol certo"],
+    ["★★★",   "Placar exato"],
+    ["★★★★",  "+ Tempo (normal/ET/pen)"],
+    ["★★★★★", "Tudo certo!"],
+  ];
+  const legendHtml = legendItems.map(([s, l]) =>
+    `<span class="resumo-star-legend-item"><span>${s}</span>${escapeHtml(l)}</span>`,
+  ).join("");
   document.getElementById("linkedin-capture-grid").innerHTML = `
     <div class="resumo-table-wrapper">
       <table class="resumo-table">
         <thead><tr><th class="resumo-game-header-th"></th>${modelHead}</tr></thead>
         <tbody>${body}</tbody>
       </table>
-    </div>`;
+    </div>
+    <div class="resumo-star-legend">${legendHtml}</div>`;
 }
 
 function shortTeamName(name) {
@@ -3937,8 +4134,15 @@ function predictionRow(prediction) {
   const points = prediction.points == null
     ? "Aguardando resultado"
     : `${prediction.points} pts | real ${actualScore(prediction)}`;
+  const hitBadge = prediction.exact_score
+    ? `<span class="pred-hit-badge pred-exact">⭐ placar exato</span>`
+    : prediction.winner_hit === true
+      ? `<span class="pred-hit-badge pred-winner">✓ acertou vencedor</span>`
+      : prediction.winner_hit === false
+        ? `<span class="pred-hit-badge pred-miss">✗ errou</span>`
+        : "";
   return `
-    <div class="prediction-item">
+    <div class="prediction-item${prediction.exact_score ? " pred-item--exact" : prediction.winner_hit ? " pred-item--winner" : ""}">
       <div>
         <b>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</b>
         <span class="prediction-meta">${formatDateTime(prediction.match_date)} | ${escapeHtml(shortRound(prediction.predictor_name))}</span>
@@ -3947,6 +4151,7 @@ function predictionRow(prediction) {
         <strong>${escapeHtml(predictedScoreText(prediction))}</strong>
         ${predictionMarkers ? `<em>${escapeHtml(predictionMarkers)}</em>` : ""}
         <span>${escapeHtml(points)}</span>
+        ${hitBadge}
         ${playerText ? `<span class="player-picks-line">${escapeHtml(playerText)}</span>` : ""}
       </div>
     </div>`;
@@ -4386,6 +4591,54 @@ function predictionForProjected(_match, _modelId) {
   return null;
 }
 
+/**
+ * 0 = wrong winner / no result yet
+ * 1 = correct winner
+ * 2 = winner + one goal count right
+ * 3 = winner + exact score (both goals)
+ * 4 = above + correct time format (normal / ET / pens)
+ * 5 = above + correct penalty winner (or normal-time perfect = max)
+ */
+function starRating(pred, officialMatch, actual) {
+  if (!actual || !officialMatch || officialMatch.home_score == null) return 0;
+  const side = predictedSide(pred);
+  if (!side || side !== actual) return 0;
+
+  let stars = 1;
+
+  const ph = pred.predicted_home_goals != null ? Number(pred.predicted_home_goals) : null;
+  const pa = pred.predicted_away_goals != null ? Number(pred.predicted_away_goals) : null;
+  const oh = officialMatch.home_score;
+  const oa = officialMatch.away_score;
+  const homeRight = ph != null && ph === oh;
+  const awayRight = pa != null && pa === oa;
+  if (homeRight || awayRight) stars = 2;
+  if (homeRight && awayRight) stars = 3;
+
+  if (stars >= 3) {
+    // In knockout, equal final score → went to ET/pens
+    const wentToET = oh === oa;
+    const predET  = pred.goes_to_extra_time === true;
+    const predPens = pred.goes_to_penalties === true;
+    const timeRight = wentToET ? (predET || predPens) : (!predET && !predPens);
+    if (timeRight) stars = 4;
+  }
+
+  if (stars >= 4) {
+    const wentToET = officialMatch.home_score === officialMatch.away_score;
+    if (wentToET && pred.goes_to_penalties) {
+      // 5★ only if penalty winner also correct
+      const pw = pred.penalty_winner;
+      if (pw && pw !== "none" && pw === actual) stars = 5;
+    } else {
+      // Normal-time or ET (no pens): 4★ = perfect
+      stars = 5;
+    }
+  }
+
+  return stars;
+}
+
 function predictedSide(prediction) {
   if (!prediction) return null;
   if (prediction.goes_to_penalties && prediction.penalty_winner !== "none") return prediction.penalty_winner;
@@ -4592,8 +4845,8 @@ const MODEL_IMAGE_OVERRIDES = {
   "baidu":       "https://cdn.simpleicons.org/baidu/2932E1",
   "ernie":       "https://cdn.simpleicons.org/baidu/2932E1",
   // AllenAI
-  "allenai":     "https://allenai.org/favicon.ico",
-  "olmo":        "https://allenai.org/favicon.ico",
+  "allenai":     "../../pictures/icons/olm.png",
+  "olmo":        "../../pictures/icons/olm.png",
   // ByteDance
   "bytedance":   "../../pictures/icons/oss.png",
   "seed":        "../../pictures/icons/oss.png",
