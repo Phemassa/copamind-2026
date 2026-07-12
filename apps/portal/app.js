@@ -1751,11 +1751,13 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   const _findPred = (preds, canonical) =>
     preds.find((p) => `${p.home || p.home_team_id || ""}×${p.away || p.away_team_id || ""}` === canonical);
-  const _findOfficial = (m) =>
-    (state.matches || []).find((mx) =>
-      (mx.home_team_id && mx.home_team_id === m.home_team_id && mx.away_team_id === m.away_team_id)
-      || mx.match_id === m.match_id,
+  const _findOfficial = (m) => {
+    if (!m) return undefined;
+    return (state.matches || []).find((mx) =>
+      (mx.home_team_id && m.home_team_id && mx.home_team_id === m.home_team_id && mx.away_team_id === m.away_team_id)
+      || (m.match_id && mx.match_id === m.match_id),
     );
+  };
 
   // Avg prob per match across models
   const matchStats = {};
@@ -1980,13 +1982,18 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   rows.forEach((row) => { canvasStarCounts[row.model_id] = [0, 0, 0, 0, 0, 0]; });
   canvasFinishedKeys.forEach((key) => {
     const m = matchOrder.find((x) => x._key === key);
+    if (!m) return;
     const actual = canvasResultMap[key];
     const off = _findOfficial(m);
     rows.forEach((row) => {
       const pred = _findPred(row.predictions || [], key);
       if (!pred) return;
-      const s = starRating(pred, off, actual);
-      canvasStarCounts[row.model_id][s]++;
+      try {
+        const s = pred.star_rating != null
+          ? Number(pred.star_rating)
+          : starRating(pred, off, actual);
+        if (s >= 0 && s <= 5) canvasStarCounts[row.model_id][s]++;
+      } catch (_) { /* ignora erros de pontuacao individual */ }
     });
   });
 
@@ -2209,8 +2216,8 @@ async function exportLinkedInImage() {
       }, "image/png");
     });
   } catch (err) {
-    console.error("Erro ao gerar imagem:", err);
-    alert("Erro ao gerar imagem. Veja o console.");
+    console.error(`[exportLinkedInImage] fase=${phase} rows=${rows.length} erro:`, err);
+    alert(`Erro ao gerar imagem (${phase}): ${err?.message || err}`);
   } finally {
     btn.textContent = origText;
     btn.disabled = false;

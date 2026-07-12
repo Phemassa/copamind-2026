@@ -48,6 +48,7 @@ from copamind.pool.llm_agent import (
 )
 from copamind.pool.predictors import EloPredictor, PoissonPredictor
 from copamind.pool.scoring import bolao_points, brier_score, outcome
+from copamind.data.fifa_match_extras import match_extra
 from copamind.pool.service import leaderboard, lock_match_predictions, run_backtest
 from copamind.ui.styles import CSS
 from copamind.ui.tournament import build_bracket_html
@@ -728,6 +729,19 @@ def render_ranking() -> None:
         "Ranking do Bolao de IAs",
         "Cada modelo compete por placar exato, resultado correto e calibracao probabilistica.",
     )
+
+    # Carrega pontuacao LLM do portal JSON (sistema de estrelas 3-7 pts)
+    _PORTAL_JSON = Path("apps/portal/data/copamind.json")
+    llm_phase_scores: dict[str, int] = {}
+    if _PORTAL_JSON.exists():
+        try:
+            _pdata = json.loads(_PORTAL_JSON.read_text(encoding="utf-8"))
+            for row in _pdata.get("phase_model_scores", []):
+                mid = str(row.get("model_id") or "")
+                if mid and mid != "combo":
+                    llm_phase_scores[mid] = llm_phase_scores.get(mid, 0) + int(row.get("points") or 0)
+        except Exception:
+            pass
     standings = leaderboard(repo)
     _btn_col, _rest = st.columns([1, 3])
     with _btn_col:
@@ -783,17 +797,28 @@ def render_ranking() -> None:
     with f6:
         include_combo = st.checkbox("Incluir combo", value=True)
     st.markdown("---")
-    if not standings:
+    if not standings and not llm_phase_scores:
         st.info("Ainda nao ha palpites pontuados.")
     else:
-        cols = st.columns(min(4, len(standings)))
-        for index, standing in enumerate(standings[:8], 1):
+        # Combina: LLMs do portal JSON (sistema estrelas) + ML do backtest
+        combined: list[tuple[str, int, str]] = []  # (nome, pts, tipo)
+        for model_id, pts in sorted(llm_phase_scores.items(), key=lambda x: -x[1]):
+            combined.append((model_id.split("/")[-1], pts, "llm"))
+        for st_item in standings:
+            name = st_item.predictor_name
+            if not name.startswith("llm:") and not name.startswith("combo:"):
+                combined.append((name, st_item.total_points, "ml"))
+        combined.sort(key=lambda x: -x[1])
+        top8 = combined[:8]
+        cols = st.columns(min(4, len(top8)))
+        for index, (name, pts, tipo) in enumerate(top8, 1):
             color = [GOLD, "#b9c7c4", "#d98a5f", ACCENT][min(index - 1, 3)]
+            badge = "★" if tipo == "llm" else "ML"
             with cols[(index - 1) % len(cols)]:
                 st.markdown(
                     f"""<div class="cm-podium" style="border-top-color:{color}">
-<span>#{index}</span><b>{escape(standing.predictor_name)}</b>
-<strong>{standing.total_points}</strong><small>{standing.predictions} palpites | Brier {standing.mean_brier:.3f}</small>
+<span>#{index} <small>{badge}</small></span><b>{escape(name)}</b>
+<strong>{pts}</strong><small>pts</small>
 </div>""",
                     unsafe_allow_html=True,
                 )
@@ -1322,6 +1347,29 @@ def _consensus_payload(consensus: LLMModelConsensus) -> dict[str, Any]:
     }
 
 
+def _knockout_predicted_outcome(prediction: PoolPrediction, payload: dict[str, Any]) -> str:
+    """Calcula o resultado predito considerando pênaltis no mata-mata."""
+    if prediction.predicted_home_goals != prediction.predicted_away_goals:
+        return outcome(prediction.predicted_home_goals, prediction.predicted_away_goals)
+    pw = payload.get("penalty_winner")
+    if pw in ("home", "away"):
+        return pw
+    w = payload.get("winner")
+    return w if w in ("home", "away") else "draw"
+
+
+def _knockout_actual_outcome(result: PoolResult, match: Match | None) -> str:
+    """Calcula o resultado real considerando pênaltis no mata-mata."""
+    if result.home_score != result.away_score:
+        return outcome(result.home_score, result.away_score)
+    if match is not None:
+        extra = match_extra(match.match_id)
+        ws = extra.get("winner_side")
+        if ws in ("home", "away"):
+            return ws
+    return "draw"
+
+
 def _history_table(
     repo: DuckDBRepository,
     *,
@@ -1334,6 +1382,7 @@ def _history_table(
 ) -> None:
     results = {item.match_id: item for item in repo.list_pool_results()}
     matches = {item.match_id: item for item in repo.list_matches(limit=800)}
+    payloads = {row["prediction_id"]: row["payload"] for row in repo.list_pool_prediction_payloads()}
     batch_round_ids = _round_ids_for_batch(repo, batch_id)
     rows: list[dict[str, Any]] = []
     for prediction in repo.list_pool_predictions():
@@ -1352,7 +1401,15 @@ def _history_table(
         result = results.get(prediction.match_id)
         if result is None:
             continue
-        actual = outcome(result.home_score, result.away_score)
+        payload = payloads.get(prediction.prediction_id, {})
+        actual = _knockout_actual_outcome(result, match)
+        predicted = _knockout_predicted_outcome(prediction, payload)
+        correct = predicted == actual
+        exact = (
+            prediction.predicted_home_goals == result.home_score
+            and prediction.predicted_away_goals == result.away_score
+            and correct
+        )
         points = bolao_points(
             prediction.predicted_home_goals,
             prediction.predicted_away_goals,
@@ -1361,6 +1418,7 @@ def _history_table(
         )
         rows.append(
             {
+                "": "⭐" if exact else ("✓" if correct else "✗"),
                 "Partida": _match_label(match) if match else prediction.match_id,
                 "Modelo": prediction.predictor_name,
                 "Palpite": f"{prediction.predicted_home_goals}-{prediction.predicted_away_goals}",
@@ -1390,6 +1448,7 @@ def _phase_accuracy_table(
 ) -> None:
     results = {item.match_id: item for item in repo.list_pool_results()}
     matches = {item.match_id: item for item in repo.list_matches(limit=800)}
+    payloads = {row["prediction_id"]: row["payload"] for row in repo.list_pool_prediction_payloads()}
     batch_round_ids = _round_ids_for_batch(repo, batch_id)
     grouped: dict[tuple[str, str], dict[str, Any]] = {}
     for prediction in repo.list_pool_predictions():
@@ -1408,8 +1467,14 @@ def _phase_accuracy_table(
         result = results.get(prediction.match_id)
         if result is None or match is None:
             continue
-        actual = outcome(result.home_score, result.away_score)
-        predicted = outcome(prediction.predicted_home_goals, prediction.predicted_away_goals)
+        payload = payloads.get(prediction.prediction_id, {})
+        actual = _knockout_actual_outcome(result, match)
+        predicted = _knockout_predicted_outcome(prediction, payload)
+        exact = (
+            prediction.predicted_home_goals == result.home_score
+            and prediction.predicted_away_goals == result.away_score
+            and predicted == actual
+        )
         key = (prediction.predictor_name, str(match.stage))
         item = grouped.setdefault(
             key,
@@ -1432,10 +1497,7 @@ def _phase_accuracy_table(
             result.away_score,
         )
         item["Vencedor"] += int(predicted == actual)
-        item["Placar exato"] += int(
-            prediction.predicted_home_goals == result.home_score
-            and prediction.predicted_away_goals == result.away_score
-        )
+        item["Placar exato"] += int(exact)
         item["Brier soma"] += brier_score(
             prediction.prob_home,
             prediction.prob_draw,

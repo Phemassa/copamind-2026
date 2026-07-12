@@ -1,7 +1,14 @@
 """Pontuação do bolão (MASTER_PLAN §37.10).
 
-Duas dimensões: pontos de bolão (placar exato / resultado correto) e qualidade
+Duas dimensões: pontos de bolão (sistema de estrelas) e qualidade
 probabilística (Brier score sobre o desfecho 1x2).
+
+Sistema de estrelas (espelha starRating em app.js):
+  ★     vencedor certo                         = 3 pts
+  ★★    vencedor + 1 gol certo                 = 4 pts
+  ★★★   placar exato                           = 5 pts
+  ★★★★  + tempo correto (normal/ET/pen)        = 6 pts  [requer pick_payload]
+  ★★★★★ + vencedor nos pênaltis               = 7 pts  [requer pick_payload]
 """
 
 from __future__ import annotations
@@ -14,6 +21,9 @@ Outcome = Literal["home", "draw", "away"]
 
 POINTS_EXACT_SCORE = 5
 POINTS_CORRECT_RESULT = 3
+POINTS_ONE_GOAL_RIGHT = 4  # vencedor + 1 gol certo
+POINTS_TIME_RIGHT = 6      # placar exato + formato de tempo correto
+POINTS_PERFECT = 7         # tudo certo (inclui pênaltis se aplicável)
 
 
 def outcome(home_score: int, away_score: int) -> Outcome:
@@ -31,12 +41,28 @@ def bolao_points(
     actual_home: int,
     actual_away: int,
 ) -> int:
-    """Pontos de bolão: placar exato = 5, resultado correto = 3, caso contrário 0."""
+    """Pontos de bolão sem dados de tempo extra (stars 1-3 only).
+
+    Usa pelo menos os três primeiros níveis do sistema de estrelas:
+    - placar exato          = 5 pts (★★★)
+    - vencedor + 1 gol certo = 4 pts (★★)
+    - apenas vencedor certo = 3 pts (★)
+    - errou o vencedor      = 0 pts
+    """
+    pred_outcome = outcome(predicted_home, predicted_away)
+    actual_outcome = outcome(actual_home, actual_away)
+    if pred_outcome != actual_outcome:
+        return 0
+    # placar exato → 5 pts (★★★)
     if predicted_home == actual_home and predicted_away == actual_away:
         return POINTS_EXACT_SCORE
-    if outcome(predicted_home, predicted_away) == outcome(actual_home, actual_away):
-        return POINTS_CORRECT_RESULT
-    return 0
+    # vencedor + pelo menos 1 gol certo → 4 pts (★★)
+    home_right = predicted_home == actual_home
+    away_right = predicted_away == actual_away
+    if home_right or away_right:
+        return POINTS_ONE_GOAL_RIGHT
+    # apenas vencedor → 3 pts (★)
+    return POINTS_CORRECT_RESULT
 
 
 def brier_score(
