@@ -1325,6 +1325,13 @@ h3 { font-size: 22px; }
 }
 .pts-phases em { font-style: normal; }
 .pts-phases b  { font-size: 10px; font-weight: 700; color: var(--text); }
+.pts-penalty {
+  display: block;
+  font-size: 10px;
+  color: var(--red, #fb7185);
+  font-weight: 600;
+  line-height: 1.4;
+}
 
 .ranking-table-row.combo-row {
   border-color: rgba(245, 200, 76, .64);
