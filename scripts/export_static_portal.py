@@ -35,6 +35,11 @@ DOCS = ROOT / "docs"
 SUBSTITUTIONS: list[tuple[str, str]] = [
     ("../../docs/assets/", "assets/"),
     ("../../pictures/icons/", "icons/"),
+    # Botao Admin aponta para localhost — desativa no site estatico
+    (
+        '<a href="http://localhost:8501" target="_blank" rel="noreferrer">Admin</a>',
+        '<a aria-disabled="true" title="Disponivel apenas no servidor local" style="opacity:.35;pointer-events:none;cursor:default">Admin</a>',
+    ),
 ]
 
 
