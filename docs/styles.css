@@ -18,7 +18,7 @@ body {
   margin: 0;
   background:
     linear-gradient(180deg, rgba(10, 14, 21, .64), rgba(16, 19, 27, .94) 480px, rgba(21, 24, 31, .98)),
-    url("../../docs/assets/fundo_clean1.png") center top / cover fixed no-repeat,
+    url("assets/fundo_clean1.png") center top / cover fixed no-repeat,
     var(--bg);
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -71,7 +71,7 @@ a { text-decoration: none; }
   border: 1px solid rgba(77, 141, 255, .18);
   background:
     linear-gradient(180deg, rgba(8, 12, 20, .92), rgba(8, 12, 20, .88)),
-    url("../../docs/assets/fundo_clean2.png") center / cover no-repeat;
+    url("assets/fundo_clean2.png") center / cover no-repeat;
 }
 
 .ref-models-tbl {
@@ -245,7 +245,7 @@ h3 { font-size: 22px; }
   border-radius: 14px;
   background:
     linear-gradient(90deg, rgba(5, 9, 16, .92), rgba(5, 9, 16, .58) 45%, rgba(5, 9, 16, .18) 78%),
-    url("../../docs/assets/fundo_taca.png") center right / cover no-repeat;
+    url("assets/fundo_taca.png") center right / cover no-repeat;
   box-shadow: 0 24px 90px rgba(0, 0, 0, .38);
   padding: 32px;
 }
@@ -318,7 +318,7 @@ h3 { font-size: 22px; }
   border-radius: 14px;
   background:
     linear-gradient(100deg, rgba(5, 9, 16, .97) 45%, rgba(5, 9, 16, .55) 72%, rgba(5, 9, 16, .12)),
-    url("../../docs/assets/fundo_taca.png") center right / cover no-repeat;
+    url("assets/fundo_taca.png") center right / cover no-repeat;
   box-shadow: 0 24px 90px rgba(0, 0, 0, .38);
 }
 
@@ -1165,7 +1165,7 @@ h3 { font-size: 22px; }
   border-radius: 14px;
   background:
     linear-gradient(90deg, rgba(17, 21, 29, .98) 0%, rgba(17, 21, 29, .94) 46%, rgba(17, 21, 29, .58) 68%, rgba(17, 21, 29, .22) 100%),
-    url("../../docs/assets/fundo_taca.png") right center / cover no-repeat;
+    url("assets/fundo_taca.png") right center / cover no-repeat;
   box-shadow: 0 24px 90px rgba(0, 0, 0, .34);
   padding: 16px;
 }
@@ -1514,7 +1514,7 @@ h3 { font-size: 22px; }
   border-radius: 12px;
   background:
     linear-gradient(100deg, rgba(9, 13, 20, .98), rgba(19, 25, 34, .88)),
-    url("../../docs/assets/fundo_taca.png") right center / cover no-repeat;
+    url("assets/fundo_taca.png") right center / cover no-repeat;
   padding: 14px 18px;
   margin-bottom: 10px;
 }
@@ -3771,7 +3771,7 @@ h3 { font-size: 22px; }
   .ranking-section {
     background:
       linear-gradient(180deg, rgba(17, 21, 29, .97), rgba(17, 21, 29, .88)),
-      url("../../docs/assets/fundo_taca.png") center top / cover no-repeat;
+      url("assets/fundo_taca.png") center top / cover no-repeat;
   }
   .ranking-hero {
     width: 100%;

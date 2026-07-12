@@ -7,17 +7,17 @@ const PHASE_LABELS = {
   third_place: "3o lugar",
   final: "Final",
 };
-const API_BASE = "http://localhost:8000";
+const API_BASE = ""; // static mode — API local nao disponivel
 const RUN_POLL_MS = 10000;
 const PROGRESS_POLL_MS = 2000;
 const RUN_TIMEOUT_MS = 15 * 60 * 1000;
 const BULK_PHASES = ["round_of_16", "quarterfinal", "semifinal", "third_place", "final"];
 const STATIC_ASSETS = [
-  "../../docs/assets/banner.png",
-  "../../docs/assets/copamind_2026.png",
-  "../../docs/assets/fundo_clean1.png",
-  "../../docs/assets/fundo_taca.png",
-  "../../docs/assets/icon.png",
+  "assets/banner.png",
+  "assets/copamind_2026.png",
+  "assets/fundo_clean1.png",
+  "assets/fundo_taca.png",
+  "assets/icon.png",
 ];
 
 let state = null;
@@ -1633,7 +1633,7 @@ async function exportRankingImage() {
   if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
   try {
     const [logo, iconMap] = await Promise.all([
-      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadImg("assets/copamind_2026.png"),
       _loadIconMap(rows),
     ]);
     const canvas = buildRankingCanvas(rows, logo, iconMap);
@@ -1699,7 +1699,7 @@ async function exportBenchmarkDashboardImage() {
   const btn = document.getElementById("btn-export-benchmark-dashboard"), label = btn?.textContent;
   if (!rows.length) { alert("Sem dados de benchmark ainda."); return; }
   if (btn) { btn.textContent = "Gerando PNG..."; btn.disabled = true; }
-  try { const [banner, icons] = await Promise.all([_loadImg("../../docs/assets/banner.png"), _loadIconMap(rows)]); await _canvasDownload(buildBenchmarkDashboardCanvas(rows, banner, icons), `copamind_painel_comparativo_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`); }
+  try { const [banner, icons] = await Promise.all([_loadImg("assets/banner.png"), _loadIconMap(rows)]); await _canvasDownload(buildBenchmarkDashboardCanvas(rows, banner, icons), `copamind_painel_comparativo_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`); }
   catch (err) { console.error("Erro ao exportar painel:", err); alert("Erro ao gerar o quadro completo. Veja o console."); }
   finally { if (btn) { btn.textContent = label; btn.disabled = false; } }
 }
@@ -1712,7 +1712,7 @@ async function exportBenchmarkImage() {
   buttons.forEach((button) => { button.textContent = "Gerando PNG..."; button.disabled = true; });
   try {
     const [logo, iconMap] = await Promise.all([
-      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadImg("assets/copamind_2026.png"),
       _loadIconMap(rows),
     ]);
     const canvas = buildBenchmarkCanvas(rows, logo, iconMap);
@@ -2240,7 +2240,7 @@ async function exportLinkedInImage() {
     // Load banner icon and all model icons in parallel
     const modelUrls = rows.map((row) => resolveModelImage(row) || avatarForModel(row));
     const [icon, ...rawIcons] = await Promise.all([
-      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadImg("assets/copamind_2026.png"),
       ...modelUrls.map((url) => _loadImg(url)),
     ]);
     // Fallback to SVG avatar if real image failed
@@ -4988,11 +4988,11 @@ const MODEL_IMAGE_OVERRIDES = {
   "mistral":     "https://cdn.simpleicons.org/mistralai/FA520F",
   "mistralai":   "https://cdn.simpleicons.org/mistralai/FA520F",
   // Microsoft
-  "phi":         "../../pictures/icons/phi.png",
-  "microsoft":   "../../pictures/icons/phi.png",
+  "phi":         "icons/phi.png",
+  "microsoft":   "icons/phi.png",
   // Zhipu AI / ZAI
-  "glm":         "../../pictures/icons/glm.png",
-  "zai-org":     "../../pictures/icons/glm.png",
+  "glm":         "icons/glm.png",
+  "zai-org":     "icons/glm.png",
   // Meta
   "llama":       "https://cdn.simpleicons.org/meta/0081FB",
   "meta-llama":  "https://cdn.simpleicons.org/meta/0081FB",
@@ -5000,27 +5000,27 @@ const MODEL_IMAGE_OVERRIDES = {
   "nvidia":      "https://cdn.simpleicons.org/nvidia/76B900",
   "nemotron":    "https://cdn.simpleicons.org/nvidia/76B900",
   // OpenAI
-  "openai":      "../../pictures/icons/gpt.png",
+  "openai":      "icons/gpt.png",
   // DeepSeek
   "deepseek":    "https://cdn.simpleicons.org/deepseek/4D6BFF",
   // IBM
-  "ibm":         "../../pictures/icons/granite.png",
-  "granite":     "../../pictures/icons/granite.png",
+  "ibm":         "icons/granite.png",
+  "granite":     "icons/granite.png",
   // Baidu
   "baidu":       "https://cdn.simpleicons.org/baidu/2932E1",
   "ernie":       "https://cdn.simpleicons.org/baidu/2932E1",
   // AllenAI
-  "allenai":     "../../pictures/icons/olm.png",
-  "olmo":        "../../pictures/icons/olm.png",
+  "allenai":     "icons/olm.png",
+  "olmo":        "icons/olm.png",
   // ByteDance
-  "bytedance":   "../../pictures/icons/oss.png",
-  "seed":        "../../pictures/icons/oss.png",
+  "bytedance":   "icons/oss.png",
+  "seed":        "icons/oss.png",
   // Essential AI
   "essentialai": "https://essential.ai/favicon.ico",
   "rnj":         "https://essential.ai/favicon.ico",
   // Liquid AI
-  "liquid":      "../../pictures/icons/lfm2.png",
-  "lfm":         "../../pictures/icons/lfm2.png",
+  "liquid":      "icons/lfm2.png",
+  "lfm":         "icons/lfm2.png",
 };
 
 function resolveModelImage(model) {

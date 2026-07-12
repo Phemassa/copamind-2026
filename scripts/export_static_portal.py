@@ -35,6 +35,13 @@ DOCS = ROOT / "docs"
 SUBSTITUTIONS: list[tuple[str, str]] = [
     ("../../docs/assets/", "assets/"),
     ("../../pictures/icons/", "icons/"),
+    # API local — substitui por string vazia para evitar o dialogo de
+    # "Local Network Access" do Edge/Chrome ao abrir o site estatico HTTPS.
+    # fetch("" + "/rota") vira URL relativa que retorna 404 sem acionar permissao.
+    (
+        'const API_BASE = "http://localhost:8000";',
+        'const API_BASE = ""; // static mode — API local nao disponivel',
+    ),
     # Botao Admin aponta para localhost — desativa no site estatico
     (
         '<a href="http://localhost:8501" target="_blank" rel="noreferrer">Admin</a>',
