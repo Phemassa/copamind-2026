@@ -939,8 +939,8 @@ function rankingRows() {
     })
     .sort((a, b) => (
       Number(b.is_combo) - Number(a.is_combo)
-      || (b.net_score || 0) - (a.net_score || 0)    // net score (penaliza erros)
-      || accuracySortValue(b.accuracy) - accuracySortValue(a.accuracy)
+      || accuracySortValue(b.accuracy) - accuracySortValue(a.accuracy)   // acerto% = critério principal
+      || (b.net_score || 0) - (a.net_score || 0)                          // pts efetivos (desempate)
       || b.points - a.points
       || b.exact - a.exact
       || brierSortValue(a.brier_avg) - brierSortValue(b.brier_avg)
