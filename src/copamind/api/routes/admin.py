@@ -58,9 +58,10 @@ def publish_static(request: Request) -> dict[str, object]:
     _OFFLINE_INJECT = (
         '<script>window.COPAMIND_OFFLINE = true;</script>\n'
         '<style>\n'
+        '/* modo offline: oculta controles locais */\n'
+        '.header-actions { display: none !important; }\n'
         '#btn-refresh-scores, #run-all-models, #reset-phase-history, #reset-all-history,\n'
-        '#cancel-sequential, [data-export-static], #btn-publish-static, #open-chat-header,\n'
-        '.model-action-buttons, .context-note-form, #chat-form, #chat-reset,\n'
+        '#cancel-sequential, .model-action-buttons, .context-note-form, #chat-form, #chat-reset,\n'
         '#btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }\n'
         '.offline-notice { display: flex !important; }\n'
         '</style>\n'
