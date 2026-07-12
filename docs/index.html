@@ -4,247 +4,472 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CopaMind 2026 | Bolao das LLMs</title>
-  <meta name="description" content="Portal local para previsoes da Copa 2026 com ML, dados FIFA, LM Studio e um bolao de LLMs locais." />
-  <meta property="og:title" content="CopaMind 2026" />
-  <meta property="og:description" content="LLMs locais competindo em palpites auditaveis para a Copa 2026." />
-  <meta property="og:image" content="assets/banner.png" />
-  <style>
-    :root {
-      --bg: #07100f;
-      --panel: rgba(12, 22, 22, .9);
-      --panel-2: rgba(18, 32, 31, .95);
-      --line: #29403f;
-      --text: #f2faf8;
-      --muted: #9eb5b1;
-      --accent: #52e3b5;
-      --blue: #4895ff;
-      --gold: #f6c453;
-      --red: #ff8c72;
-      --purple: #8e7cff;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--text);
-      background:
-        linear-gradient(180deg, rgba(5, 10, 12, .70), rgba(5, 10, 12, .96)),
-        url("assets/fundo_clean2.png") center top / cover fixed,
-        var(--bg);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.55;
-    }
-    a { color: inherit; text-decoration: none; }
-    .wrap { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
-    .topbar {
-      min-height: 74px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 22px;
-    }
-    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .brand img { width: 48px; height: 48px; border-radius: 8px; }
-    .brand strong { font-size: 20px; white-space: nowrap; }
-    nav { display: flex; align-items: center; gap: 18px; color: var(--muted); font-size: 14px; }
-    nav a:hover { color: var(--accent); }
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 40px;
-      border-radius: 8px;
-      padding: 0 15px;
-      background: var(--accent);
-      color: #061110;
-      font-weight: 850;
-    }
-    .button.secondary {
-      background: transparent;
-      color: var(--text);
-      border: 1px solid var(--line);
-    }
-    .hero {
-      min-height: calc(100vh - 74px);
-      display: grid;
-      grid-template-columns: minmax(0, .95fr) minmax(320px, .82fr);
-      align-items: center;
-      gap: 38px;
-      padding: 24px 0 54px;
-    }
-    .kicker {
-      color: var(--accent);
-      font-size: 12px;
-      font-weight: 950;
-      letter-spacing: .16em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-    h1 {
-      font-size: clamp(40px, 6vw, 74px);
-      line-height: 1;
-      margin: 0 0 16px;
-      letter-spacing: 0;
-    }
-    .lead {
-      color: var(--muted);
-      font-size: 18px;
-      max-width: 650px;
-      margin: 0 0 24px;
-    }
-    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px; }
-    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-    .stat, .card, .panel, .row {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-    }
-    .stat { border-top: 3px solid var(--accent); padding: 14px; min-height: 96px; }
-    .stat:nth-child(2) { border-top-color: var(--blue); }
-    .stat:nth-child(3) { border-top-color: var(--gold); }
-    .stat:nth-child(4) { border-top-color: var(--purple); }
-    .stat span { color: var(--muted); font-size: 12px; }
-    .stat strong { display: block; font-size: 30px; line-height: 1.1; margin-top: 8px; }
-    .cover {
-      min-height: 520px;
-      border: 1px solid rgba(82, 227, 181, .28);
-      border-radius: 8px;
-      background:
-        linear-gradient(90deg, rgba(5, 12, 14, .92), rgba(5, 12, 14, .32)),
-        url("assets/fundo_taca.png") right center / contain no-repeat,
-        var(--panel);
-      box-shadow: 0 24px 80px rgba(0, 0, 0, .36);
-      overflow: hidden;
-      display: grid;
-      align-items: end;
-      padding: 22px;
-    }
-    .cover img { width: min(280px, 72%); border-radius: 8px; }
-    section { padding: 54px 0; border-top: 1px solid rgba(41, 64, 63, .72); }
-    section h2 { font-size: 30px; line-height: 1.12; margin: 0 0 10px; }
-    section p { color: var(--muted); max-width: 820px; }
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
-    .flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 22px; }
-    .card { padding: 16px; min-height: 142px; }
-    .card b { display: block; margin-bottom: 8px; }
-    .card span { color: var(--muted); font-size: 14px; }
-    .panel {
-      padding: 16px;
-      background:
-        linear-gradient(180deg, rgba(10, 18, 18, .88), rgba(10, 18, 18, .96)),
-        url("assets/fundo_clean1.png") center / cover;
-    }
-    .row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: center;
-      padding: 11px 12px;
-      margin-top: 8px;
-      background: var(--panel-2);
-    }
-    .row strong { color: var(--gold); }
-    code {
-      display: block;
-      background: rgba(6, 13, 13, .92);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      color: #c8fff0;
-      padding: 14px;
-      overflow-x: auto;
-      white-space: pre;
-    }
-    footer { color: var(--muted); padding: 28px 0 38px; font-size: 13px; }
-    @media (max-width: 920px) {
-      nav { display: none; }
-      .hero { grid-template-columns: 1fr; min-height: auto; }
-      .stats, .grid, .flow { grid-template-columns: 1fr 1fr; }
-      .cover { min-height: 360px; }
-    }
-    @media (max-width: 620px) {
-      .wrap { width: min(100% - 24px, 1180px); }
-      .stats, .grid, .flow { grid-template-columns: 1fr; }
-      .brand strong { font-size: 17px; }
-    }
-  </style>
+  <link rel="icon" type="image/png" href="assets/icon.png" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="wrap topbar">
-    <a class="brand" href="#">
-      <img src="assets/copamind_2026.png" alt="" />
-      <strong>CopaMind 2026</strong>
-    </a>
-    <nav aria-label="Navegacao principal">
-      <a href="#bolao">Bolao</a>
-      <a href="#modelos">Modelos</a>
-      <a href="#instalar">Instalar</a>
-      <a class="button secondary" href="copamind_modelos_llm_locais.html">Modelos locais</a>
+  <main class="app">
+    <header class="app-header">
+      <div class="brand-line">
+        <img src="assets/icon.png" alt="" />
+        <div>
+          <span>CopaMind 2026</span>
+          <h1>Bolao das LLMs</h1>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="open-chat-header" class="header-chat-button" type="button">Pergunte as IAs</button>
+        <button id="refresh-data" type="button">Recarregar</button>
+        <button type="button" data-export-static>Exportar HTML</button>
+        <a href="http://localhost:8501" target="_blank" rel="noreferrer">Admin</a>
+      </div>
+    </header>
+
+    <nav class="main-nav" aria-label="Navegacao principal">
+      <button class="active" type="button" data-view="home">Home</button>
+      <button type="button" data-view="bolao">Bolao das LLMs</button>
+      <button type="button" data-view="ranking">Ranking das LLMs</button>
+      <button type="button" data-view="benchmark">Benchmark LLMs</button>
+      <button type="button" data-view="linkedin">Resumo</button>
+      <button type="button" data-view="tabela">Tabela e jogos</button>
+      <button type="button" data-view="selecoes">Dashboard das selecoes</button>
+      <button type="button" data-view="jogadores">Dashboard dos jogadores</button>
+      <button type="button" data-view="guia">Guia do projeto</button>
+      <button type="button" data-view="referencias">Referencias</button>
     </nav>
-  </header>
 
-  <main>
-    <div class="wrap hero">
-      <div>
-        <div class="kicker">CopaMind 2026 local</div>
-        <h1>Bolao de LLMs para a Copa</h1>
-        <p class="lead">O portal combina estatisticas FIFA, baseline de ML e modelos locais do LM Studio. Cada LLM responde no mesmo JSON, trava seu palpite e disputa o ranking quando o jogo termina.</p>
-        <div class="actions">
-          <a class="button" href="portal/">Abrir portal</a>
-          <a class="button secondary" href="#bolao">Ver fluxo</a>
+    <section class="home-section view-section" data-section="home">
+      <div class="home-about">
+        <p class="home-tag">Local AI · dados FIFA · bolao</p>
+        <h2>CopaMind 2026</h2>
+        <p class="home-desc">
+          Um experimento de benchmark com LLMs locais rodando em hardware proprio.
+          Cada modelo recebe o mesmo pacote estatistico de pre-jogo — indices FIFA, analytics derivados
+          e evidencias de jogadores — e gera um palpite estruturado em JSON para cada partida do mata-mata.
+          O score e calculado fase a fase conforme os resultados oficiais chegam.
+        </p>
+        <div class="home-highlights">
+          <div><strong id="kpi-models-home">-</strong><span>modelos locais</span></div>
+          <div><strong id="kpi-matches-home">-</strong><span>jogos pontuados</span></div>
+          <div><strong id="kpi-predictions-home">-</strong><span>palpites gerados</span></div>
         </div>
-        <div class="stats">
-          <div class="stat"><span>Selecoes</span><strong>48</strong></div>
-          <div class="stat"><span>Fonte</span><strong>FIFA</strong></div>
-          <div class="stat"><span>Runtime</span><strong>Local</strong></div>
-          <div class="stat"><span>Contrato</span><strong>JSON</strong></div>
+        <div class="home-nav-shortcuts">
+          <button type="button" data-view="bolao">Bolao das LLMs</button>
+          <button type="button" data-view="ranking">Ranking</button>
+          <button type="button" data-view="linkedin">Resumo</button>
+          <button type="button" data-view="benchmark">Benchmark</button>
         </div>
       </div>
-      <div class="cover" aria-label="Capa CopaMind">
-        <img src="assets/banner.png" alt="CopaMind 2026" />
-      </div>
-    </div>
+    </section>
 
-    <section class="wrap" id="bolao">
-      <div class="kicker">como funciona</div>
-      <h2>ML cria o contexto, as LLMs competem, o combo consolida</h2>
-      <p>O agente monta evidencias por partida, chama modelos locais em sequencia, valida cada resposta com Pydantic e salva o payload completo. Respostas fora do JSON esperado ficam auditaveis, mas nao entram no combo.</p>
-      <div class="flow">
-        <div class="card"><b>1. Dados</b><span>Fixtures e classificacao FIFA entram por cache local com refresh sob demanda.</span></div>
-        <div class="card"><b>2. Predicao</b><span>Poisson, Elo e estatisticas alimentam o prompt estruturado para cada modelo.</span></div>
-        <div class="card"><b>3. Ranking</b><span>Palpites travados recebem pontos por placar exato, resultado e Brier score.</span></div>
+    <section class="kpi-strip" aria-label="Resumo">
+      <div><span>Jogos mata-mata</span><strong id="kpi-matches">-</strong></div>
+      <div><span>Modelos LLM</span><strong id="kpi-models">-</strong></div>
+      <div><span>Features ML</span><strong id="kpi-features">-</strong></div>
+      <div><span>Palpites</span><strong id="kpi-predictions">-</strong></div>
+    </section>
+
+    <section class="phase-shell view-section" data-section="bolao">
+      <div class="phase-head">
+        <div>
+          <p>Mata-mata</p>
+          <h2 id="active-phase-title">Classificacao</h2>
+        </div>
+        <div id="phase-tabs" class="phase-tabs"></div>
+      </div>
+      <p id="phase-context" class="phase-context"></p>
+      <p id="phase-stats" class="phase-stats"></p>
+    </section>
+
+    <section class="phase-games view-section" data-section="bolao">
+      <div class="section-title">
+        <p>Jogos da fase</p>
+        <h3>Partidas</h3>
+      </div>
+      <div id="matches-list" class="match-list"></div>
+    </section>
+
+    <section class="models-section view-section" data-section="bolao">
+      <div class="section-title">
+        <p>Score por IA</p>
+        <h3>Cards das LLMs</h3>
+      </div>
+      <div id="model-actions" class="model-actions"></div>
+      <div id="llm-card-grid" class="llm-card-grid"></div>
+    </section>
+
+    <section class="ranking-section view-section is-hidden" data-section="ranking">
+      <div class="ranking-hero">
+        <div class="ranking-copy">
+          <p>Ranking das LLMs</p>
+          <h2>Quem esta liderando o bolao?</h2>
+          <span>
+            Score geral, desempenho por fase, votos de vencedores e selecoes com mais chance
+            conforme os resultados reais e os palpites das IAs forem entrando.
+          </span>
+        </div>
+        <div class="ranking-summary" id="ranking-summary"></div>
+      </div>
+
+      <div class="ranking-layout">
+        <aside class="ranking-right">
+          <section class="ranking-panel">
+            <div class="section-title">
+              <p>Vencedores</p>
+              <h3>Previsao agregada</h3>
+            </div>
+            <div id="winner-forecast"></div>
+          </section>
+
+          <section class="ranking-panel">
+            <div class="section-title">
+              <p>Selecoes</p>
+              <h3>Mais chance de titulo</h3>
+            </div>
+            <div id="team-title-ranking"></div>
+          </section>
+        </aside>
+
+        <div class="ranking-left">
+          <section class="ranking-panel">
+            <div class="table-export-bar">
+              <div class="section-title">
+                <p>Score geral</p>
+                <h3>Classificacao das IAs</h3>
+              </div>
+              <button id="btn-export-ranking" class="btn-export-table" type="button">📸 Exportar imagem</button>
+            </div>
+            <div id="ranking-table"></div>
+          </section>
+
+          <section class="ranking-panel">
+            <div class="section-title">
+              <p>Fases</p>
+              <h3>Score por fase</h3>
+            </div>
+            <div id="phase-scoreboard"></div>
+          </section>
+        </div>
       </div>
     </section>
 
-    <section class="wrap" id="modelos">
-      <div class="kicker">LM Studio</div>
-      <h2>Todos os modelos ativos aparecem no portal</h2>
-      <div class="grid">
-        <div class="card"><b>Participantes leves</b><span>Gemma, Qwen, Phi, Nemotron e outros modelos chat/instruct entram no bolao.</span></div>
-        <div class="card"><b>Pesados com aviso</b><span>Modelos 26B, 27B, 31B e 35B podem competir, mas aparecem marcados como lentos.</span></div>
-        <div class="card"><b>RAG separado</b><span>Embeddings como Nomic ficam listados, mas nao geram palpites.</span></div>
-        <div class="card"><b>Combo</b><span>O `combo:llm_pool` usa somente respostas JSON validas.</span></div>
+    <section class="benchmark-section view-section is-hidden" data-section="benchmark">
+      <div class="section-title">
+        <p>Benchmark operacional</p>
+        <h3>Qualidade, velocidade e facilidade de uso</h3>
       </div>
-      <div class="panel" style="margin-top:22px">
-        <div class="row"><span>Erro comum tratado</span><strong>resposta nao contem JSON</strong></div>
-        <div class="row"><span>Fallback</span><strong>json_schema -> json_object -> reparo</strong></div>
-        <div class="row"><span>Fonte oficial</span><strong>fifa.com standings</strong></div>
+      <div id="benchmark-summary" class="benchmark-summary"></div>
+      <div class="benchmark-layout">
+        <section class="benchmark-panel">
+          <div class="table-export-bar">
+            <div class="section-title">
+              <p>Ranking dos modelos</p>
+              <h3>Score tecnico + operacao</h3>
+            </div>
+            <button id="btn-export-benchmark" class="btn-export-table" type="button">📸 Exportar imagem</button>
+          </div>
+          <div class="benchmark-table-wrapper"><div id="benchmark-table"></div></div>
+        </section>
+        <aside class="benchmark-panel benchmark-guidance-panel">
+          <div class="section-title">
+            <p>Config LM Studio</p>
+            <h3>Perfil para melhorar JSON</h3>
+          </div>
+          <div id="benchmark-guidance" class="benchmark-guidance"></div>
+        </aside>
+      </div>
+      <div id="benchmark-charts"></div>
+    </section>
+
+    <section class="linkedin-section view-section is-hidden" data-section="linkedin">
+      <div class="linkedin-export-bar" id="linkedin-export-bar">
+        <span class="linkedin-export-hint">Selecione a fase e exporte o quadro para redes sociais</span>
+        <button id="btn-export-linkedin" type="button">📸 Exportar imagem</button>
+      </div>
+      <div class="linkedin-cover">
+        <img src="assets/copamind_2026.png" alt="CopaMind 2026" />
+        <div>
+          <p>Benchmark de LLMs locais</p>
+          <h2>CopaMind 2026</h2>
+          <span>Mesmo contexto, mesma regra JSON, previsoes auditaveis e ranking por qualidade.</span>
+        </div>
+        <div id="linkedin-phase-tabs" class="linkedin-phase-tabs"></div>
+      </div>
+      <div id="linkedin-summary" class="linkedin-summary"></div>
+      <div id="linkedin-team-ranking"></div>
+      <div id="linkedin-capture-grid" class="linkedin-capture-grid"></div>
+    </section>
+
+    <section class="chat-section view-section is-hidden" data-section="chat">
+      <div class="section-title">
+        <p>Conhecimento CopaMind</p>
+        <h3>Pergunte as IAs</h3>
+      </div>
+      <div class="chat-layout">
+        <aside class="chat-controls">
+          <div class="chat-control-head">
+            <strong>Modelos que responderao</strong>
+            <div>
+              <button id="chat-select-all" type="button">Todos</button>
+              <button id="chat-select-none" type="button">Nenhum</button>
+            </div>
+          </div>
+          <div id="chat-models" class="chat-models"><span>Carregando modelos...</span></div>
+          <label class="chat-memory-toggle">
+            <input id="chat-use-memory" type="checkbox" checked />
+            <span>Usar memoria nesta pergunta</span>
+          </label>
+          <button id="chat-reset" class="chat-reset" type="button">Resetar historico</button>
+        </aside>
+        <div class="chat-main">
+          <div class="chat-news-box">
+            <label for="chat-news-url">URL fonte (opcional)</label>
+            <div class="extract-url-row">
+              <input id="chat-news-url" type="url" placeholder="https://..." />
+              <button id="chat-extract-news" type="button">Extrair de URL</button>
+            </div>
+            <input id="chat-news-title" type="text" maxlength="200" placeholder="Titulo extraido" />
+            <textarea id="chat-news-summary" rows="3" maxlength="2000" placeholder="Resumo editavel da noticia"></textarea>
+            <p id="chat-news-status"></p>
+          </div>
+          <div id="chat-timeline" class="chat-timeline"></div>
+          <form id="chat-form" class="chat-form">
+            <textarea id="chat-question" rows="4" maxlength="4000" placeholder="Pergunte sobre selecoes, jogadores, partidas, previsoes ou resultados reais..."></textarea>
+            <div>
+              <span id="chat-status">API local e LM Studio necessarios.</span>
+              <button id="chat-send" type="submit" disabled>Enviar para as IAs</button>
+            </div>
+          </form>
+        </div>
       </div>
     </section>
 
-    <section class="wrap" id="instalar">
-      <div class="kicker">rodar localmente</div>
-      <h2>Instalacao rapida</h2>
-      <code>git clone https://github.com/Phemassa/copamind-2026.git
-cd copamind-2026
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".[data,dev,ui]"
-.\.venv\Scripts\copamind.exe ingest sample
-.\.venv\Scripts\copamind.exe ingest players data\samples\copa2026_players.json
-.\.venv\Scripts\copamind.exe ui serve</code>
+    <section class="tournament-section view-section is-hidden" data-section="tabela">
+      <div class="section-title">
+        <p>Resultados sem LLM</p>
+        <h3>Classificacao dos grupos e jogos</h3>
+      </div>
+      <div id="tournament-dashboard" class="tournament-dashboard"></div>
     </section>
+
+    <section class="teams-section view-section is-hidden" data-section="selecoes">
+      <div class="section-title">
+        <p>Analytics FIFA v2</p>
+        <h3>Caracteristicas das selecoes</h3>
+      </div>
+      <div class="inputs-section">
+        <div class="section-title">
+          <p>Contexto manual controlado</p>
+          <h3>Inputs das selecoes por fase</h3>
+        </div>
+        <div class="inputs-layout">
+        <form id="context-note-form" class="context-note-form">
+          <label>
+            <span>Fase</span>
+            <select id="note-phase"></select>
+          </label>
+          <label>
+            <span>Selecao</span>
+            <select id="note-team"></select>
+          </label>
+          <label>
+            <span>Tipo</span>
+            <select id="note-type">
+              <option value="team_news">Noticia da selecao</option>
+              <option value="rotation">Rotacao / reservas</option>
+              <option value="injury">Lesao / retorno</option>
+              <option value="tactical">Tatica</option>
+              <option value="morale">Moral / ambiente</option>
+              <option value="travel">Viagem / desgaste</option>
+            </select>
+          </label>
+          <label>
+            <span>Disponivel em</span>
+            <input id="note-available-at" type="datetime-local" />
+          </label>
+          <label class="wide-field">
+            <span>Titulo</span>
+            <input id="note-title" type="text" maxlength="120" placeholder="Noruega usou equipe reserva contra a Franca" />
+          </label>
+          <label class="wide-field">
+            <span>Nota</span>
+            <textarea id="note-text" rows="4" maxlength="1200" placeholder="Descreva a informacao e por que ela muda a leitura da selecao."></textarea>
+          </label>
+          <label>
+            <span>Impacto</span>
+            <select id="note-impact">
+              <option value="recent_form_downweight">Reduz peso da forma recente</option>
+              <option value="physical_load_positive">Melhora leitura de desgaste</option>
+              <option value="injury_negative">Impacto negativo por lesao</option>
+              <option value="tactical_positive">Impacto tatico positivo</option>
+              <option value="volatility_up">Aumenta incerteza</option>
+            </select>
+          </label>
+          <label>
+            <span>Confianca</span>
+            <input id="note-confidence" type="number" min="0" max="1" step="0.05" value="0.75" />
+          </label>
+          <label>
+            <span>Peso</span>
+            <input id="note-weight" type="number" min="0" max="1" step="0.05" value="0.70" />
+          </label>
+          <label>
+            <span>Fonte</span>
+            <input id="note-source" type="text" value="manual" />
+          </label>
+          <label class="wide-field">
+            <span>URL fonte</span>
+            <div class="extract-url-row">
+              <input id="note-source-url" type="url" placeholder="https://..." />
+              <button type="button" id="btn-extract-url">Extrair de URL</button>
+            </div>
+          </label>
+          <button type="submit">Salvar input</button>
+          <p id="context-note-status"></p>
+        </form>
+        <div>
+          <div class="input-rules">
+            <strong>Como entra na LLM</strong>
+            <p>A nota vira evidencia estruturada no contexto do jogo. Ela nao vira instrucao de sistema e so entra se estava disponivel antes da partida prevista.</p>
+          </div>
+          <div id="context-notes-list" class="context-notes-list"></div>
+        </div>
+      </div>
+      </div>
+      <div id="teams-dashboard" class="team-dashboard"></div>
+    </section>
+
+    <section class="players-section view-section is-hidden" data-section="jogadores">
+      <div class="section-title">
+        <p>Analytics FIFA v2</p>
+        <h3>Dashboard dos jogadores</h3>
+      </div>
+      <div class="player-controls">
+        <label>
+          <span>Selecao</span>
+          <select id="player-team-filter"></select>
+        </label>
+        <label>
+          <span>Ranking</span>
+          <select id="player-ranking-filter"></select>
+        </label>
+      </div>
+      <div id="players-dashboard" class="player-dashboard"></div>
+    </section>
+
+    <section class="guide-section view-section is-hidden" data-section="guia">
+      <div class="section-title">
+        <p>Tutor CopaMind</p>
+        <h3>Como o bolao das IAs e montado</h3>
+      </div>
+      <div id="guide-dashboard" class="guide-dashboard"></div>
+    </section>
+
+    <section class="reference-section view-section is-hidden" data-section="referencias">
+      <div class="section-title">
+        <p>Autor e referencias</p>
+        <h3>Sobre o projeto</h3>
+      </div>
+      <div class="reference-grid">
+        <!-- Row 1: Autor | Hardware | Fontes -->
+        <article class="author-card">
+          <img src="assets/icon.png" alt="" />
+          <div>
+            <span>Autor / idealizador</span>
+            <h3>Phellype Flaibam Massarente</h3>
+            <p>
+              CopaMind 2026 nasceu como um laboratorio divertido e serio ao mesmo tempo: usar dados
+              da Copa, modelos locais e scoring transparente para descobrir quais IAs chutam melhor
+              quando todo mundo recebe o mesmo contexto.
+            </p>
+            <a href="https://www.linkedin.com/in/phellype-massarente-13739810a" target="_blank" rel="noreferrer">
+              Ver LinkedIn
+            </a>
+          </div>
+        </article>
+        <article class="reference-card hardware-card">
+          <h3>Hardware local</h3>
+          <div class="hardware-badge">Acer Predator Helios 16 AI</div>
+          <ul class="ref-list">
+            <li><span>CPU</span> Intel Core Ultra 9 275HX · 24 cores · ate 5.4 GHz</li>
+            <li><span>GPU</span> NVIDIA RTX 5070 Laptop GPU · 8 GB GDDR7</li>
+            <li><span>RAM</span> 32 GB DDR5 5600 MHz (2&times; SODIMM)</li>
+            <li><span>SSD</span> 2 TB NVMe PCIe Gen 4</li>
+            <li><span>Tela</span> 16&quot; IPS WQXGA 2560&times;1600 · 240 Hz</li>
+            <li><span>OS</span> Windows 11</li>
+          </ul>
+          <a href="https://www.acer.com/br-pt/predator/laptops/helios/helios-16-ai" target="_blank" rel="noreferrer" class="hw-link">Ver no site Acer</a>
+        </article>
+        <article class="reference-card">
+          <h3>Fontes e tecnologia</h3>
+          <p>
+            Dados FIFA locais de selecoes, jogadores e partidas; analytics proprio em DuckDB; agente
+            de chamadas para modelos locais via LM Studio; scoring do bolao por fase.
+          </p>
+          <p>
+            O portal publico e estatico. O Streamlit/Admin continua como console operacional para
+            atualizar dados, rodar agentes e exportar snapshots.
+          </p>
+        </article>
+        <!-- Row 2: Stack | Modelos ajuste | Exportar -->
+        <article class="reference-card">
+          <h3>Stack tecnologico</h3>
+          <ul class="ref-list">
+            <li><span>Dev</span> VS Code · GitHub Copilot Agent · GitHub Codex</li>
+            <li><span>IA</span> Claude Sonnet 4.5 (Copilot) · LM Studio</li>
+            <li><span>Lang</span> Python 3.12 · JavaScript ES2022 · HTML/CSS</li>
+            <li><span>API</span> FastAPI · Pydantic v2 · Uvicorn</li>
+            <li><span>DB</span> DuckDB · Polars · PyArrow</li>
+            <li><span>UI</span> Streamlit 1.58 · Portal HTML estatico</li>
+            <li><span>RAG</span> Qdrant · FastMCP · HybridRetriever</li>
+            <li><span>ML</span> Poisson · Dixon-Coles · Elo · Monte Carlo</li>
+            <li><span>CI</span> pytest · ruff · GitHub Actions</li>
+            <li><span>VCS</span> Git · GitHub</li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>Modelos que precisaram de ajuste</h3>
+          <p>7 modelos nao obedecem JSON livremente e precisaram de <strong>Structured Output</strong> forcado no LM Studio para gerar palpites validos.</p>
+          <ul class="ref-list struct-list">
+            <li>zai-org / glm-4.7-flash</li>
+            <li>nvidia / nemotron-3-nano-4b</li>
+            <li>nvidia / nemotron-3-nano-omni</li>
+            <li>allenai / olmo-3-32b-think</li>
+            <li>qwen / qwen3.5-9b</li>
+            <li>qwen / qwen3.6-27b</li>
+            <li>qwen / qwen3.6-35b-a3b</li>
+          </ul>
+          <p>Os demais <strong>21 modelos</strong> geraram JSON valido sem configuracao adicional.</p>
+        </article>
+        <article class="reference-card disqualified-ref-card">
+          <h3>Desclassificados</h3>
+          <p>Modelos que nao conseguiram concluir o projeto de testes e foram removidos do ranking para nao contaminar os resultados.</p>
+          <ul class="ref-list disqualified-list">
+            <li>
+              <strong>mistralai / mistral-7b-instruct-v0.3</strong>
+              <span>Channel Error no llama.cpp ao gerar saida estruturada. Sem Structured Output, nao retornava respostas validas para o contrato JSON do bolao. Modelo incompativel com o pipeline de palpites — removido da competicao.</span>
+            </li>
+          </ul>
+        </article>
+        <article class="reference-card export-card">
+          <h3>Exportar para compartilhar</h3>
+          <p>
+            Gere um HTML unico com CSS, JavaScript, imagens e dados embutidos. Ele pode ser publicado
+            em qualquer hospedagem simples de arquivo estatico.
+          </p>
+          <button type="button" data-export-static>Exportar HTML estatico</button>
+          <span id="export-status"></span>
+        </article>
+      </div>
+      <div id="ref-models-table" class="ref-models-section"></div>
+    </section>
+
+    <footer class="app-footer">
+      <span id="generated-at">carregando snapshot</span>
+      <span>Atualize FIFA, processe a fase no Admin e exporte o snapshot.</span>
+    </footer>
   </main>
 
-  <footer class="wrap">
-    Projeto independente, experimental e educacional. Sem vinculo oficial com FIFA, selecoes ou federacoes. Probabilidades nao sao garantia de resultado.
-  </footer>
+  <script src="app.js"></script>
 </body>
 </html>
