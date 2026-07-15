@@ -17563,6 +17563,29 @@
               "Description": "Árbitro"
             }
           ]
+        },
+        {
+          "IdCountry": "NOR",
+          "OfficialId": "400227",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Espen ESKAS"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Espen Eskås"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
         }
       ],
       "MatchStatus": 0,
@@ -17735,6 +17758,29 @@
               "Description": "Árbitro"
             }
           ]
+        },
+        {
+          "IdCountry": "MEX",
+          "OfficialId": "416317",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Katia GARCIA"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Katia Itzel García"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
         }
       ],
       "MatchStatus": 0,
@@ -17753,8 +17799,14 @@
       "IdSeason": "285023",
       "IdStage": "289289",
       "IdGroup": null,
-      "Weather": null,
-      "Attendance": null,
+      "Weather": {
+        "Humidity": null,
+        "Temperature": null,
+        "WindSpeed": null,
+        "Type": null,
+        "TypeLocalized": []
+      },
+      "Attendance": "63811",
       "IdMatch": "400021536",
       "MatchDay": null,
       "StageName": [
@@ -17780,12 +17832,12 @@
       "Date": "2026-07-09T20:00:00Z",
       "LocalDate": "2026-07-09T16:00:00Z",
       "Home": {
-        "Score": null,
+        "Score": 2,
         "Side": null,
         "IdTeam": "43946",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/FRA",
         "IdCountry": "FRA",
-        "Tactics": null,
+        "Tactics": "4-2-3-1",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -17801,12 +17853,12 @@
         "IdAssociation": "FRA"
       },
       "Away": {
-        "Score": null,
+        "Score": 0,
         "Side": null,
         "IdTeam": "43872",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/MAR",
         "IdCountry": "MAR",
-        "Tactics": null,
+        "Tactics": "4-2-3-1",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -17821,8 +17873,8 @@
         "Gender": 1,
         "IdAssociation": "MAR"
       },
-      "HomeTeamScore": null,
-      "AwayTeamScore": null,
+      "HomeTeamScore": 2,
+      "AwayTeamScore": 0,
       "AggregateHomeTeamScore": null,
       "AggregateAwayTeamScore": null,
       "HomeTeamPenaltyScore": null,
@@ -17868,22 +17920,69 @@
         "IsUpdateable": null
       },
       "IsTicketSalesAllowed": null,
-      "MatchTime": null,
+      "MatchTime": "97'",
       "SecondHalfTime": null,
       "FirstHalfTime": null,
       "FirstHalfExtraTime": null,
       "SecondHalfExtraTime": null,
-      "Winner": null,
+      "Winner": "43946",
       "MatchReportUrl": null,
       "PlaceHolderA": "W89",
       "PlaceHolderB": "W90",
       "BallPossession": null,
-      "Officials": [],
-      "MatchStatus": 1,
-      "ResultType": 0,
+      "Officials": [
+        {
+          "IdCountry": "ARG",
+          "OfficialId": "416165",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Facundo TELLO"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Facundo TELLO"
+            }
+          ],
+          "OfficialType": 1,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Árbitro"
+            }
+          ]
+        },
+        {
+          "IdCountry": "ARG",
+          "OfficialId": "383174",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Dario HERRERA"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Darío Herrera"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
+        }
+      ],
+      "MatchStatus": 0,
+      "ResultType": 1,
       "MatchNumber": 97,
       "TimeDefined": true,
-      "OfficialityStatus": 0,
+      "OfficialityStatus": 1,
       "MatchLegInfo": null,
       "Properties": {
         "IdIFES": "151703"
@@ -17895,8 +17994,14 @@
       "IdSeason": "285023",
       "IdStage": "289289",
       "IdGroup": null,
-      "Weather": null,
-      "Attendance": null,
+      "Weather": {
+        "Humidity": null,
+        "Temperature": null,
+        "WindSpeed": null,
+        "Type": null,
+        "TypeLocalized": []
+      },
+      "Attendance": "70492",
       "IdMatch": "400021538",
       "MatchDay": null,
       "StageName": [
@@ -17922,12 +18027,12 @@
       "Date": "2026-07-10T19:00:00Z",
       "LocalDate": "2026-07-10T12:00:00Z",
       "Home": {
-        "Score": null,
+        "Score": 2,
         "Side": null,
         "IdTeam": "43969",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ESP",
         "IdCountry": "ESP",
-        "Tactics": null,
+        "Tactics": "4-2-3-1",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -17943,12 +18048,12 @@
         "IdAssociation": "ESP"
       },
       "Away": {
-        "Score": null,
+        "Score": 1,
         "Side": null,
         "IdTeam": "43935",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/BEL",
         "IdCountry": "BEL",
-        "Tactics": null,
+        "Tactics": "4-2-3-1",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -17963,8 +18068,8 @@
         "Gender": 1,
         "IdAssociation": "BEL"
       },
-      "HomeTeamScore": null,
-      "AwayTeamScore": null,
+      "HomeTeamScore": 2,
+      "AwayTeamScore": 1,
       "AggregateHomeTeamScore": null,
       "AggregateAwayTeamScore": null,
       "HomeTeamPenaltyScore": null,
@@ -18010,22 +18115,69 @@
         "IsUpdateable": null
       },
       "IsTicketSalesAllowed": null,
-      "MatchTime": null,
+      "MatchTime": "98'",
       "SecondHalfTime": null,
       "FirstHalfTime": null,
       "FirstHalfExtraTime": null,
       "SecondHalfExtraTime": null,
-      "Winner": null,
+      "Winner": "43969",
       "MatchReportUrl": null,
       "PlaceHolderA": "W93",
       "PlaceHolderB": "W94",
       "BallPossession": null,
-      "Officials": [],
-      "MatchStatus": 1,
-      "ResultType": 0,
+      "Officials": [
+        {
+          "IdCountry": "ENG",
+          "OfficialId": "347710",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Michael OLIVER"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Michael Oliver"
+            }
+          ],
+          "OfficialType": 1,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Árbitro"
+            }
+          ]
+        },
+        {
+          "IdCountry": "BRA",
+          "OfficialId": "446932",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Ramon ABATTI"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Ramon ABATTI"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
+        }
+      ],
+      "MatchStatus": 0,
+      "ResultType": 1,
       "MatchNumber": 98,
       "TimeDefined": true,
-      "OfficialityStatus": 0,
+      "OfficialityStatus": 1,
       "MatchLegInfo": null,
       "Properties": {
         "IdIFES": "151704"
@@ -18037,8 +18189,14 @@
       "IdSeason": "285023",
       "IdStage": "289289",
       "IdGroup": null,
-      "Weather": null,
-      "Attendance": null,
+      "Weather": {
+        "Humidity": null,
+        "Temperature": null,
+        "WindSpeed": null,
+        "Type": null,
+        "TypeLocalized": []
+      },
+      "Attendance": "64478",
       "IdMatch": "400021539",
       "MatchDay": null,
       "StageName": [
@@ -18064,12 +18222,12 @@
       "Date": "2026-07-11T21:00:00Z",
       "LocalDate": "2026-07-11T17:00:00Z",
       "Home": {
-        "Score": null,
+        "Score": 1,
         "Side": null,
         "IdTeam": "43961",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/NOR",
         "IdCountry": "NOR",
-        "Tactics": null,
+        "Tactics": "4-1-2-3",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -18085,12 +18243,12 @@
         "IdAssociation": "NOR"
       },
       "Away": {
-        "Score": null,
+        "Score": 2,
         "Side": null,
         "IdTeam": "43942",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ENG",
         "IdCountry": "ENG",
-        "Tactics": null,
+        "Tactics": "4-2-3-1",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -18105,8 +18263,8 @@
         "Gender": 1,
         "IdAssociation": "ENG"
       },
-      "HomeTeamScore": null,
-      "AwayTeamScore": null,
+      "HomeTeamScore": 1,
+      "AwayTeamScore": 2,
       "AggregateHomeTeamScore": null,
       "AggregateAwayTeamScore": null,
       "HomeTeamPenaltyScore": null,
@@ -18152,22 +18310,69 @@
         "IsUpdateable": null
       },
       "IsTicketSalesAllowed": null,
-      "MatchTime": null,
+      "MatchTime": "123'",
       "SecondHalfTime": null,
       "FirstHalfTime": null,
       "FirstHalfExtraTime": null,
       "SecondHalfExtraTime": null,
-      "Winner": null,
+      "Winner": "43942",
       "MatchReportUrl": null,
       "PlaceHolderA": "W91",
       "PlaceHolderB": "W92",
       "BallPossession": null,
-      "Officials": [],
-      "MatchStatus": 1,
-      "ResultType": 0,
+      "Officials": [
+        {
+          "IdCountry": "FRA",
+          "OfficialId": "314589",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Clement TURPIN"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Clément Turpin"
+            }
+          ],
+          "OfficialType": 1,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Árbitro"
+            }
+          ]
+        },
+        {
+          "IdCountry": "ESP",
+          "OfficialId": "373845",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Alejandro HERNANDEZ"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Alejandro José Hernández Hernández"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
+        }
+      ],
+      "MatchStatus": 0,
+      "ResultType": 3,
       "MatchNumber": 99,
       "TimeDefined": true,
-      "OfficialityStatus": 0,
+      "OfficialityStatus": 1,
       "MatchLegInfo": null,
       "Properties": {
         "IdIFES": "151706"
@@ -18179,8 +18384,14 @@
       "IdSeason": "285023",
       "IdStage": "289289",
       "IdGroup": null,
-      "Weather": null,
-      "Attendance": null,
+      "Weather": {
+        "Humidity": null,
+        "Temperature": null,
+        "WindSpeed": null,
+        "Type": null,
+        "TypeLocalized": []
+      },
+      "Attendance": "69045",
       "IdMatch": "400021537",
       "MatchDay": null,
       "StageName": [
@@ -18206,12 +18417,12 @@
       "Date": "2026-07-12T01:00:00Z",
       "LocalDate": "2026-07-11T20:00:00Z",
       "Home": {
-        "Score": null,
+        "Score": 3,
         "Side": null,
         "IdTeam": "43922",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ARG",
         "IdCountry": "ARG",
-        "Tactics": null,
+        "Tactics": "4-1-3-2",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -18227,12 +18438,12 @@
         "IdAssociation": "ARG"
       },
       "Away": {
-        "Score": null,
+        "Score": 1,
         "Side": null,
         "IdTeam": "43971",
         "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/SUI",
         "IdCountry": "SUI",
-        "Tactics": null,
+        "Tactics": "4-2-3-1",
         "TeamType": 1,
         "AgeType": 7,
         "TeamName": [
@@ -18247,8 +18458,8 @@
         "Gender": 1,
         "IdAssociation": "SUI"
       },
-      "HomeTeamScore": null,
-      "AwayTeamScore": null,
+      "HomeTeamScore": 3,
+      "AwayTeamScore": 1,
       "AggregateHomeTeamScore": null,
       "AggregateAwayTeamScore": null,
       "HomeTeamPenaltyScore": null,
@@ -18294,22 +18505,69 @@
         "IsUpdateable": null
       },
       "IsTicketSalesAllowed": null,
-      "MatchTime": null,
+      "MatchTime": "125'",
       "SecondHalfTime": null,
       "FirstHalfTime": null,
       "FirstHalfExtraTime": null,
       "SecondHalfExtraTime": null,
-      "Winner": null,
+      "Winner": "43922",
       "MatchReportUrl": null,
       "PlaceHolderA": "W95",
       "PlaceHolderB": "W96",
       "BallPossession": null,
-      "Officials": [],
-      "MatchStatus": 1,
-      "ResultType": 0,
+      "Officials": [
+        {
+          "IdCountry": "POR",
+          "OfficialId": "392268",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Joao PINHEIRO"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "João Pedro Silva Pinheiro"
+            }
+          ],
+          "OfficialType": 1,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Árbitro"
+            }
+          ]
+        },
+        {
+          "IdCountry": "CAN",
+          "OfficialId": "372930",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Drew FISCHER"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Drew Fischer"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
+        }
+      ],
+      "MatchStatus": 0,
+      "ResultType": 3,
       "MatchNumber": 100,
       "TimeDefined": true,
-      "OfficialityStatus": 0,
+      "OfficialityStatus": 1,
       "MatchLegInfo": null,
       "Properties": {
         "IdIFES": "151705"
@@ -18321,8 +18579,14 @@
       "IdSeason": "285023",
       "IdStage": "289290",
       "IdGroup": null,
-      "Weather": null,
-      "Attendance": null,
+      "Weather": {
+        "Humidity": null,
+        "Temperature": null,
+        "WindSpeed": null,
+        "Type": null,
+        "TypeLocalized": []
+      },
+      "Attendance": "70176",
       "IdMatch": "400021541",
       "MatchDay": null,
       "StageName": [
@@ -18347,10 +18611,50 @@
       "SeasonShortName": [],
       "Date": "2026-07-14T19:00:00Z",
       "LocalDate": "2026-07-14T14:00:00Z",
-      "Home": null,
-      "Away": null,
-      "HomeTeamScore": null,
-      "AwayTeamScore": null,
+      "Home": {
+        "Score": 0,
+        "Side": null,
+        "IdTeam": "43946",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/FRA",
+        "IdCountry": "FRA",
+        "Tactics": "4-2-3-1",
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "França"
+          }
+        ],
+        "Abbreviation": "FRA",
+        "ShortClubName": "France",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "FRA"
+      },
+      "Away": {
+        "Score": 2,
+        "Side": null,
+        "IdTeam": "43969",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ESP",
+        "IdCountry": "ESP",
+        "Tactics": "4-1-2-3",
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "Espanha"
+          }
+        ],
+        "Abbreviation": "ESP",
+        "ShortClubName": "Spain",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "ESP"
+      },
+      "HomeTeamScore": 0,
+      "AwayTeamScore": 2,
       "AggregateHomeTeamScore": null,
       "AggregateAwayTeamScore": null,
       "HomeTeamPenaltyScore": null,
@@ -18396,22 +18700,69 @@
         "IsUpdateable": null
       },
       "IsTicketSalesAllowed": null,
-      "MatchTime": null,
+      "MatchTime": "98'",
       "SecondHalfTime": null,
       "FirstHalfTime": null,
       "FirstHalfExtraTime": null,
       "SecondHalfExtraTime": null,
-      "Winner": null,
+      "Winner": "43969",
       "MatchReportUrl": null,
       "PlaceHolderA": "W97",
       "PlaceHolderB": "W98",
       "BallPossession": null,
-      "Officials": [],
-      "MatchStatus": 1,
-      "ResultType": 0,
+      "Officials": [
+        {
+          "IdCountry": "SLV",
+          "OfficialId": "408378",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Ivan BARTON"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Ivan Arcides Barton Cisneros"
+            }
+          ],
+          "OfficialType": 1,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Árbitro"
+            }
+          ]
+        },
+        {
+          "IdCountry": "SWE",
+          "OfficialId": "392336",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Glenn NYBERG"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Glenn Nyberg"
+            }
+          ],
+          "OfficialType": 4,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Quarto árbitro"
+            }
+          ]
+        }
+      ],
+      "MatchStatus": 0,
+      "ResultType": 1,
       "MatchNumber": 101,
       "TimeDefined": true,
-      "OfficialityStatus": 0,
+      "OfficialityStatus": 1,
       "MatchLegInfo": null,
       "Properties": {
         "IdIFES": "151707"
@@ -18423,7 +18774,13 @@
       "IdSeason": "285023",
       "IdStage": "289290",
       "IdGroup": null,
-      "Weather": null,
+      "Weather": {
+        "Humidity": null,
+        "Temperature": null,
+        "WindSpeed": null,
+        "Type": null,
+        "TypeLocalized": []
+      },
       "Attendance": null,
       "IdMatch": "400021540",
       "MatchDay": null,
@@ -18449,10 +18806,50 @@
       "SeasonShortName": [],
       "Date": "2026-07-15T19:00:00Z",
       "LocalDate": "2026-07-15T15:00:00Z",
-      "Home": null,
-      "Away": null,
-      "HomeTeamScore": null,
-      "AwayTeamScore": null,
+      "Home": {
+        "Score": 1,
+        "Side": null,
+        "IdTeam": "43942",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ENG",
+        "IdCountry": "ENG",
+        "Tactics": "4-2-3-1",
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "Inglaterra"
+          }
+        ],
+        "Abbreviation": "ENG",
+        "ShortClubName": "England",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "ENG"
+      },
+      "Away": {
+        "Score": 2,
+        "Side": null,
+        "IdTeam": "43922",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ARG",
+        "IdCountry": "ARG",
+        "Tactics": "4-4-2",
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "Argentina"
+          }
+        ],
+        "Abbreviation": "ARG",
+        "ShortClubName": "Argentina",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "ARG"
+      },
+      "HomeTeamScore": 1,
+      "AwayTeamScore": 2,
       "AggregateHomeTeamScore": null,
       "AggregateAwayTeamScore": null,
       "HomeTeamPenaltyScore": null,
@@ -18498,22 +18895,46 @@
         "IsUpdateable": null
       },
       "IsTicketSalesAllowed": null,
-      "MatchTime": null,
+      "MatchTime": "102'",
       "SecondHalfTime": null,
       "FirstHalfTime": null,
       "FirstHalfExtraTime": null,
       "SecondHalfExtraTime": null,
-      "Winner": null,
+      "Winner": "43922",
       "MatchReportUrl": null,
       "PlaceHolderA": "W99",
       "PlaceHolderB": "W100",
       "BallPossession": null,
-      "Officials": [],
-      "MatchStatus": 1,
-      "ResultType": 0,
+      "Officials": [
+        {
+          "IdCountry": "USA",
+          "OfficialId": "392406",
+          "NameShort": [
+            {
+              "Locale": "en-GB",
+              "Description": "Ismail ELFATH"
+            }
+          ],
+          "Name": [
+            {
+              "Locale": "en-GB",
+              "Description": "Ismail Elfath"
+            }
+          ],
+          "OfficialType": 1,
+          "TypeLocalized": [
+            {
+              "Locale": "pt-BR",
+              "Description": "Árbitro"
+            }
+          ]
+        }
+      ],
+      "MatchStatus": 0,
+      "ResultType": 1,
       "MatchNumber": 102,
       "TimeDefined": true,
-      "OfficialityStatus": 0,
+      "OfficialityStatus": 2,
       "MatchLegInfo": null,
       "Properties": {
         "IdIFES": "151708"
@@ -18531,8 +18952,8 @@
       "MatchDay": null,
       "StageName": [
         {
-          "Locale": "pt-BR",
-          "Description": "Decisão do 3º lugar"
+          "Locale": "en-GB",
+          "Description": "Bronze final"
         }
       ],
       "GroupName": [],
@@ -18551,8 +18972,48 @@
       "SeasonShortName": [],
       "Date": "2026-07-18T21:00:00Z",
       "LocalDate": "2026-07-18T17:00:00Z",
-      "Home": null,
-      "Away": null,
+      "Home": {
+        "Score": null,
+        "Side": null,
+        "IdTeam": "43946",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/FRA",
+        "IdCountry": "FRA",
+        "Tactics": null,
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "França"
+          }
+        ],
+        "Abbreviation": "FRA",
+        "ShortClubName": "France",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "FRA"
+      },
+      "Away": {
+        "Score": null,
+        "Side": null,
+        "IdTeam": "43942",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ENG",
+        "IdCountry": "ENG",
+        "Tactics": null,
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "Inglaterra"
+          }
+        ],
+        "Abbreviation": "ENG",
+        "ShortClubName": "England",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "ENG"
+      },
       "HomeTeamScore": null,
       "AwayTeamScore": null,
       "AggregateHomeTeamScore": null,
@@ -18653,8 +19114,48 @@
       "SeasonShortName": [],
       "Date": "2026-07-19T19:00:00Z",
       "LocalDate": "2026-07-19T15:00:00Z",
-      "Home": null,
-      "Away": null,
+      "Home": {
+        "Score": null,
+        "Side": null,
+        "IdTeam": "43969",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ESP",
+        "IdCountry": "ESP",
+        "Tactics": null,
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "Espanha"
+          }
+        ],
+        "Abbreviation": "ESP",
+        "ShortClubName": "Spain",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "ESP"
+      },
+      "Away": {
+        "Score": null,
+        "Side": null,
+        "IdTeam": "43922",
+        "PictureUrl": "https://api.fifa.com/api/v3/picture/flags-{format}-{size}/ARG",
+        "IdCountry": "ARG",
+        "Tactics": null,
+        "TeamType": 1,
+        "AgeType": 7,
+        "TeamName": [
+          {
+            "Locale": "pt-BR",
+            "Description": "Argentina"
+          }
+        ],
+        "Abbreviation": "ARG",
+        "ShortClubName": "Argentina",
+        "FootballType": 0,
+        "Gender": 1,
+        "IdAssociation": "ARG"
+      },
       "HomeTeamScore": null,
       "AwayTeamScore": null,
       "AggregateHomeTeamScore": null,

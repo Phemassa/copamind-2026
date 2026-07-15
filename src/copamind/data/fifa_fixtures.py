@@ -278,9 +278,9 @@ def _parse_stage(value: Any) -> MatchStage:
         return MatchStage.quarterfinal
     if "semi" in text:
         return MatchStage.semifinal
-    if "3º" in text or "3o" in text or "terceiro" in text or "third" in text:
+    if "3º" in text or "3o" in text or "terceiro" in text or "third" in text or "bronze" in text or "3rd" in text:
         return MatchStage.third_place
-    if text.strip() == "final" or " final" in text:
+    if text.strip() == "final" or text == "final":
         return MatchStage.final
     return MatchStage.group
 

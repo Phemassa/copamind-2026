@@ -123,11 +123,27 @@ def _build_payload(repo: DuckDBRepository) -> dict[str, Any]:
             ),
         )
     ]
+    # Índice de resultados por par de times (para predictions projetadas sem match_id oficial)
+    results_by_teams: dict[tuple[str, str], Any] = {}
+    for r in results.values():
+        match_obj = matches_by_id.get(r.match_id)
+        if match_obj is not None:
+            results_by_teams[(match_obj.home_team_id, match_obj.away_team_id)] = r
+
+    def _result_for(item: Any) -> Any | None:
+        """Resolve resultado pelo match_id direto ou por team_id quando projetado."""
+        direct = results.get(item.match_id)
+        if direct is not None:
+            return direct
+        if str(item.match_id).startswith("projected:") and item.home_team_id and item.away_team_id:
+            return results_by_teams.get((item.home_team_id, item.away_team_id))
+        return None
+
     serialized_predictions_all = [
         _prediction_payload(
             item,
             matches_by_id.get(item.match_id),
-            results.get(item.match_id),
+            _result_for(item),
             payloads.get(item.prediction_id, {}),
         )
         for item in predictions
