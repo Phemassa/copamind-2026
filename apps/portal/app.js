@@ -1781,12 +1781,23 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   const FOOT_H  = 38;
 
   // Collect ordered matches — deduplicate by canonical team pair
-  const matchOrder = [];
+  // Coleta e deduplica partidas por par de times canônico
+  const matchOrderAll = [];
   const seenKeys = new Set();
   rows.forEach((row) => (row.predictions || []).forEach((pred) => {
     const canonical = `${pred.home || pred.home_team_id || ""}×${pred.away || pred.away_team_id || ""}`;
-    if (!seenKeys.has(canonical)) { seenKeys.add(canonical); matchOrder.push({ ...pred, _key: canonical }); }
+    if (!seenKeys.has(canonical)) { seenKeys.add(canonical); matchOrderAll.push({ ...pred, _key: canonical }); }
   }));
+  // Filtra apenas pares de times que correspondem a partidas OFICIAIS da fase (evita projeções erradas)
+  const canvasOfficialMatches = (state.matches || []).filter((m) => m.stage === phase);
+  const canvasOfficialPairs = new Set(canvasOfficialMatches.map((m) => `${m.home_team_id}|${m.away_team_id}`));
+  const matchOrder = canvasOfficialMatches.length > 0
+    ? matchOrderAll.filter((m) => {
+        const hId = m.home_team_id || "";
+        const aId = m.away_team_id || "";
+        return hId && aId && canvasOfficialPairs.has(`${hId}|${aId}`);
+      })
+    : matchOrderAll;
 
   const _findPred = (preds, canonical) =>
     preds.find((p) => `${p.home || p.home_team_id || ""}×${p.away || p.away_team_id || ""}` === canonical);
@@ -1913,11 +1924,20 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
 
   // ── Top-4 seleções esperadas ───────────────────────────────────────────────
   {
-    // Usa a probabilidade média dos modelos por jogo (mesma fonte do quadro "Chances por seleção")
+    // Usa apenas partidas OFICIAIS da fase para evitar times de projeções erradas
+    const phaseOfficial = (state.matches || []).filter((m) => m.stage === phase);
+    const officialPairSet = new Set(phaseOfficial.map((m) => `${m.home_team_id}|${m.away_team_id}`));
+
     const teamChancesMap = {};
     matchOrder.forEach((m) => {
       const stats = matchStats[m._key];
       if (!stats) return;
+      // Se há partidas oficiais, filtra apenas as que correspondem
+      if (phaseOfficial.length > 0) {
+        const hId = m.home_team_id || "";
+        const aId = m.away_team_id || "";
+        if (!hId || !aId || !officialPairSet.has(`${hId}|${aId}`)) return;
+      }
       const hName = m.home || m.home_team_id || "";
       const aName = m.away || m.away_team_id || "";
       if (hName) teamChancesMap[hName] = { name: hName, prob: stats.home };
@@ -2518,12 +2538,19 @@ function renderLinkedInTeamRanking(phase, matchOrder, matchStats) {
         : "Probabilidade média dos modelos de avançar (vencer esta partida)";
 
   // Monta mapa team_id → { advance (média), name, flag_url }
-  // Fases projetadas têm um match_id único por modelo, então um time pode aparecer
-  // em múltiplas entradas de matchOrder. Acumula soma + contagem para calcular média.
+  // Filtra apenas partidas que correspondem a matches OFICIAIS da fase
+  const phaseOfficialMatches = (state.matches || []).filter((m) => m.stage === phase);
+  const officialTeamPairs = new Set(phaseOfficialMatches.map((m) => `${m.home_team_id}|${m.away_team_id}`));
   const advanceAccum = {}; // team_id → { sumAdv, count, name, flag_url }
   matchOrder.forEach((m) => {
     const stats = matchStats[m._key];
     if (!stats) return;
+    // Se há partidas oficiais, pula projeções com times que não fazem parte delas
+    if (phaseOfficialMatches.length > 0) {
+      const hId = m.home_team_id || "";
+      const aId = m.away_team_id || "";
+      if (!hId || !aId || !officialTeamPairs.has(`${hId}|${aId}`)) return;
+    }
     const addSide = (teamId, name, flagUrl, pct) => {
       if (!teamId) return;
       if (!advanceAccum[teamId]) advanceAccum[teamId] = { sumAdv: 0, count: 0, name: name || teamId, flag_url: flagUrl || "" };
