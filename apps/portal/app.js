@@ -2280,12 +2280,151 @@ function renderScatterChart() {
 }
 
 function buildScatterCanvas(rows, logo) {
-  const C    = _canvasPalette();
-  const S    = 2;
-  const W    = 900, H = 580;
-  const PAD  = { top: 70, right: 180, bottom: 70, left: 76 };
-  const PW   = W - PAD.left - PAD.right;
-  const PH   = H - PAD.top  - PAD.bottom;
+  /* ── layout ─────────────────────────────────────────── */
+  const S = 2;
+  const W = 1000, H = 620;
+  const ML = 90, MR = 40, MT = 100, MB = 70;
+  const PW = W - ML - MR, PH = H - MT - MB;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * S; canvas.height = H * S;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(S, S);
+
+  const F = (sz, bold = false) => `${bold ? "bold " : ""}${sz}px system-ui,sans-serif`;
+
+  /* ── fundo ───────────────────────────────────────────── */
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, "#0d1525"); bg.addColorStop(1, "#111827");
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  /* ── escala ─────────────────────────────────────────── */
+  const netPts = rows.map((r) => r.net_score ?? 0);
+  const xMin = Math.min(0, ...netPts);
+  const xMax = Math.max(...netPts) + 2;
+  const yMin = 0.58, yMax = 1.02;
+
+  const toX = (v) => ML + ((v - xMin) / (xMax - xMin)) * PW;
+  const toY = (v) => MT + (1 - (v - yMin) / (yMax - yMin)) * PH;
+
+  /* ── grid ────────────────────────────────────────────── */
+  ctx.strokeStyle = "#ffffff0e"; ctx.lineWidth = 1;
+  const yTicks = [0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0];
+  yTicks.forEach((v) => {
+    const y = toY(v);
+    ctx.beginPath(); ctx.moveTo(ML, y); ctx.lineTo(ML + PW, y); ctx.stroke();
+    ctx.fillStyle = "#8090a8"; ctx.font = F(11); ctx.textAlign = "right";
+    ctx.fillText(`${Math.round(v * 100)}%`, ML - 10, y + 4);
+  });
+  const xStep = Math.ceil((xMax - xMin) / 7);
+  for (let v = Math.ceil(xMin / xStep) * xStep; v <= xMax; v += xStep) {
+    const x = toX(v);
+    ctx.beginPath(); ctx.moveTo(x, MT); ctx.lineTo(x, MT + PH); ctx.stroke();
+    ctx.fillStyle = "#8090a8"; ctx.font = F(11); ctx.textAlign = "center";
+    ctx.fillText(v, x, MT + PH + 20);
+  }
+
+  /* ── quadrante "melhor" ─────────────────────────────── */
+  const qx = toX((xMin + xMax) / 2), qy = toY((yMin + yMax) / 2);
+  ctx.fillStyle = "rgba(56,214,165,0.04)";
+  ctx.fillRect(qx, MT, ML + PW - qx, qy - MT);
+  ctx.fillStyle = "rgba(56,214,165,0.22)"; ctx.font = F(11, true); ctx.textAlign = "right";
+  ctx.fillText("✦ melhor zona", ML + PW - 8, MT + 16);
+
+  /* ── eixos ────────────────────────────────────────────── */
+  ctx.strokeStyle = "#ffffff22"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(ML, MT); ctx.lineTo(ML, MT + PH);
+  ctx.lineTo(ML + PW, MT + PH); ctx.stroke();
+
+  /* ── título ──────────────────────────────────────────── */
+  ctx.fillStyle = "#e8edf5"; ctx.textAlign = "center"; ctx.font = F(26, true);
+  ctx.fillText("Acurácia × Pontos Efetivos", W / 2, 38);
+  ctx.fillStyle = "#6070a0"; ctx.font = F(13);
+  ctx.fillText("Acurácia = % de vencedores corretos  •  Pts Efetivos = pontos − penalidade por erro", W / 2, 62);
+
+  /* ── rótulos de eixo ─────────────────────────────────── */
+  ctx.fillStyle = "#8090a8"; ctx.font = F(12); ctx.textAlign = "center";
+  ctx.fillText("Pontos Efetivos →", ML + PW / 2, H - 12);
+  ctx.save(); ctx.translate(18, MT + PH / 2);
+  ctx.rotate(-Math.PI / 2); ctx.fillText("Acurácia %", 0, 0); ctx.restore();
+
+  /* ── cor por família ─────────────────────────────────── */
+  const FAM_COL = {
+    gemma:"#4285f4", qwen:"#2dca8c", phi:"#0ea5e9", mistral:"#fa520f",
+    deepseek:"#818cf8", granite:"#60a5fa", ernie:"#f472b6",
+    glm:"#a78bfa", nemotron:"#84cc16", openai:"#34d399", rnj:"#fb923c",
+    olmo:"#f97316", seed:"#fbbf24", lfm:"#38bdf8", liquid:"#38bdf8",
+  };
+  const getCol = (r) => {
+    const f = (r.family || r.model_id || "").toLowerCase();
+    for (const [k, c] of Object.entries(FAM_COL)) if (f.includes(k)) return c;
+    return "#38d6a5";
+  };
+
+  /* ── bolhas ──────────────────────────────────────────── */
+  const sorted = [...rows].sort((a, b) => (a.net_score ?? 0) - (b.net_score ?? 0));
+  sorted.forEach((r) => {
+    const x = toX(r.net_score ?? 0), y = toY(r.accuracy ?? 0);
+    const rad = 6 + Math.min(10, (r.scored || 0) * 0.7);
+    const col = getCol(r);
+    ctx.fillStyle = col + "33";
+    ctx.beginPath(); ctx.arc(x, y, rad + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = col + "cc";
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.stroke();
+  });
+
+  /* ── seleciona quem rotular ──────────────────────────── */
+  // top-5 pts, top-3 accuracy, 1 "rápido" (menor latência com scored>0)
+  const byPts  = [...rows].sort((a, b) => (b.net_score ?? 0) - (a.net_score ?? 0));
+  const byAcc  = [...rows].sort((a, b) => (b.accuracy ?? 0) - (a.accuracy ?? 0));
+  const byLat  = [...rows].filter((r) => r.avg_latency_ms).sort((a, b) => a.avg_latency_ms - b.avg_latency_ms);
+  const toLabel = new Map();
+  [...byPts.slice(0, 5), ...byAcc.slice(0, 3), ...byLat.slice(0, 1)].forEach((r) => {
+    if (!toLabel.has(r.model_id)) toLabel.set(r.model_id, r);
+  });
+
+  /* ── rótulos com linha guia ──────────────────────────── */
+  [...toLabel.values()].forEach((r, i) => {
+    const x = toX(r.net_score ?? 0), y = toY(r.accuracy ?? 0);
+    const rad = 6 + Math.min(10, (r.scored || 0) * 0.7);
+    const col = getCol(r);
+    // posição do label: alterna direita/esquerda/cima
+    const offsets = [[24,-20],[24,16],[-24,-20],[-24,16],[0,-28],[0,28],[30,0],[-30,0]];
+    const [ox, oy] = offsets[i % offsets.length];
+    const lx = x + ox * 2.4, ly = y + oy * 2.4;
+    // linha guia
+    ctx.strokeStyle = col + "88"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + (ox > 0 ? rad : -rad), y); ctx.lineTo(lx, ly); ctx.stroke();
+    // caixa do rótulo
+    const name = (r.display_name || r.model_id).replace(/^[^/]+\//, "");
+    const tag  = `${r.net_score ?? "?"}pts · ${Math.round((r.accuracy ?? 0) * 100)}%`;
+    ctx.font = F(11, true);
+    const nw = ctx.measureText(name).width;
+    ctx.font = F(10);
+    const tw = Math.max(nw, ctx.measureText(tag).width) + 14;
+    const th = 34, bx = lx - (ox >= 0 ? 0 : tw), by = ly - (oy >= 0 ? 0 : th);
+    ctx.fillStyle = "#0d1525ee";
+    _roundRect(ctx, bx - 2, by - 2, tw + 4, th + 4, 6); ctx.fill();
+    ctx.strokeStyle = col + "66"; ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 2, by - 2, tw + 4, th + 4);
+    ctx.fillStyle = "#e8edf5"; ctx.font = F(11, true); ctx.textAlign = "left";
+    ctx.fillText(name, bx + 6, by + 14);
+    ctx.fillStyle = col; ctx.font = F(10);
+    ctx.fillText(tag, bx + 6, by + 28);
+  });
+
+  /* ── legenda de tamanho ──────────────────────────────── */
+  ctx.fillStyle = "#8090a8"; ctx.font = F(10); ctx.textAlign = "left";
+  ctx.fillText("○ tamanho = jogos pontuados", ML, MT + PH + 46);
+
+  /* ── rodapé ──────────────────────────────────────────── */
+  ctx.fillStyle = "#404a60"; ctx.font = F(10); ctx.textAlign = "center";
+  ctx.fillText("github.com/Phemassa/copamind-2026  •  CopaMind 2026  •  dados oficiais FIFA", W / 2, H - 4);
+
+  return canvas;
+}
 
   const canvas = document.createElement("canvas");
   canvas.width  = W * S;
