@@ -3440,12 +3440,23 @@ h3 { font-size: 22px; }
 
 .author-card {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
 }
 
-.author-card img {
+.author-card img.author-photo {
+  width: 110px;
+  height: 110px;
+  object-fit: cover;
+  object-position: center top;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 4px rgba(77, 141, 255, .18);
+  background: #10151d;
+}
+
+.author-card img:not(.author-photo) {
   width: 96px;
   height: 96px;
   object-fit: contain;
