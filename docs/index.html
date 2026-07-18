@@ -34,6 +34,7 @@
       <button type="button" data-view="bolao">Bolao das LLMs</button>
       <button type="button" data-view="ranking">Ranking das LLMs</button>
       <button type="button" data-view="benchmark">Benchmark LLMs</button>
+      <button type="button" data-view="analise">Análise</button>
       <button type="button" data-view="linkedin">Resumo</button>
       <button type="button" data-view="tabela">Tabela e jogos</button>
       <button type="button" data-view="selecoes">Dashboard das selecoes</button>
@@ -466,6 +467,52 @@
         </article>
       </div>
       <div id="ref-models-table" class="ref-models-section"></div>
+    </section>
+
+    <section class="analise-section view-section is-hidden" data-section="analise">
+      <div class="analise-header">
+        <div class="section-title">
+          <p>Benchmark de LLMs</p>
+          <h2>Análise e Dados</h2>
+        </div>
+        <div class="analise-export-bar">
+          <button id="btn-analise-export-current" type="button">📸 Exportar gráfico</button>
+          <button id="btn-analise-export-all" type="button">📦 Exportar todos</button>
+        </div>
+      </div>
+      <div class="analise-layout">
+        <aside class="analise-filters">
+          <div class="analise-filter-section">
+            <div class="analise-filter-head"><strong>Tipo de gráfico</strong></div>
+            <div id="analise-chart-tabs" class="analise-chart-tabs"></div>
+          </div>
+          <div class="analise-filter-section">
+            <div class="analise-filter-head"><strong>Fases</strong></div>
+            <div id="analise-phase-filters" class="analise-phase-filters"></div>
+          </div>
+          <div class="analise-filter-section">
+            <div class="analise-filter-head">
+              <strong>Modelos</strong>
+              <div>
+                <button type="button" id="analise-select-all-models">Todos</button>
+                <button type="button" id="analise-clear-models">Limpar</button>
+              </div>
+            </div>
+            <div id="analise-model-filters" class="analise-model-filters"></div>
+          </div>
+        </aside>
+        <div class="analise-main">
+          <div id="analise-chart-container" class="analise-chart-container"></div>
+          <div id="analise-model-card-section" class="analise-model-card-section is-hidden">
+            <div class="analise-model-select-bar">
+              <label>Modelo: <select id="analise-model-select"></select></label>
+              <button type="button" id="btn-analise-export-model">📸 Exportar carta</button>
+              <button type="button" id="btn-analise-export-all-cards">📦 Exportar todas</button>
+            </div>
+            <div id="analise-model-card-preview" class="analise-model-card-preview"></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <footer class="app-footer">

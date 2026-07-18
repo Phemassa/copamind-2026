@@ -12,6 +12,16 @@ const RUN_POLL_MS = 10000;
 const PROGRESS_POLL_MS = 2000;
 const RUN_TIMEOUT_MS = 15 * 60 * 1000;
 const BULK_PHASES = ["round_of_16", "quarterfinal", "semifinal", "third_place", "final"];
+// Escala semântica de qualidade: todo acerto usa uma cor positiva;
+// vermelho fica reservado exclusivamente para erro (0 estrelas).
+const STAR_SCORE_COLORS = Object.freeze({
+  0: "#fb7185",
+  1: "#60a5fa",
+  2: "#22d3ee",
+  3: "#2dd4bf",
+  4: "#34d399",
+  5: "#a78bfa",
+});
 const STATIC_ASSETS = [
   "../../docs/assets/banner.png",
   "../../docs/assets/copamind_2026.png",
@@ -36,6 +46,10 @@ let chatSelectedModels = new Set();
 let chatNews = null;
 let chatPollTimer = null;
 
+function starScoreColor(stars, fallback = "#7080a0") {
+  return STAR_SCORE_COLORS[Number(stars)] || fallback;
+}
+
 const CHAT_HARDWARE_DETAILS = {
   "mistralai/devstral-small-2-2512":"15,2 GB · muito CPU", "qwen/qwen3.6-27b":"17,5 GB · muito CPU", "google/gemma-4-31b-qat":"18,9 GB · muito lento", "allenai/olmo-3-32b-think":"19,5 GB · lento + raciocínio longo", "google/gemma-4-31b":"19,9 GB · muito lento", "bytedance/seed-oss-36b":"21,8 GB · extremamente pesado",
   "openai/gpt-oss-20b":"12,1 GB · MoE 3,6B ativos · utilizável", "baidu/ernie-4.5-21b-a3b":"13,5 GB · MoE 3B · depende da RAM", "liquid/lfm2-24b-a2b":"14,4 GB · MoE 2B ativos", "google/gemma-4-26b-a4b-qat":"15,6 GB · MoE 4B · moderadamente lento", "zai-org/glm-4.7-flash":"18,1 GB · MoE 3B · CPU pesada", "qwen/qwen3.6-35b-a3b":"22,1 GB · MoE 3B · muita RAM", "nvidia/nemotron-3-nano-omni":"26,1 GB · MoE ~3B · limite de 32 GB",
@@ -58,6 +72,8 @@ document.getElementById("btn-refresh-scores")?.addEventListener("click", trigger
 document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
 document.getElementById("btn-export-ranking")?.addEventListener("click", exportRankingImage);
 document.getElementById("btn-export-benchmark")?.addEventListener("click", exportBenchmarkImage);
+document.getElementById("btn-analise-export-current")?.addEventListener("click", exportAnaliseCurrentChart);
+document.getElementById("btn-analise-export-all")?.addEventListener("click", exportAllAnaliseCharts);
 document.getElementById("btn-publish-static")?.addEventListener("click", publishStaticSite);
 document.querySelectorAll("[data-export-static]").forEach((button) => {
   button.addEventListener("click", exportStaticSite);
@@ -385,6 +401,7 @@ function renderAll() {
   renderRanking();
   renderBenchmark();
   renderLinkedInCaptures();
+  renderAnalise();
   renderContextInputs();
   renderTournament();
   renderTeamDashboard();
@@ -1911,44 +1928,54 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   ctx.fillStyle = C.border;
   ctx.fillRect(0, HDR_H + SUM_H - 1, W, 1);
 
-  // ── Top-4 seleções esperadas ───────────────────────────────────────────────
+  // ── Confrontos desta fase (duel por jogo) ──────────────────────────────────
   {
-    // Usa a probabilidade média dos modelos por jogo (mesma fonte do quadro "Chances por seleção")
-    const teamChancesMap = {};
-    matchOrder.forEach((m) => {
-      const stats = matchStats[m._key];
-      if (!stats) return;
-      const hName = m.home || m.home_team_id || "";
-      const aName = m.away || m.away_team_id || "";
-      if (hName) teamChancesMap[hName] = { name: hName, prob: stats.home };
-      if (aName) teamChancesMap[aName] = { name: aName, prob: stats.away };
-    });
-    const allTeams = Object.values(teamChancesMap).filter((t) => t.name).sort((a, b) => b.prob - a.prob);
-    const top4 = allTeams.slice(0, 4);
     const secY = HDR_H + SUM_H;
     ctx.fillStyle = C.panel;
     ctx.fillRect(0, secY, W, TEAMS_H);
-    txt("CHANCES POR SELEÇÃO  —  probabilidade média das LLMs por jogo", PAD, secY + 18, F(9, true), C.accent);
-    const barMaxW = Math.min(260, W * 0.30);
-    const colW = (W - PAD * 2) / Math.max(1, top4.length);
-    top4.forEach((team, i) => {
+
+    const phaseSectionLbl = phase === "final" ? "JOGO DA FINAL"
+      : phase === "third_place" ? "DISPUTA DE 3º LUGAR"
+      : phase === "semifinal"   ? "SEMIFINAIS"
+      : "CONFRONTOS DESTA FASE";
+    txt(`${phaseSectionLbl}  —  probabilidade média das LLMs por jogo`, PAD, secY + 14, F(9, true), C.accent);
+
+    const displayMatches = matchOrder.slice(0, 4);
+    const numCols = Math.max(1, displayMatches.length);
+    const colW = (W - PAD * 2) / numCols;
+
+    displayMatches.forEach((m, i) => {
+      const stats = matchStats[m._key];
+      if (!stats) return;
       const cx = PAD + i * colW;
-      const ty = secY + 30;
-      txt(`${i + 1}.`, cx + 4, ty + 15, F(10, true), C.gold);
-      txt(team.name, cx + 20, ty + 15, F(11, true), C.text);
-      txt(`${team.prob}%`, cx + 20, ty + 30, F(13, true), C.accent);
-      // bar proporcional à probabilidade (0–100%)
-      const bw = Math.round(barMaxW * team.prob / 100);
-      ctx.fillStyle = C.border; ctx.fillRect(cx + 20, ty + 38, barMaxW, 8);
-      const grad = ctx.createLinearGradient(cx + 20, 0, cx + 20 + bw, 0);
-      grad.addColorStop(0, C.accent); grad.addColorStop(1, "#f2c94c");
-      ctx.fillStyle = grad; ctx.fillRect(cx + 20, ty + 38, bw, 8);
-      const advLbl = phase === "final"       ? "prob. de ser campeã"
-        : phase === "third_place"            ? "prob. vencer (3º lugar)"
-        : phase === "semifinal"              ? "prob. ir à Final"
-        : "prob. de avançar";
-      txt(advLbl, cx + 20, ty + 60, F(9), C.muted);
+      const ty = secY + 22;
+      const barMaxW = Math.min(Math.round(colW - 16), 220);
+      const homeShort = (m.home || m.home_team_id || "?").slice(0, 15);
+      const awayShort = (m.away || m.away_team_id || "?").slice(0, 15);
+
+      if (i > 0) { ctx.fillStyle = C.border; ctx.fillRect(cx, secY + 8, 1, TEAMS_H - 16); }
+
+      // Home
+      txt(homeShort, cx + 6, ty + 14, F(11, true), C.text);
+      txt(`${stats.home}%`, cx + 6, ty + 27, F(12, true), stats.home >= 50 ? C.accent : C.muted);
+      const hbw = Math.round(barMaxW * stats.home / 100);
+      ctx.fillStyle = C.dim; ctx.fillRect(cx + 6, ty + 31, barMaxW, 6);
+      const hGrad = ctx.createLinearGradient(cx + 6, 0, cx + 6 + hbw, 0);
+      hGrad.addColorStop(0, C.accent); hGrad.addColorStop(1, "#f2c94c");
+      ctx.fillStyle = hGrad; ctx.fillRect(cx + 6, ty + 31, hbw, 6);
+
+      txt("×", cx + 6, ty + 49, F(10), C.dim);
+
+      // Away
+      txt(awayShort, cx + 6, ty + 63, F(11, true), C.text);
+      txt(`${stats.away}%`, cx + 6, ty + 76, F(12, true), stats.away > 50 ? "#4d8dff" : C.muted);
+      const abw = Math.round(barMaxW * stats.away / 100);
+      ctx.fillStyle = C.dim; ctx.fillRect(cx + 6, ty + 80, barMaxW, 6);
+      const aGrad = ctx.createLinearGradient(cx + 6, 0, cx + 6 + abw, 0);
+      aGrad.addColorStop(0, "#4d8dff"); aGrad.addColorStop(1, "#c084fc");
+      ctx.fillStyle = aGrad; ctx.fillRect(cx + 6, ty + 80, abw, 6);
     });
+
     ctx.fillStyle = C.border;
     ctx.fillRect(0, secY + TEAMS_H - 1, W, 1);
   }
@@ -2062,10 +2089,12 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
       const sc = canvasStarCounts[row.model_id] || [];
       const correct = [1, 2, 3, 4, 5].reduce((s, n) => s + (sc[n] || 0), 0);
       const topStars = [5, 4, 3, 2, 1].find((n) => sc[n] > 0) || 0;
-      const scoreColor = correct === nCanvasFinished ? C.gold : correct > 0 ? "#5af0a0" : C.muted;
+      const scoreColor = correct === nCanvasFinished
+        ? starScoreColor(5)
+        : correct > 0 ? starScoreColor(3) : C.muted;
       txt(`${correct}/${nCanvasFinished}`, cx + CW / 2, sy + 16, F(12, true), scoreColor, "center");
       if (topStars > 0) {
-        const starColor = topStars >= 5 ? C.gold : topStars >= 4 ? "#a8e6c0" : "#5af0a0";
+        const starColor = starScoreColor(topStars, C.muted);
         txt("\u2605".repeat(topStars), cx + CW / 2, sy + 32, F(topStars > 3 ? 7 : 8, true), starColor, "center");
       }
     } else {
@@ -2125,26 +2154,26 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
       // Cell bg
       const baseBg = even ? "#181d28" : C.bg;
       ctx.fillStyle = isWrong
-        ? (side === "home" ? "#0d1a14" : side === "away" ? "#0a1020" : side === "draw" ? "#16140a" : baseBg)
+        ? C.red + "18"
         : (side === "home" ? C.cHome : side === "away" ? C.cAway : side === "draw" ? C.cDraw : baseBg);
       ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
 
-      // Star-based tint + border
-      if (stars >= 5) {
-        ctx.fillStyle = "rgba(242,201,76,0.20)"; ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
-        ctx.strokeStyle = "#f2c94ccc"; ctx.lineWidth = 2;
-        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3); ctx.lineWidth = 1;
-      } else if (stars >= 4) {
-        ctx.fillStyle = "rgba(90,240,160,0.14)"; ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
-        ctx.strokeStyle = "#2fc76fcc"; ctx.lineWidth = 2;
-        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3); ctx.lineWidth = 1;
-      } else if (stars >= 3) {
-        ctx.fillStyle = "rgba(47,199,111,0.09)"; ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
-        ctx.strokeStyle = "#2fc76f88"; ctx.lineWidth = 1.5;
-        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3); ctx.lineWidth = 1;
-      } else if (stars >= 1) {
-        ctx.strokeStyle = "#2fc76f44"; ctx.lineWidth = 1;
-        ctx.strokeRect(cx, ry, CW - 1, ROW_H - 1); ctx.lineWidth = 1;
+      // Todo nível de acerto recebe realce positivo; somente 0 estrelas usa vermelho.
+      if (stars >= 1) {
+        const qualityColor = starScoreColor(stars);
+        const tintAlpha = stars >= 5 ? "24" : stars >= 4 ? "1f" : stars >= 3 ? "19" : "12";
+        const borderAlpha = stars >= 4 ? "cc" : stars >= 3 ? "99" : "66";
+        ctx.fillStyle = qualityColor + tintAlpha;
+        ctx.fillRect(cx, ry, CW - 1, ROW_H - 1);
+        ctx.strokeStyle = qualityColor + borderAlpha;
+        ctx.lineWidth = stars >= 4 ? 2 : stars >= 3 ? 1.5 : 1;
+        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3);
+        ctx.lineWidth = 1;
+      } else if (isWrong) {
+        ctx.strokeStyle = C.red + "aa";
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(cx + 1, ry + 1, CW - 3, ROW_H - 3);
+        ctx.lineWidth = 1;
       }
 
       if (!pred) {
@@ -2155,8 +2184,10 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
         const hasPen = isDrawScore && pred.goes_to_penalties
           && pred.penalty_winner && pred.penalty_winner !== "none";
 
-        const dimFactor = isWrong ? 0.32 : 1;
-        const tColor = stars >= 5 ? "#f2c94c" : stars >= 3 ? "#5af0a0" : stars >= 1 ? C.tHome : (side === "home" ? C.tHome : side === "away" ? C.tAway : C.tDraw);
+        const dimFactor = isWrong ? 0.72 : 1;
+        const tColor = stars >= 1
+          ? starScoreColor(stars)
+          : isWrong ? C.red : (side === "home" ? C.tHome : side === "away" ? C.tAway : C.tDraw);
         const scoreStr = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
         const penStr = hasPen ? `(${pred.penalty_winner === "home" ? 4 : 3}–${pred.penalty_winner === "away" ? 4 : 3})` : "";
 
@@ -2164,13 +2195,20 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
         txt(scoreStr, cx + CW / 2, ry + (hasPen ? 22 : 26), F(13, true), tColor, "center");
         if (penStr) txt(penStr, cx + CW / 2, ry + 36, F(9), C.muted, "center");
         const winner = side === "home" ? homeShort : side === "away" ? awayShort : "EMP";
-        txt(winner.slice(0, 7), cx + CW / 2, ry + ROW_H - 10, F(9, true), stars >= 1 ? "#5af0a0" : C.muted, "center");
+        txt(
+          winner.slice(0, 7),
+          cx + CW / 2,
+          ry + ROW_H - 10,
+          F(9, true),
+          stars >= 1 ? starScoreColor(stars) : isWrong ? C.red : C.muted,
+          "center",
+        );
         ctx.globalAlpha = 1;
 
         // Stars badge top-right
         if (stars > 0) {
           const starsStr = "★".repeat(stars);
-          const starColor = stars >= 5 ? "#f2c94c" : stars >= 4 ? "#a8e6c0" : "#5af0a0";
+          const starColor = starScoreColor(stars);
           const starFont = stars <= 2 ? F(7, true) : stars <= 3 ? F(8, true) : F(9, true);
           txt(starsStr, cx + CW - 4, ry + 10, starFont, starColor, "right");
         }
@@ -2194,13 +2232,13 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   ctx.fillStyle = C.border;
   ctx.fillRect(0, sy, W, 1);
   const legendDefs = [
-    ["★", "Vencedor"], ["★★", "+1 gol"], ["★★★", "Placar exato"],
-    ["★★★★", "+Tempo"], ["★★★★★", "Tudo certo!"],
+    [1, "★", "Vencedor"], [2, "★★", "1 gol certo"], [3, "★★★", "Placar exato"],
+    [4, "★★★★", "+Tempo"], [5, "★★★★★", "Tudo certo!"],
   ];
   const legSlot = W / legendDefs.length;
-  legendDefs.forEach(([stars, label], i) => {
+  legendDefs.forEach(([rating, stars, label], i) => {
     const lx = i * legSlot + legSlot / 2;
-    txt(stars, lx, sy + 14, F(9, true), "#f2c94c", "center");
+    txt(stars, lx, sy + 14, F(9, true), starScoreColor(rating), "center");
     txt(label, lx, sy + 28, F(8), C.muted, "center");
   });
 
@@ -2213,6 +2251,888 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
     W / 2, sy + 26, F(11), C.muted, "center",
   );
 
+  return canvas;
+}
+
+function buildResumoCanvas(icon, iconMap) {
+  const allRows = rankingRows().filter((r) => !r.is_combo && r.scored > 0);
+  const rows = allRows.slice(0, 28);
+  if (!rows.length) return null;
+
+  const C = _canvasPalette();
+  const F = _canvasF;
+  const PAD = 24;
+  const RANK_W = 32;
+  const ICON_W = 38;
+  const NAME_W = 210;
+  const BAR_W = 200;
+  const VAL_W = 64;
+  const GAP = 16;
+  const W = PAD * 2 + RANK_W + ICON_W + NAME_W + 8 + (BAR_W + VAL_W) * 2 + GAP;
+  const HDR_H = 110;
+  const SUM_H = 56;
+  const HEAD_H = 28;
+  const ROW_H = 52;
+  const FOOT_H = 38;
+  const H = HDR_H + SUM_H + HEAD_H + rows.length * ROW_H + FOOT_H;
+  const S = 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * S;
+  canvas.height = H * S;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(S, S);
+
+  // Background
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+
+  // ── Header ───────────────────────────────────────────────────────────────────────────
+  const hGrad = ctx.createLinearGradient(0, 0, W, HDR_H);
+  hGrad.addColorStop(0, "#090e18"); hGrad.addColorStop(1, "#161a22");
+  ctx.fillStyle = hGrad; ctx.fillRect(0, 0, W, HDR_H);
+  const LOGO = 72;
+  if (icon) ctx.drawImage(icon, PAD, (HDR_H - LOGO) / 2, LOGO, LOGO);
+  const tx = PAD + LOGO + 16;
+  _canvasTxt(ctx, "PREVISÃO DAS LLMS · COPAMIND 2026", tx, HDR_H / 2 - 20, F(10, true), C.accent);
+  _canvasTxt(ctx, "Ranking das LLMs", tx, HDR_H / 2 + 12, F(30, true), C.text);
+  _canvasTxt(ctx, "Acurácia e pontos · geral · mesmos dados · previsões auditáveis", tx, HDR_H / 2 + 30, F(12), C.muted);
+  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  _canvasTxt(ctx, dateStr, W - PAD, PAD + 14, F(11), C.muted, "right");
+  ctx.fillStyle = C.accent; ctx.fillRect(0, HDR_H - 2, W, 2);
+
+  // ── Summary bar ────────────────────────────────────────────────────────────────────
+  ctx.fillStyle = C.panel; ctx.fillRect(0, HDR_H, W, SUM_H);
+  const maxAcc = rows[0]?.accuracy;
+  const execDate = formatDateTime(state?.generated_at);
+  const sumItems = [
+    { label: "EXECUÇÃO",         value: execDate },
+    { label: "MODELOS",          value: String(rows.length) },
+    { label: "JOGOS ANALISADOS", value: String(rows.reduce((s, r) => s + r.scored, 0)) },
+    { label: "MELHOR ACURÁCIA",  value: maxAcc != null ? `${Math.round(maxAcc * 100)}%` : "—" },
+  ];
+  const sw = W / sumItems.length;
+  sumItems.forEach((item, i) => {
+    if (i > 0) { ctx.fillStyle = C.border; ctx.fillRect(i * sw, HDR_H + 8, 1, SUM_H - 16); }
+    const cx = i * sw + sw / 2;
+    _canvasTxt(ctx, item.label, cx, HDR_H + 18, F(9, true), C.muted, "center");
+    _canvasTxt(ctx, item.value, cx, HDR_H + 42, F(20, true), C.text, "center");
+  });
+  ctx.fillStyle = C.border; ctx.fillRect(0, HDR_H + SUM_H - 1, W, 1);
+
+  // ── Column headers ───────────────────────────────────────────────────────────────
+  const tableY = HDR_H + SUM_H;
+  const accBarX = PAD + RANK_W + ICON_W + NAME_W + 8;
+  const ptsBarX = accBarX + BAR_W + VAL_W + GAP;
+  ctx.fillStyle = C.panel; ctx.fillRect(PAD, tableY, W - PAD * 2, HEAD_H);
+  _canvasTxt(ctx, "ACURÁCIA", accBarX + BAR_W / 2, tableY + 19, F(9, true), C.accent, "center");
+  _canvasTxt(ctx, "PONTOS", ptsBarX + BAR_W / 2, tableY + 19, F(9, true), "#4d8dff", "center");
+  ctx.fillStyle = C.border; ctx.fillRect(PAD, tableY + HEAD_H - 1, W - PAD * 2, 1);
+
+  // ── Data rows ──────────────────────────────────────────────────────────────────
+  const maxPts = Math.max(...rows.map((r) => r.points || 0), 1);
+  rows.forEach((row, ri) => {
+    const ry = tableY + HEAD_H + ri * ROW_H;
+    ctx.fillStyle = ri % 2 === 0 ? "#1a1f2c" : C.bg;
+    ctx.fillRect(PAD, ry, W - PAD * 2, ROW_H - 1);
+
+    // Rank
+    _canvasTxt(ctx, String(ri + 1), PAD + RANK_W / 2, ry + ROW_H / 2 + 5, F(11, true), C.gold, "center");
+
+    // Icon + name
+    const img = iconMap?.get(row.model_id);
+    _canvasDrawIcon(ctx, img, row.display_name, PAD + RANK_W + 3, ry + (ROW_H - 32) / 2, 32, 6);
+    const nameX = PAD + RANK_W + ICON_W;
+    const shortName = (row.display_name || row.model_id).replace(/^[^\/]+\//, "").slice(0, 22);
+    _canvasTxt(ctx, shortName, nameX, ry + ROW_H / 2 - 1, F(11, true), C.text);
+    _canvasTxt(ctx, row.family || "local", nameX, ry + ROW_H / 2 + 14, F(9), C.muted);
+
+    // Accuracy bar
+    const acc = row.accuracy != null ? row.accuracy : null;
+    const accBw = acc != null ? Math.round(BAR_W * acc) : 0;
+    ctx.fillStyle = "#222a3a"; ctx.fillRect(accBarX, ry + 10, BAR_W, 14);
+    if (acc != null && accBw > 0) {
+      const accGrad = ctx.createLinearGradient(accBarX, 0, accBarX + accBw, 0);
+      accGrad.addColorStop(0, C.accent); accGrad.addColorStop(1, "#f2c94c");
+      ctx.fillStyle = accGrad; ctx.fillRect(accBarX, ry + 10, accBw, 14);
+    }
+    _canvasTxt(ctx, acc != null ? `${Math.round(acc * 100)}%` : "—",
+      accBarX + BAR_W + 6, ry + 21, F(12, true), C.accent);
+    const hits = row.scored > 0 ? row.scored - row.wrong : null;
+    _canvasTxt(ctx, hits != null ? `${hits}/${row.scored}` : "", accBarX + BAR_W + 6, ry + 33, F(8), C.muted);
+
+    // Points bar
+    const pts = row.points || 0;
+    const ptsBw = Math.round(BAR_W * pts / maxPts);
+    ctx.fillStyle = "#222a3a"; ctx.fillRect(ptsBarX, ry + 10, BAR_W, 14);
+    if (ptsBw > 0) {
+      const ptsGrad = ctx.createLinearGradient(ptsBarX, 0, ptsBarX + ptsBw, 0);
+      ptsGrad.addColorStop(0, "#4d8dff"); ptsGrad.addColorStop(1, "#c084fc");
+      ctx.fillStyle = ptsGrad; ctx.fillRect(ptsBarX, ry + 10, ptsBw, 14);
+    }
+    _canvasTxt(ctx, String(pts), ptsBarX + BAR_W + 6, ry + 21, F(12, true), "#4d8dff");
+    _canvasTxt(ctx, "pts", ptsBarX + BAR_W + 6, ry + 33, F(8), C.muted);
+
+    ctx.fillStyle = C.border; ctx.fillRect(PAD, ry + ROW_H - 1, W - PAD * 2, 1);
+  });
+
+  // ── Footer ───────────────────────────────────────────────────────────────────────────
+  const fy = tableY + HEAD_H + rows.length * ROW_H;
+  ctx.fillStyle = C.border; ctx.fillRect(PAD, fy + 8, W - PAD * 2, 1);
+  _canvasTxt(ctx, "github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",
+    W / 2, fy + 26, F(11), C.muted, "center");
+
+  return canvas;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// ANÁLISE DE DADOS — gráficos interativos + exports LinkedIn
+// ════════════════════════════════════════════════════════════════════════════
+
+let activeAnaliseChart = "evolucao";
+
+const _ANALISE_COLORS = [
+  "#38d6a5","#4d8dff","#f2c94c","#fb7185","#c084fc","#2fc76f","#38bdf8","#fb923c",
+  "#a78bfa","#34d399","#f472b6","#60a5fa","#facc15","#f87171","#818cf8",
+  "#4ade80","#22d3ee","#fbbf24","#e879f9","#2dd4bf","#94a3b8","#ffb38a","#b3f5ca",
+  "#c4b5fd","#fdba74","#86efac","#67e8f9",
+];
+function _analiseIndexColor(idx) { return _ANALISE_COLORS[idx % _ANALISE_COLORS.length]; }
+function _analiseColor(family, idx) {
+  const m = {
+    gemma:"#4285F4", qwen:"#f2c94c", mistral:"#FA520F", phi:"#9dccff",
+    glm:"#a0e0ff", nvidia:"#76B900", openai:"#74aa9c", deepseek:"#4D6BFF",
+    ibm:"#0062ff", granite:"#0062ff", ernie:"#2932E1", baidu:"#2932E1",
+    olmo:"#e8d5b7", allenai:"#e8d5b7", seed:"#ff6b6b", bytedance:"#ff6b6b",
+    rnj:"#ff9500", essentialai:"#ff9500", lfm:"#9b59b6", liquid:"#9b59b6",
+  };
+  return m[family] || _ANALISE_COLORS[idx % _ANALISE_COLORS.length];
+}
+
+// ── Dados ────────────────────────────────────────────────────────────────────
+function analisePhaseData(selectedPhases) {
+  const phases = selectedPhases || new Set(BULK_PHASES);
+  const sm = {};
+  for (const score of state.phase_model_scores || []) {
+    if (score.model_id === "combo" || !phases.has(score.phase)) continue;
+    (sm[score.model_id] ||= {})[score.phase] = score;
+  }
+  const mb = Object.fromEntries((state.models || []).filter((m) => !m.is_combo).map((m) => [m.model_id, m]));
+  return Object.entries(sm)
+    .filter(([id]) => mb[id])
+    .map(([id, pm]) => ({
+      model_id: id,
+      display_name: mb[id]?.display_name || id,
+      family: mb[id]?.family || "local",
+      image_url: mb[id]?.image_url || "",
+      phases: BULK_PHASES.filter((ph) => phases.has(ph) && pm[ph])
+        .map((ph) => ({ phase: ph, phaseLbl: PHASE_LABELS[ph] || ph, ...pm[ph] })),
+    }))
+    .filter((row) => row.phases.some((p) => Number(p.scored) > 0));
+}
+function _analiseFilteredPhases() {
+  const c = [...document.querySelectorAll("[data-analise-phase]:checked")].map((e) => e.value);
+  return new Set(c.length ? c : BULK_PHASES);
+}
+function _analiseFilteredRows(allRows) {
+  const c = new Set([...document.querySelectorAll("[data-analise-model]:checked")].map((e) => e.value));
+  return c.size ? allRows.filter((r) => c.has(r.model_id)) : allRows;
+}
+function _analiseRankSort(rows) {
+  const order = new Map(rankingRows().filter((r) => !r.is_combo).map((r, i) => [r.model_id, i]));
+  return [...rows].sort((a, b) => (order.get(a.model_id) ?? 999) - (order.get(b.model_id) ?? 999));
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+function renderAnalise() {
+  if (!state) return;
+  renderAnaliseChartTabs();
+  renderAnaliseFilters();
+  renderAnaliseCurrentChart();
+}
+
+function renderAnaliseChartTabs() {
+  const tabs = [
+    { key: "evolucao", label: "📈  Evolução de Acurácia" },
+    { key: "heatmap",  label: "🌡  Mapa de Calor" },
+    { key: "estrelas", label: "⭐  Distribuição de Estrelas" },
+    { key: "scatter",  label: "◎  Scatter Acurácia × Pts" },
+    { key: "porjogo",  label: "🏆  Por Jogo" },
+    { key: "carta",    label: "🪪  Carta do Modelo" },
+  ];
+  const el = document.getElementById("analise-chart-tabs");
+  if (!el) return;
+  el.innerHTML = tabs.map((t) => `
+    <button class="${t.key === activeAnaliseChart ? "active" : ""}"
+            type="button" data-analise-tab="${escapeAttr(t.key)}">
+      ${escapeHtml(t.label)}</button>`).join("");
+  el.querySelectorAll("[data-analise-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeAnaliseChart = btn.dataset.analiseTab;
+      renderAnaliseChartTabs();
+      renderAnaliseCurrentChart();
+    });
+  });
+}
+
+function renderAnaliseFilters() {
+  const phEl = document.getElementById("analise-phase-filters");
+  if (phEl && !phEl.dataset.rendered) {
+    phEl.dataset.rendered = "1";
+    phEl.innerHTML = BULK_PHASES.map((ph) => `
+      <label><input type="checkbox" data-analise-phase value="${escapeAttr(ph)}" checked />
+      ${escapeHtml(PHASE_LABELS[ph] || ph)}</label>`).join("");
+    phEl.querySelectorAll("[data-analise-phase]").forEach((cb) => cb.addEventListener("change", renderAnaliseCurrentChart));
+  }
+  const mEl = document.getElementById("analise-model-filters");
+  if (!mEl) return;
+  const allRows = analisePhaseData(new Set(BULK_PHASES));
+  const existing = new Set([...mEl.querySelectorAll("[data-analise-model]")].map((e) => e.value));
+  const newIds = new Set(allRows.map((r) => r.model_id));
+  if ([...newIds].every((id) => existing.has(id)) && existing.size === newIds.size) return;
+  mEl.innerHTML = allRows.map((row) => {
+    const img = resolveModelImage(row) || avatarForModel(row);
+    return `<label><input type="checkbox" data-analise-model value="${escapeAttr(row.model_id)}" checked />
+      <img src="${escapeAttr(img)}" alt="" onerror="this.src='${escapeAttr(avatarForModel(row))}';" />
+      ${escapeHtml((row.display_name || row.model_id).replace(/^[^/]+\//, "").slice(0, 22))}</label>`;
+  }).join("");
+  mEl.querySelectorAll("[data-analise-model]").forEach((cb) => cb.addEventListener("change", renderAnaliseCurrentChart));
+  document.getElementById("analise-select-all-models")?.addEventListener("click", () => {
+    document.querySelectorAll("[data-analise-model]").forEach((cb) => { cb.checked = true; });
+    renderAnaliseCurrentChart();
+  });
+  document.getElementById("analise-clear-models")?.addEventListener("click", () => {
+    document.querySelectorAll("[data-analise-model]").forEach((cb) => { cb.checked = false; });
+    renderAnaliseCurrentChart();
+  });
+}
+
+function renderAnaliseCurrentChart() {
+  const container = document.getElementById("analise-chart-container");
+  const cardSection = document.getElementById("analise-model-card-section");
+  if (!container || !cardSection) return;
+  const isCarta = activeAnaliseChart === "carta";
+  container.classList.toggle("is-hidden", isCarta);
+  cardSection.classList.toggle("is-hidden", !isCarta);
+  if (isCarta) { renderAnaliseModelCardSection(); return; }
+
+  const selPhases = _analiseFilteredPhases();
+  const allRows = analisePhaseData(selPhases);
+  const rows = _analiseRankSort(_analiseFilteredRows(allRows));
+  const phases = BULK_PHASES.filter((ph) => selPhases.has(ph));
+  if (!rows.length) {
+    container.innerHTML = `<p class="analise-loading">Nenhum modelo com dados nas fases selecionadas.</p>`;
+    return;
+  }
+  container.innerHTML = `<p class="analise-loading">Renderizando...</p>`;
+  requestAnimationFrame(() => {
+    try {
+      let canvas;
+      if (activeAnaliseChart === "evolucao") canvas = buildEvolucaoCanvas(rows, phases);
+      else if (activeAnaliseChart === "heatmap") canvas = buildHeatmapCanvas(rows, phases);
+      else if (activeAnaliseChart === "estrelas") canvas = buildEstrelasCanvas(rows, phases);
+      else if (activeAnaliseChart === "scatter") canvas = buildScatterCanvas(rows);
+      else if (activeAnaliseChart === "porjogo") canvas = buildPorJogoCanvas(rows, phases);
+      if (canvas) { container.innerHTML = ""; container.appendChild(canvas); }
+    } catch (err) {
+      console.error("Erro Análise:", err);
+      container.innerHTML = `<p class="analise-loading" style="color:#fb7185">Erro ao gerar gráfico.</p>`;
+    }
+  });
+}
+
+function renderAnaliseModelCardSection() {
+  const rows = rankingRows().filter((r) => !r.is_combo && r.scored > 0);
+  const sel = document.getElementById("analise-model-select");
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = rows.map((r) => `<option value="${escapeAttr(r.model_id)}" ${r.model_id === cur ? "selected" : ""}>${escapeHtml((r.display_name || r.model_id).replace(/^[^/]+\//, ""))}</option>`).join("");
+  if (!cur && rows.length) sel.value = rows[0].model_id;
+  if (!sel.dataset.cartaListener) {
+    sel.dataset.cartaListener = "1";
+    sel.addEventListener("change", () => renderAnaliseModelCardPreview(sel.value));
+    document.getElementById("btn-analise-export-model")?.addEventListener("click", () => exportAnaliseModelCard(sel.value));
+    document.getElementById("btn-analise-export-all-cards")?.addEventListener("click", exportAllModelCards);
+  }
+  renderAnaliseModelCardPreview(sel.value || rows[0]?.model_id);
+}
+
+async function renderAnaliseModelCardPreview(modelId) {
+  const preview = document.getElementById("analise-model-card-preview");
+  if (!preview) return;
+  preview.innerHTML = `<p class="analise-loading">Carregando carta...</p>`;
+  try {
+    const row = rankingRows().find((r) => r.model_id === modelId);
+    if (!row) { preview.innerHTML = `<p class="analise-loading">Sem dados.</p>`; return; }
+    const [icon, modelIcon] = await Promise.all([
+      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadImg(resolveModelImage(row) || avatarForModel(row)),
+    ]);
+    const canvas = buildModelCardCanvas(row, icon, modelIcon);
+    preview.innerHTML = ""; preview.appendChild(canvas);
+  } catch (err) { console.error(err); preview.innerHTML = `<p class="analise-loading" style="color:#fb7185">Erro.</p>`; }
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+async function exportAnaliseCurrentChart() {
+  const canvas = document.querySelector("#analise-chart-container canvas");
+  if (!canvas) { alert("Nenhum gráfico visível."); return; }
+  const btn = document.getElementById("btn-analise-export-current");
+  const orig = btn?.textContent;
+  if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
+  try { await _canvasDownload(canvas, `copamind_analise_${activeAnaliseChart}_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`); }
+  catch (err) { console.error(err); }
+  finally { if (btn) { btn.textContent = orig; btn.disabled = false; } }
+}
+
+async function exportAllAnaliseCharts() {
+  const btn = document.getElementById("btn-analise-export-all");
+  const orig = btn?.textContent;
+  if (btn) btn.disabled = true;
+  const selPhases = _analiseFilteredPhases();
+  const rows = _analiseRankSort(_analiseFilteredRows(analisePhaseData(selPhases)));
+  const phases = BULK_PHASES.filter((ph) => selPhases.has(ph));
+  const date = new Date().toISOString().slice(0,10).replace(/-/g,"");
+  const charts = [
+    { key: "evolucao",  build: () => buildEvolucaoCanvas(rows, phases) },
+    { key: "heatmap",   build: () => buildHeatmapCanvas(rows, phases) },
+    { key: "estrelas",  build: () => buildEstrelasCanvas(rows, phases) },
+    { key: "scatter",   build: () => buildScatterCanvas(rows) },
+    { key: "porjogo",   build: () => buildPorJogoCanvas(rows, phases) },
+  ];
+  for (let i = 0; i < charts.length; i++) {
+    if (btn) btn.textContent = `${i+1}/${charts.length}...`;
+    try { const c = charts[i].build(); if (c) await _canvasDownload(c, `copamind_analise_${charts[i].key}_${date}.png`); }
+    catch (err) { console.error(`Erro ${charts[i].key}:`, err); }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  if (btn) { btn.textContent = orig; btn.disabled = false; }
+}
+
+async function exportAnaliseModelCard(modelId) {
+  if (!modelId) return;
+  const btn = document.getElementById("btn-analise-export-model");
+  const orig = btn?.textContent;
+  if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
+  try {
+    const row = rankingRows().find((r) => r.model_id === modelId);
+    if (!row) throw new Error("Modelo não encontrado.");
+    const [icon, modelIcon] = await Promise.all([
+      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadImg(resolveModelImage(row) || avatarForModel(row)),
+    ]);
+    const canvas = buildModelCardCanvas(row, icon, modelIcon);
+    const shortName = modelId.replace(/\//g, "-").replace(/[^a-zA-Z0-9-]/g, "");
+    await _canvasDownload(canvas, `copamind_carta_${shortName}_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.png`);
+  } catch (err) { console.error(err); alert(`Erro: ${err.message}`); }
+  finally { if (btn) { btn.textContent = orig; btn.disabled = false; } }
+}
+
+async function exportAllModelCards() {
+  const btn = document.getElementById("btn-analise-export-all-cards");
+  const orig = btn?.textContent;
+  const rows = rankingRows().filter((r) => !r.is_combo && r.scored > 0);
+  if (!rows.length) { alert("Sem dados."); return; }
+  if (btn) btn.disabled = true;
+  const icon = await _loadImg("../../docs/assets/copamind_2026.png");
+  const date = new Date().toISOString().slice(0,10).replace(/-/g,"");
+  for (let i = 0; i < rows.length; i++) {
+    if (btn) btn.textContent = `${i+1}/${rows.length}...`;
+    try {
+      const row = rows[i];
+      const mi = await _loadImg(resolveModelImage(row) || avatarForModel(row));
+      const canvas = buildModelCardCanvas(row, icon, mi);
+      const sn = row.model_id.replace(/\//g, "-").replace(/[^a-zA-Z0-9-]/g, "");
+      await _canvasDownload(canvas, `copamind_carta_${sn}_${date}.png`);
+      await new Promise((r) => setTimeout(r, 300));
+    } catch (err) { console.error(`Erro carta ${rows[i].model_id}:`, err); }
+  }
+  if (btn) { btn.textContent = orig; btn.disabled = false; }
+}
+
+// ── Canvas ────────────────────────────────────────────────────────────────────
+
+function buildEvolucaoCanvas(rows, phases) {
+  const C = _canvasPalette(), F = _canvasF, PAD = 20;
+  const CHART_X = 54, CHART_Y = 70, CHART_W = 860, CHART_H = 380;
+  const LEG_COLS = 4, LEG_ROW_H = 21;
+  const nLegRows = Math.ceil(rows.length / LEG_COLS);
+  const W = PAD * 2 + CHART_X + CHART_W;
+  const H = 62 + CHART_Y + CHART_H + 30 + nLegRows * LEG_ROW_H + 34;
+  const nP = phases.length;
+  const xOf = (ph) => nP > 1 ? CHART_X + (phases.indexOf(ph) / (nP - 1)) * CHART_W : CHART_X + CHART_W / 2;
+  const S = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W * S; canvas.height = H * S;
+  const ctx = canvas.getContext("2d"); ctx.scale(S, S);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  const hG = ctx.createLinearGradient(0,0,W,62); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
+  ctx.fillStyle = hG; ctx.fillRect(0, 0, W, 62);
+  _canvasTxt(ctx, "EVOLUÇÃO DA ACURÁCIA POR FASE  —  COPAMIND 2026", PAD, 22, F(10,true), C.accent);
+  _canvasTxt(ctx, `${rows.length} modelos · ${phases.length} fases · mesmo contexto · mesma regra JSON`, PAD, 38, F(9), C.muted);
+  _canvasTxt(ctx, new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}), W-PAD, 22, F(9), C.muted, "right");
+  ctx.fillStyle = C.accent; ctx.fillRect(0, 60, W, 2);
+  [0,25,50,75,100].forEach((pct) => {
+    const y = CHART_Y + CHART_H - (pct/100) * CHART_H;
+    ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.setLineDash(pct>0?[3,4]:[]);
+    ctx.beginPath(); ctx.moveTo(CHART_X,y); ctx.lineTo(CHART_X+CHART_W,y); ctx.stroke();
+    ctx.setLineDash([]);
+    _canvasTxt(ctx, `${pct}%`, CHART_X-6, y+4, F(9), C.muted, "right");
+  });
+  phases.forEach((ph) => {
+    const x = xOf(ph);
+    ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(x,CHART_Y); ctx.lineTo(x,CHART_Y+CHART_H+8); ctx.stroke();
+    ctx.setLineDash([]);
+    _canvasTxt(ctx, PHASE_LABELS[ph]||ph, x, CHART_Y+CHART_H+24, F(10,true), C.muted, "center");
+  });
+  rows.forEach((row, ri) => {
+    const color = _analiseIndexColor(ri);
+    const pts = phases.map((ph) => {
+      const p = row.phases.find((p) => p.phase===ph);
+      return p && Number(p.scored)>0 ? {x:xOf(ph), y:CHART_Y+CHART_H-(p.accuracy||0)*CHART_H} : null;
+    });
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = 0.88;
+    let seg = false;
+    pts.forEach((pt, i) => {
+      if (!pt) { if (seg) ctx.stroke(); seg=false; return; }
+      if (!seg) { ctx.beginPath(); ctx.moveTo(pt.x,pt.y); seg=true; } else ctx.lineTo(pt.x,pt.y);
+      if (i===pts.length-1) ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    pts.forEach((pt) => { if (!pt) return; ctx.fillStyle=color; ctx.beginPath(); ctx.arc(pt.x,pt.y,4,0,Math.PI*2); ctx.fill(); });
+  });
+  const legY = 62 + CHART_Y + CHART_H + 30;
+  const legItemW = (W - PAD*2 - CHART_X) / LEG_COLS;
+  rows.forEach((row, ri) => {
+    const col=ri%LEG_COLS, lrow=Math.floor(ri/LEG_COLS);
+    const lx=PAD+CHART_X+col*legItemW, ly=legY+lrow*LEG_ROW_H;
+    ctx.fillStyle=_analiseIndexColor(ri); ctx.fillRect(lx, ly+5, 12, 10);
+    _canvasTxt(ctx, (row.display_name||row.model_id).replace(/^[^/]+\//,"").slice(0,22), lx+16, ly+14, F(9), C.text);
+  });
+  const fy=H-26; ctx.fillStyle=C.border; ctx.fillRect(PAD,fy-6,W-PAD*2,1);
+  _canvasTxt(ctx,"github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",W/2,fy+10,F(9),C.muted,"center");
+  return canvas;
+}
+
+function buildHeatmapCanvas(rows, phases) {
+  const C = _canvasPalette(), F = _canvasF, PAD = 20;
+  const RANK_W=28, NAME_W=186, PH_W=112, TOT_W=84, HEAD_H=56, COL_H=36, ROW_H=48, FOOT_H=36;
+  const W = PAD*2 + RANK_W + NAME_W + phases.length*PH_W + TOT_W;
+  const H = HEAD_H + COL_H + rows.length*ROW_H + FOOT_H;
+  const S = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W*S; canvas.height = H*S;
+  const ctx = canvas.getContext("2d"); ctx.scale(S, S);
+  ctx.fillStyle = C.bg; ctx.fillRect(0,0,W,H);
+  const hG=ctx.createLinearGradient(0,0,W,HEAD_H); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
+  ctx.fillStyle=hG; ctx.fillRect(0,0,W,HEAD_H);
+  _canvasTxt(ctx,"MAPA DE CALOR — ACURÁCIA POR FASE  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
+  _canvasTxt(ctx,"Verde = alta acurácia · cinza = sem dados · acertos/total na célula",PAD,38,F(9),C.muted);
+  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  ctx.fillStyle=C.accent; ctx.fillRect(0,HEAD_H-2,W,2);
+  ctx.fillStyle=C.panel; ctx.fillRect(0,HEAD_H,W,COL_H);
+  phases.forEach((ph,i)=>{
+    const cx=PAD+RANK_W+NAME_W+i*PH_W+PH_W/2;
+    _canvasTxt(ctx,PHASE_LABELS[ph]||ph,cx,HEAD_H+24,F(10,true),C.muted,"center");
+  });
+  _canvasTxt(ctx,"Total",PAD+RANK_W+NAME_W+phases.length*PH_W+TOT_W/2,HEAD_H+24,F(10,true),C.gold,"center");
+  ctx.fillStyle=C.border; ctx.fillRect(0,HEAD_H+COL_H-1,W,1);
+  rows.forEach((row,ri)=>{
+    const ry=HEAD_H+COL_H+ri*ROW_H;
+    ctx.fillStyle=ri%2===0?"#1a1f2c":C.bg; ctx.fillRect(0,ry,W,ROW_H-1);
+    _canvasTxt(ctx,String(ri+1),PAD+RANK_W/2,ry+ROW_H/2+5,F(10,true),C.gold,"center");
+    _canvasTxt(ctx,(row.display_name||row.model_id).replace(/^[^/]+\//,"").slice(0,17),PAD+RANK_W+4,ry+ROW_H/2+4,F(10,true),C.text);
+    phases.forEach((ph,i)=>{
+      const cx=PAD+RANK_W+NAME_W+i*PH_W;
+      const p=row.phases.find((p)=>p.phase===ph);
+      const acc=p&&Number(p.scored)>0?(p.accuracy||0):null;
+      if (acc!==null) {
+        let r,g,b;
+        if (acc<0.5){const f=acc*2;r=Math.round(0x22+f*(0xf2-0x22));g=Math.round(0x2a+f*(0xc9-0x2a));b=Math.round(0x3a+f*(0x4c-0x3a));}
+        else{const f=(acc-0.5)*2;r=Math.round(0xf2+f*(0x38-0xf2));g=Math.round(0xc9+f*(0xd6-0xc9));b=Math.round(0x4c+f*(0xa5-0x4c));}
+        ctx.fillStyle=`rgb(${r},${g},${b})`; ctx.fillRect(cx+3,ry+5,PH_W-6,ROW_H-10);
+        const tC=acc>0.35&&acc<0.75?"rgba(0,0,0,0.85)":C.text;
+        _canvasTxt(ctx,`${Math.round(acc*100)}%`,cx+PH_W/2,ry+ROW_H/2-1,F(12,true),tC,"center");
+        const hits=p.winner_hits!=null?p.winner_hits:Math.round(acc*p.scored);
+        _canvasTxt(ctx,`${hits}/${p.scored}`,cx+PH_W/2,ry+ROW_H/2+13,F(8),acc>0.35&&acc<0.75?"rgba(0,0,0,0.6)":C.muted,"center");
+      } else {
+        _canvasTxt(ctx,"—",cx+PH_W/2,ry+ROW_H/2+5,F(11),C.dim,"center");
+      }
+    });
+    const ts=row.phases.reduce((s,p)=>s+(p.scored||0),0);
+    const th=row.phases.reduce((s,p)=>s+(p.winner_hits!=null?p.winner_hits:Math.round((p.accuracy||0)*(p.scored||0))),0);
+    const tcx=PAD+RANK_W+NAME_W+phases.length*PH_W;
+    if (ts>0) {
+      _canvasTxt(ctx,`${Math.round(th/ts*100)}%`,tcx+TOT_W/2,ry+ROW_H/2-1,F(12,true),C.gold,"center");
+      _canvasTxt(ctx,`${th}/${ts}`,tcx+TOT_W/2,ry+ROW_H/2+13,F(8),C.muted,"center");
+    }
+    ctx.fillStyle=C.border; ctx.fillRect(0,ry+ROW_H-1,W,1);
+  });
+  const fy=HEAD_H+COL_H+rows.length*ROW_H;
+  ctx.fillStyle=C.border; ctx.fillRect(PAD,fy+8,W-PAD*2,1);
+  _canvasTxt(ctx,"github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",W/2,fy+26,F(9),C.muted,"center");
+  return canvas;
+}
+
+function buildEstrelasCanvas(rows, phases) {
+  const C=_canvasPalette(), F=_canvasF, PAD=20;
+  const SC=STAR_SCORE_COLORS;
+  const NAME_W=210, BAR_W=490, VAL_W=90, HEAD_H=60, COL_H=32, ROW_H=44, FOOT_H=36;
+  const selPh=new Set(phases);
+  const rowData=rows.map((row)=>{
+    const stars={1:0,2:0,3:0,4:0,5:0};
+    row.phases.filter((p)=>selPh.has(p.phase)).forEach((p)=>{for(let n=1;n<=5;n++)stars[n]+=(Number(p[`s${n}`])||0);});
+    const total=Object.values(stars).reduce((s,v)=>s+v,0);
+    const weight=total>0?(stars[5]*5+stars[4]*4+stars[3]*3+stars[2]*2+stars[1])/total:0;
+    return {...row,stars,total,weight};
+  });
+  const W=PAD*2+NAME_W+BAR_W+VAL_W, H=HEAD_H+COL_H+rowData.length*ROW_H+FOOT_H;
+  const maxTotal=Math.max(...rowData.map((r)=>r.total),1), S=2;
+  const canvas=document.createElement("canvas"); canvas.width=W*S; canvas.height=H*S;
+  const ctx=canvas.getContext("2d"); ctx.scale(S,S);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const hG=ctx.createLinearGradient(0,0,W,HEAD_H); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
+  ctx.fillStyle=hG; ctx.fillRect(0,0,W,HEAD_H);
+  _canvasTxt(ctx,"DISTRIBUIÇÃO DE QUALIDADE DAS PREVISÕES  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
+  _canvasTxt(ctx,"★★★★★ tudo certo · barras maiores = mais jogos · ranking do bolão",PAD,38,F(9),C.muted);
+  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  ctx.fillStyle=C.accent; ctx.fillRect(0,HEAD_H-2,W,2);
+  ctx.fillStyle=C.panel; ctx.fillRect(0,HEAD_H,W,COL_H);
+  let lx=PAD+NAME_W;
+  [[5,"★★★★★","Tudo certo"],[4,"★★★★","+Tempo"],[3,"★★★","Placar exato"],[2,"★★","1 gol certo"],[1,"★","Vencedor"]].forEach(([n,stars,lbl])=>{
+    const sw=BAR_W/5; ctx.fillStyle=SC[n]; ctx.fillRect(lx+4,HEAD_H+8,10,16);
+    _canvasTxt(ctx,stars,lx+18,HEAD_H+18,F(9,true),SC[n]); _canvasTxt(ctx,lbl,lx+18,HEAD_H+28,F(7),C.muted); lx+=sw;
+  });
+  ctx.fillStyle=C.border; ctx.fillRect(0,HEAD_H+COL_H-1,W,1);
+  rowData.forEach((row,ri)=>{
+    const ry=HEAD_H+COL_H+ri*ROW_H;
+    ctx.fillStyle=ri%2===0?"#1a1f2c":C.bg; ctx.fillRect(0,ry,W,ROW_H-1);
+    _canvasTxt(ctx,String(ri+1),PAD+16,ry+ROW_H/2+5,F(10,true),C.gold,"center");
+    _canvasTxt(ctx,(row.display_name||row.model_id).replace(/^[^/]+\//,"").slice(0,20),PAD+30,ry+ROW_H/2+4,F(10,true),C.text);
+    const bx=PAD+NAME_W, totalBarW=row.total>0?(row.total/maxTotal)*BAR_W:0;
+    ctx.fillStyle="#222a3a"; ctx.fillRect(bx,ry+11,BAR_W,22);
+    let offset=0;
+    [5,4,3,2,1].forEach((n)=>{
+      const count=row.stars[n]||0; if(!count||!row.total)return;
+      const sw=(count/row.total)*totalBarW;
+      ctx.fillStyle=SC[n]; ctx.fillRect(bx+offset,ry+11,sw,22);
+      if(sw>22)_canvasTxt(ctx,String(count),bx+offset+sw/2,ry+26,F(9,true),"rgba(0,0,0,0.8)","center");
+      offset+=sw;
+    });
+    _canvasTxt(ctx,`${row.total} jogos`,bx+BAR_W+8,ry+ROW_H/2,F(10,true),C.text);
+    _canvasTxt(ctx,`★ ${row.weight.toFixed(1)} méd.`,bx+BAR_W+8,ry+ROW_H/2+14,F(8),C.muted);
+    ctx.fillStyle=C.border; ctx.fillRect(0,ry+ROW_H-1,W,1);
+  });
+  const fy=HEAD_H+COL_H+rowData.length*ROW_H;
+  ctx.fillStyle=C.border; ctx.fillRect(PAD,fy+8,W-PAD*2,1);
+  _canvasTxt(ctx,"github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",W/2,fy+26,F(9),C.muted,"center");
+  return canvas;
+}
+
+function buildScatterCanvas(rows) {
+  const rankRows=rankingRows().filter((r)=>!r.is_combo&&r.scored>0);
+  const selIds=new Set(rows.map((r)=>r.model_id));
+  const filtered=rankRows.filter((r)=>selIds.has(r.model_id));
+  const C=_canvasPalette(), F=_canvasF, PAD=20;
+  const CHART_X=60, CHART_Y=70, CHART_W=680, CHART_H=420;
+  const W=PAD*2+CHART_X+CHART_W+40, H=62+CHART_Y+CHART_H+50+34;
+  const maxPts=Math.max(...filtered.map((r)=>r.points||0),10), S=2;
+  const canvas=document.createElement("canvas"); canvas.width=W*S; canvas.height=H*S;
+  const ctx=canvas.getContext("2d"); ctx.scale(S,S);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const hG=ctx.createLinearGradient(0,0,W,62); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
+  ctx.fillStyle=hG; ctx.fillRect(0,0,W,62);
+  _canvasTxt(ctx,"SCATTER: ACURÁCIA × PONTOS  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
+  _canvasTxt(ctx,"Cada círculo = 1 modelo · tamanho ∝ √jogos pontuados · cor = família",PAD,38,F(9),C.muted);
+  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  ctx.fillStyle=C.accent; ctx.fillRect(0,60,W,2);
+  [0,25,50,75,100].forEach((pct)=>{
+    const x=CHART_X+(pct/100)*CHART_W;
+    ctx.strokeStyle=C.dim; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(x,CHART_Y); ctx.lineTo(x,CHART_Y+CHART_H); ctx.stroke();
+    ctx.setLineDash([]);
+    _canvasTxt(ctx,`${pct}%`,x,CHART_Y+CHART_H+18,F(9),C.muted,"center");
+  });
+  const step=Math.ceil(maxPts/5);
+  for(let p=0;p<=maxPts;p+=step){
+    const y=CHART_Y+CHART_H-(p/maxPts)*CHART_H;
+    ctx.strokeStyle=C.dim; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(CHART_X,y); ctx.lineTo(CHART_X+CHART_W,y); ctx.stroke();
+    ctx.setLineDash([]);
+    _canvasTxt(ctx,String(p),CHART_X-6,y+4,F(8),C.muted,"right");
+  }
+  _canvasTxt(ctx,"Acurácia →",CHART_X+CHART_W/2,CHART_Y+CHART_H+36,F(9,true),C.muted,"center");
+  ctx.save(); ctx.translate(CHART_X-42,CHART_Y+CHART_H/2); ctx.rotate(-Math.PI/2);
+  _canvasTxt(ctx,"↑ Pontos",0,0,F(9,true),C.muted,"center"); ctx.restore();
+  const medPts=filtered.reduce((s,r)=>s+(r.points||0),0)/(filtered.length||1);
+  const eliteX=CHART_X+0.6*CHART_W, eliteY=CHART_Y+CHART_H-(medPts/maxPts)*CHART_H;
+  ctx.fillStyle="#38d6a510"; ctx.fillRect(eliteX,CHART_Y,CHART_X+CHART_W-eliteX,eliteY-CHART_Y);
+  _canvasTxt(ctx,"Elite",CHART_X+CHART_W-22,CHART_Y+16,F(9,true),C.accent+"77","right");
+  filtered.forEach((row,ri)=>{
+    const acc=row.accuracy??0, pts=row.points??0;
+    const x=CHART_X+acc*CHART_W, y=CHART_Y+CHART_H-(pts/maxPts)*CHART_H;
+    const radius=Math.max(5,Math.min(18,Math.sqrt(row.scored)*2.2));
+    const color=_analiseColor(row.family,ri);
+    ctx.fillStyle=color+"cc"; ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(x,y,radius,0,Math.PI*2); ctx.stroke();
+    _canvasTxt(ctx,(row.display_name||row.model_id).replace(/^[^/]+\//,"").slice(0,12),x,y-radius-4,F(8),C.muted,"center");
+  });
+  const fy=H-26; ctx.fillStyle=C.border; ctx.fillRect(PAD,fy-6,W-PAD*2,1);
+  _canvasTxt(ctx,"github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",W/2,fy+10,F(9),C.muted,"center");
+  return canvas;
+}
+
+function buildPorJogoCanvas(rows, phases) {
+  const C=_canvasPalette(), F=_canvasF, PAD=20;
+  const phaseSet=new Set(phases), selIds=new Set(rows.map((r)=>r.model_id));
+  const allGames=[], seenKeys=new Set();
+  for (const item of state.phase_predictions_by_model||[]) {
+    if (!phaseSet.has(item.phase)||!selIds.has(item.model_id)) continue;
+    for (const pred of item.predictions||[]) {
+      if (pred.has_prediction===false) continue;
+      const key=`${pred.home||pred.home_team_id||""}×${pred.away||pred.away_team_id||""}`;
+      if (!seenKeys.has(key)){seenKeys.add(key);allGames.push({key,phase:item.phase,home:pred.home||pred.home_team_id||"?",away:pred.away||pred.away_team_id||"?",home_team_id:pred.home_team_id,away_team_id:pred.away_team_id,match_id:pred.match_id});}
+    }
+  }
+  allGames.sort((a,b)=>(phases.indexOf(a.phase)-phases.indexOf(b.phase))||String(a.match_id).localeCompare(String(b.match_id)));
+  const predMap={};
+  for (const item of state.phase_predictions_by_model||[]) {
+    if (!phaseSet.has(item.phase)||!selIds.has(item.model_id)) continue;
+    predMap[item.model_id]||={};
+    for (const pred of item.predictions||[]) {
+      if (pred.has_prediction===false) continue;
+      const key=`${pred.home||pred.home_team_id||""}×${pred.away||pred.away_team_id||""}`;
+      predMap[item.model_id][key]=pred;
+    }
+  }
+  if (!allGames.length) return null;
+  const NAME_W=172, CW=46, ROW_H=46, HDR_H=58, PHASE_H=22, COL_H=54, FOOT_H=34;
+  const W=PAD*2+NAME_W+allGames.length*CW, H=HDR_H+PHASE_H+COL_H+rows.length*ROW_H+FOOT_H;
+  const SCALE=Math.min(2,Math.floor(8192/W))||1;
+  const canvas=document.createElement("canvas"); canvas.width=W*SCALE; canvas.height=H*SCALE;
+  const ctx=canvas.getContext("2d"); ctx.scale(SCALE,SCALE);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const hG=ctx.createLinearGradient(0,0,W,HDR_H); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
+  ctx.fillStyle=hG; ctx.fillRect(0,0,W,HDR_H);
+  _canvasTxt(ctx,"PREVISÕES POR JOGO  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
+  _canvasTxt(ctx,`${rows.length} modelos · ${allGames.length} jogos · ranking do bolão`,PAD,38,F(9),C.muted);
+  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  ctx.fillStyle=C.accent; ctx.fillRect(0,HDR_H-2,W,2);
+  ctx.fillStyle=C.panel; ctx.fillRect(0,HDR_H,W,PHASE_H+COL_H);
+  const _fifaCodes=Object.fromEntries((state.teams||[]).filter((t)=>t.fifa_code).map((t)=>[t.team_id,t.fifa_code]));
+  const _fc=(teamId,name)=>_fifaCodes[teamId]||(name||"?").split(/\s+/)[0].slice(0,3).toUpperCase();
+  let lastPhase=null;
+  allGames.forEach((game,gi)=>{
+    const gx=PAD+NAME_W+gi*CW;
+    if (game.phase!==lastPhase) {
+      const phCount=allGames.filter((g)=>g.phase===game.phase).length, phW=phCount*CW;
+      ctx.fillStyle="#1c2438"; ctx.fillRect(gx,HDR_H,phW-1,PHASE_H);
+      _canvasTxt(ctx,PHASE_LABELS[game.phase]||game.phase,gx+phW/2,HDR_H+15,F(9,true),C.accent,"center");
+      ctx.fillStyle=C.accent; ctx.fillRect(gx,HDR_H,2,PHASE_H+COL_H);
+      lastPhase=game.phase;
+    }
+    const h3=_fc(game.home_team_id,game.home);
+    const a3=_fc(game.away_team_id,game.away);
+    ctx.save(); ctx.translate(gx+CW/2,HDR_H+PHASE_H+COL_H-4); ctx.rotate(-Math.PI/2);
+    _canvasTxt(ctx,`${h3}×${a3}`,0,0,F(9,true),C.text,"center"); ctx.restore();
+    ctx.fillStyle=C.border; ctx.fillRect(gx+CW-1,HDR_H+PHASE_H,1,COL_H);
+  });
+  ctx.fillStyle=C.border; ctx.fillRect(0,HDR_H+PHASE_H+COL_H-1,W,1);
+  const SCOLORS={
+    0:"#3a1a1a",
+    1:starScoreColor(1)+"22",
+    2:starScoreColor(2)+"22",
+    3:starScoreColor(3)+"22",
+    4:starScoreColor(4)+"22",
+    5:starScoreColor(5)+"22",
+  };
+  const STEXT={
+    0:C.red,
+    1:starScoreColor(1),
+    2:starScoreColor(2),
+    3:starScoreColor(3),
+    4:starScoreColor(4),
+    5:starScoreColor(5),
+  };
+  rows.forEach((row,ri)=>{
+    const ry=HDR_H+PHASE_H+COL_H+ri*ROW_H;
+    ctx.fillStyle=ri%2===0?"#1a1f2c":C.bg; ctx.fillRect(0,ry,W,ROW_H-1);
+    _canvasTxt(ctx,(row.display_name||row.model_id).replace(/^[^/]+\//,"").slice(0,16),PAD+4,ry+ROW_H/2+4,F(10,true),C.text);
+    allGames.forEach((game,gi)=>{
+      const gx=PAD+NAME_W+gi*CW;
+      if (gi===0||allGames[gi-1].phase!==game.phase){ctx.fillStyle=C.accent+"44"; ctx.fillRect(gx,ry,2,ROW_H);}
+      const pred=predMap[row.model_id]?.[game.key];
+      if (!pred){_canvasTxt(ctx,"—",gx+CW/2,ry+ROW_H/2+4,F(10),C.dim,"center");}
+      else {
+        const stars=pred.star_rating!=null?Number(pred.star_rating):0;
+        const hasResult=pred.actual_home_goals!=null;
+        ctx.fillStyle=hasResult?SCOLORS[stars]:"#1e2a3a"; ctx.fillRect(gx+1,ry+1,CW-2,ROW_H-3);
+        const sc=`${pred.predicted_home_goals}-${pred.predicted_away_goals}`;
+        ctx.fillStyle=hasResult?STEXT[stars]:C.muted; ctx.font=F(11,true); ctx.textAlign="center";
+        ctx.fillText(sc,gx+CW/2,ry+ROW_H/2+2); ctx.textAlign="left";
+        if (hasResult&&stars>0){
+          ctx.font=F(stars<=3?6:7,true); ctx.textAlign="center";
+          ctx.fillStyle=STEXT[stars]; ctx.fillText("★".repeat(stars),gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
+        } else if (hasResult&&stars===0){
+          ctx.fillStyle=C.red+"cc"; ctx.font=F(9,true); ctx.textAlign="center";
+          ctx.fillText("✗",gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
+        }
+      }
+      ctx.fillStyle=C.border; ctx.fillRect(gx+CW-1,ry,1,ROW_H);
+    });
+    ctx.fillStyle=C.border; ctx.fillRect(0,ry+ROW_H-1,W,1);
+  });
+  const fy=H-FOOT_H;
+  ctx.fillStyle=C.panel; ctx.fillRect(0,fy,W,FOOT_H-8);
+  const legDefs=[[5,"Tudo certo"],[4,"+Tempo"],[3,"Placar exato"],[2,"1 gol certo"],[1,"Vencedor"],[0,"Errou"]];
+  const legSlot=W/legDefs.length;
+  legDefs.forEach(([n,lbl],i)=>{
+    const lx=i*legSlot+legSlot/2;
+    _canvasTxt(ctx,n>0?"★".repeat(Number(n)):"✗",lx,fy+12,F(8,true),STEXT[Number(n)],"center");
+    _canvasTxt(ctx,lbl,lx,fy+22,F(7),C.muted,"center");
+  });
+  ctx.fillStyle=C.border; ctx.fillRect(PAD,fy+FOOT_H-10,W-PAD*2,1);
+  return canvas;
+}
+
+function buildModelCardCanvas(row, icon, modelIcon) {
+  const C=_canvasPalette(), F=_canvasF, PAD=24, W=800;
+  const SC=STAR_SCORE_COLORS;
+  const rankIdx=rankingRows().filter((r)=>!r.is_combo).findIndex((r)=>r.model_id===row.model_id);
+  // Per-game predictions
+  const mgp={};
+  for (const item of state.phase_predictions_by_model||[]) {
+    if (item.model_id!==row.model_id) continue;
+    const valid=(item.predictions||[]).filter((p)=>p.has_prediction!==false&&p.predicted_home_goals!=null);
+    if (valid.length) mgp[item.phase]=valid;
+  }
+  // Dynamic phase heights
+  const PH_HEAD=32, GR=17, PH_PAD=6, PH_GAP=14;
+  const phRH=(ph)=>{const hasData=row.phase_scores[ph]?.scored>0;if(!hasData)return PH_HEAD;return PH_HEAD+(mgp[ph]||[]).length*GR+PH_PAD;};
+  const totalPhH=BULK_PHASES.reduce((s,ph)=>s+phRH(ph),0);
+  const HDR_H=130, STATS_H=72, PH_SECTION=PH_GAP+20+totalPhH+PH_GAP;
+  const STARS_H=94, TECH_H=96, FOOT_H=44;
+  const H=HDR_H+STATS_H+PH_SECTION+STARS_H+TECH_H+FOOT_H;
+  const S=2;
+  const canvas=document.createElement("canvas"); canvas.width=W*S; canvas.height=H*S;
+  const ctx=canvas.getContext("2d"); ctx.scale(S,S);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  // Header
+  const hG=ctx.createLinearGradient(0,0,W,HDR_H); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
+  ctx.fillStyle=hG; ctx.fillRect(0,0,W,HDR_H);
+  const ICON_SZ=72;
+  if (icon) ctx.drawImage(icon,PAD,(HDR_H-54)/2,54,54);
+  if (modelIcon){ctx.save();_roundRect(ctx,W-PAD-ICON_SZ,(HDR_H-ICON_SZ)/2,ICON_SZ,ICON_SZ,12);ctx.clip();ctx.drawImage(modelIcon,W-PAD-ICON_SZ,(HDR_H-ICON_SZ)/2,ICON_SZ,ICON_SZ);ctx.restore();}
+  const tx=PAD+62;
+  _canvasTxt(ctx,"COPAMIND 2026  ·  ANÁLISE DE LLM LOCAL",tx,28,F(9,true),C.accent);
+  _canvasTxt(ctx,(row.display_name||row.model_id).replace(/^[^/]+\//,""),tx,66,F(24,true),C.text);
+  _canvasTxt(ctx,`${row.family||"local"}  ·  ${row.model_id}`,tx,84,F(9),C.muted);
+  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD-ICON_SZ-10,HDR_H-18,F(9),C.muted,"right");
+  ctx.fillStyle=C.accent; ctx.fillRect(0,HDR_H-2,W,2);
+  let cy=HDR_H;
+  // Stats bar
+  const sItems=[
+    {label:"JOGOS PONTUADOS",value:String(row.scored)},
+    {label:"ACURÁCIA GERAL",value:row.accuracy!=null?`${Math.round(row.accuracy*100)}%`:"—"},
+    {label:"PONTOS TOTAIS",value:String(row.points||0)},
+    {label:"RANKING",value:rankIdx>=0?`#${rankIdx+1}`:"—"},
+  ];
+  ctx.fillStyle=C.panel; ctx.fillRect(0,cy,W,STATS_H);
+  const sw=W/sItems.length;
+  sItems.forEach((s,i)=>{
+    if(i>0){ctx.fillStyle=C.border;ctx.fillRect(i*sw,cy+12,1,STATS_H-24);}
+    const cx=i*sw+sw/2;
+    _canvasTxt(ctx,s.label,cx,cy+22,F(9,true),C.muted,"center");
+    _canvasTxt(ctx,s.value,cx,cy+54,F(22,true),C.text,"center");
+  });
+  ctx.fillStyle=C.border; ctx.fillRect(0,cy+STATS_H-1,W,1); cy+=STATS_H;
+  // Phase breakdown with games
+  cy+=PH_GAP;
+  _canvasTxt(ctx,"DESEMPENHO POR FASE",PAD,cy+14,F(9,true),C.accent); cy+=20;
+  const BAR_X=PAD+140, BAR_END=W-PAD-96, BAR_MAX=BAR_END-BAR_X;
+  const _s3=(name)=>(name||"?").trim().split(/\s+/)[0].slice(0,3).toUpperCase();
+  BULK_PHASES.forEach((ph)=>{
+    const score=row.phase_scores[ph], hasData=score&&Number(score.scored)>0;
+    const preds=mgp[ph]||[];
+    _canvasTxt(ctx,PHASE_LABELS[ph]||ph,PAD,cy+20,F(10,true),hasData?C.text:C.dim);
+    if (hasData){
+      const acc=score.accuracy||0, bw=Math.round(BAR_MAX*acc);
+      ctx.fillStyle="#222a3a"; ctx.fillRect(BAR_X,cy+10,BAR_MAX,16);
+      const grad=ctx.createLinearGradient(BAR_X,0,BAR_X+bw,0);
+      grad.addColorStop(0,C.accent); grad.addColorStop(1,"#f2c94c");
+      ctx.fillStyle=grad; ctx.fillRect(BAR_X,cy+10,bw,16);
+      _canvasTxt(ctx,`${Math.round(acc*100)}%`,BAR_END+8,cy+22,F(11,true),C.accent);
+      const hits=score.winner_hits!=null?score.winner_hits:Math.round(acc*score.scored);
+      _canvasTxt(ctx,`${hits}/${score.scored}`,BAR_END+60,cy+22,F(9),C.muted);
+    } else {
+      _canvasTxt(ctx,"Sem dados",BAR_X,cy+20,F(9),C.dim);
+    }
+    cy+=PH_HEAD;
+    if (hasData&&preds.length){
+      preds.forEach((pred)=>{
+        const stars=pred.star_rating!=null?Number(pred.star_rating):0;
+        const hasResult=pred.actual_home_goals!=null;
+        const sc=SC[stars]||C.muted;
+        ctx.fillStyle=(sc||"#888")+(hasResult?(stars>=1?"18":"22"):"0a");
+        ctx.fillRect(BAR_X-4,cy+1,W-PAD-BAR_X+4,GR-2);
+        const h3=_s3(pred.home), a3=_s3(pred.away);
+        const predScore=`${pred.predicted_home_goals}-${pred.predicted_away_goals}`;
+        _canvasTxt(ctx,`${h3} × ${a3}`,BAR_X,cy+12,F(9),C.muted);
+        _canvasTxt(ctx,predScore,BAR_X+80,cy+12,F(9,true),hasResult?(stars>=1?sc:C.red):C.muted);
+        if (hasResult){
+          _canvasTxt(ctx,"→",BAR_X+116,cy+12,F(8),C.dim);
+          _canvasTxt(ctx,`(${pred.actual_home_goals}-${pred.actual_away_goals})`,BAR_X+128,cy+12,F(9),C.muted);
+          if (stars>0) _canvasTxt(ctx,"★".repeat(stars),W-PAD-4,cy+12,F(stars>3?7:8,true),sc,"right");
+          else _canvasTxt(ctx,"✗",W-PAD-4,cy+12,F(9,true),C.red,"right");
+        }
+        cy+=GR;
+      });
+      cy+=PH_PAD;
+    }
+  });
+  cy+=PH_GAP; ctx.fillStyle=C.border; ctx.fillRect(PAD,cy,W-PAD*2,1); cy+=12;
+  // Stars distribution
+  _canvasTxt(ctx,"DISTRIBUIÇÃO DE ESTRELAS",PAD,cy+14,F(9,true),C.accent); cy+=22;
+  const stars={1:0,2:0,3:0,4:0,5:0};
+  BULK_PHASES.forEach((ph)=>{const s=row.phase_scores[ph];if(!s)return;for(let n=1;n<=5;n++)stars[n]+=(Number(s[`s${n}`])||0);});
+  const totalStars=Object.values(stars).reduce((s,v)=>s+v,0);
+  const SBAR_X=PAD+10, SBAR_W=W-PAD*2-20;
+  ctx.fillStyle="#222a3a"; ctx.fillRect(SBAR_X,cy,SBAR_W,28);
+  let sx=SBAR_X;
+  [5,4,3,2,1].forEach((n)=>{
+    const count=stars[n]||0;if(!count||!totalStars)return;
+    const sw2=Math.round((count/totalStars)*SBAR_W);
+    ctx.fillStyle=SC[n]; ctx.fillRect(sx,cy,sw2,28);
+    if(sw2>28)_canvasTxt(ctx,`${"★".repeat(n)} ${count}`,sx+sw2/2,cy+18,F(9,true),"rgba(0,0,0,0.8)","center");
+    sx+=sw2;
+  });
+  cy+=34;
+  let legX=SBAR_X;
+  [[5,"Tudo certo"],[4,"+Tempo"],[3,"Placar exato"],[2,"1 gol certo"],[1,"Vencedor"]].forEach(([n,lbl])=>{
+    ctx.fillStyle=SC[Number(n)]; ctx.fillRect(legX,cy+3,9,9);
+    _canvasTxt(ctx,`${"★".repeat(Number(n))}: ${stars[Number(n)]} (${lbl})`,legX+13,cy+11,F(8),C.muted);
+    legX+=138;
+  });
+  cy+=18; ctx.fillStyle=C.border; ctx.fillRect(PAD,cy,W-PAD*2,1); cy+=12;
+  // Tech metrics
+  _canvasTxt(ctx,"MÉTRICAS TÉCNICAS",PAD,cy+14,F(9,true),C.accent); cy+=22;
+  const tech=[
+    ["JSON válido",row.json_rate!=null?`${Math.round(row.json_rate*100)}%`:"—"],
+    ["Velocidade",row.avg_tokens_per_second!=null?`${row.avg_tokens_per_second.toFixed(1)} tok/s`:"—"],
+    ["Latência",row.avg_latency_ms!=null?`${Math.round(row.avg_latency_ms)} ms`:"—"],
+    ["Brier médio",row.brier_avg!=null?row.brier_avg.toFixed(3):"—"],
+    ["Acertos",row.scored>0?`${row.scored-row.wrong}/${row.scored}`:"—"],
+    ["Placar exato",row.scored>0?String(row.exact||0):"—"],
+  ];
+  tech.forEach(([label,value],i)=>{
+    const col=i%3, lrow=Math.floor(i/3);
+    const tx2=PAD+col*((W-PAD*2)/3), ty=cy+lrow*28;
+    _canvasTxt(ctx,label,tx2,ty+12,F(9),C.muted); _canvasTxt(ctx,value,tx2+116,ty+12,F(11,true),C.text);
+  });
+  // Footer
+  const fy=H-FOOT_H;
+  ctx.fillStyle=C.border; ctx.fillRect(PAD,fy+6,W-PAD*2,1);
+  _canvasTxt(ctx,"github.com/Phemassa/copamind-2026  •  IA local · dados oficiais FIFA · prompt auditavel",W/2,fy+24,F(9),C.muted,"center");
   return canvas;
 }
 
@@ -2238,6 +3158,35 @@ async function publishStaticSite() {
 
 async function exportLinkedInImage() {
   const phase = activeCapturePhase || defaultCapturePhase();
+
+  // ── Resumo geral (gráfico acurácia + pontos) ────────────────────────────
+  if (phase === "resumo") {
+    const resumoRows = rankingRows().filter((r) => !r.is_combo && r.scored > 0);
+    if (!resumoRows.length) {
+      alert("Sem dados de ranking disponíveis. Processe os modelos primeiro.");
+      return;
+    }
+    const btn = document.getElementById("btn-export-linkedin");
+    const origText = btn?.textContent;
+    if (btn) { btn.textContent = "Gerando..."; btn.disabled = true; }
+    try {
+      const [icon, iconMap] = await Promise.all([
+        _loadImg("../../docs/assets/copamind_2026.png"),
+        _loadIconMap(resumoRows),
+      ]);
+      const canvas = buildResumoCanvas(icon, iconMap);
+      if (!canvas) throw new Error("Sem dados suficientes para gerar o gráfico.");
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      await _canvasDownload(canvas, `copamind_ranking_acuracia_${date}.png`);
+    } catch (err) {
+      console.error("[exportLinkedInImage/resumo]", err);
+      alert(`Erro ao gerar imagem: ${err?.message || err}`);
+    } finally {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }
+    return;
+  }
+
   const rows  = linkedInRows(phase);
   if (!rows.length) {
     alert("Sem palpites validos para exportar nesta fase. Processe os modelos primeiro.");
@@ -2291,6 +3240,34 @@ function renderLinkedInCaptures() {
   if (!state) return;
   const phase = currentCapturePhase();
   renderLinkedInPhaseTabs(phase);
+
+  // ── Resumo geral: gráfico acurácia + pontos ──────────────────────────────
+  if (phase === "resumo") {
+    const rRows = rankingRows().filter((r) => !r.is_combo && r.scored > 0);
+    document.getElementById("linkedin-summary").innerHTML = `
+      <div><span>Fase</span><strong>Geral</strong></div>
+      <div><span>Modelos</span><strong>${rRows.length}</strong></div>
+      <div><span>Jogos analisados</span><strong>${rRows.reduce((s, r) => s + r.scored, 0)}</strong></div>
+      <div><span>Melhor acurácia</span><strong>${rRows[0]?.accuracy != null ? pct(rRows[0].accuracy) : "—"}</strong></div>`;
+    document.getElementById("linkedin-team-ranking").innerHTML = "";
+    const gridEl = document.getElementById("linkedin-capture-grid");
+    gridEl.innerHTML = `<p style="padding:24px;color:#7080a0;font-size:13px">Gerando pré-visualização...</p>`;
+    // Build canvas preview asynchronously
+    Promise.all([
+      _loadImg("../../docs/assets/copamind_2026.png"),
+      _loadIconMap(rRows),
+    ]).then(([icon, iconMap]) => {
+      const canvas = buildResumoCanvas(icon, iconMap);
+      if (!canvas) { gridEl.innerHTML = `<p style="padding:24px;color:#7080a0;font-size:13px">Sem dados suficientes.</p>`; return; }
+      canvas.style.cssText = "max-width:100%;display:block;border-radius:6px;";
+      gridEl.innerHTML = "";
+      gridEl.appendChild(canvas);
+    }).catch(() => {
+      gridEl.innerHTML = `<p style="padding:24px;color:#7080a0;font-size:13px">Erro ao gerar pré-visualização.</p>`;
+    });
+    return;
+  }
+
   const rows = linkedInRows(phase);
   const phaseInfo = (state.phases || []).find((item) => item.key === phase);
   const validPredictions = rows.reduce((sum, r) => sum + r.predictions.length, 0);
@@ -2474,7 +3451,7 @@ function renderLinkedInCaptures() {
     ["★★★★★", "Tudo certo!"],
   ];
   const legendHtml = legendItems.map(([s, l]) =>
-    `<span class="resumo-star-legend-item"><span>${s}</span>${escapeHtml(l)}</span>`,
+    `<span class="resumo-star-legend-item resumo-star-level-${s.length}"><span>${s}</span>${escapeHtml(l)}</span>`,
   ).join("");
   document.getElementById("linkedin-capture-grid").innerHTML = `
     <div class="resumo-table-wrapper">
@@ -2627,7 +3604,12 @@ function renderLinkedInTeamRanking(phase, matchOrder, matchStats) {
 
 function renderLinkedInPhaseTabs(selectedPhase) {
   const phases = (state.phases || []).filter((phase) => linkedInRows(phase.key).length > 0);
-  document.getElementById("linkedin-phase-tabs").innerHTML = phases.map((phase) => `
+  const hasRankingData = rankingRows().some((r) => !r.is_combo && r.scored > 0);
+  const allTabs = [
+    ...phases,
+    ...(hasRankingData ? [{ key: "resumo", label: "Acurácia/Pts" }] : []),
+  ];
+  document.getElementById("linkedin-phase-tabs").innerHTML = allTabs.map((phase) => `
     <button class="${phase.key === selectedPhase ? "active" : ""}" type="button" data-linkedin-phase="${escapeAttr(phase.key)}">
       ${escapeHtml(phase.label)}
     </button>
