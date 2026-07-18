@@ -849,6 +849,7 @@ function renderRankingTable() {
 function renderPhaseScoreboard() {
   const rows = rankingRows().slice(0, 18);
   const phases = state.phases || [];
+  const execDates = phaseExecutionDates();
   document.getElementById("phase-scoreboard").innerHTML = `
     <div class="phase-score-grid">
       ${rows.map((row) => `
@@ -857,11 +858,13 @@ function renderPhaseScoreboard() {
           <div>
             ${phases.map((phase) => {
               const score = row.phase_scores[phase.key];
+              const dateStr = fmtExecDate((execDates[row.model_id] || {})[phase.key]);
               return `
                 <span>
                   <em>${escapeHtml(phase.label)}</em>
                   <b>${score ? `${score.points} pts` : "-"}</b>
                   <small>${score?.scored ? pct(score.accuracy) : "aguarda"}</small>
+                  ${dateStr ? `<time title="Data da execução da IA">${escapeHtml(dateStr)}</time>` : ""}
                 </span>`;
             }).join("")}
           </div>
@@ -2886,8 +2889,10 @@ function buildPorJogoCanvas(rows, phases) {
   const C=_canvasPalette(), F=_canvasF, PAD=20;
   const phaseSet=new Set(phases), selIds=new Set(rows.map((r)=>r.model_id));
   const allGames=[], seenKeys=new Set();
+  // Collect games from ALL models in the phase (not just selIds) so projected
+  // games appear even when only a subset of models predicted them
   for (const item of state.phase_predictions_by_model||[]) {
-    if (!phaseSet.has(item.phase)||!selIds.has(item.model_id)) continue;
+    if (!phaseSet.has(item.phase)) continue;
     for (const pred of item.predictions||[]) {
       if (pred.has_prediction===false) continue;
       const key=`${pred.home||pred.home_team_id||""}×${pred.away||pred.away_team_id||""}`;
@@ -2933,7 +2938,7 @@ function buildPorJogoCanvas(rows, phases) {
     }
     const h3=_fc(game.home_team_id,game.home);
     const a3=_fc(game.away_team_id,game.away);
-    ctx.save(); ctx.translate(gx+CW/2,HDR_H+PHASE_H+COL_H-4); ctx.rotate(-Math.PI/2);
+    ctx.save(); ctx.translate(gx+CW/2, HDR_H+PHASE_H+Math.round(COL_H/2)); ctx.rotate(-Math.PI/2);
     _canvasTxt(ctx,`${h3}×${a3}`,0,0,F(9,true),C.text,"center"); ctx.restore();
     ctx.fillStyle=C.border; ctx.fillRect(gx+CW-1,HDR_H+PHASE_H,1,COL_H);
   });
@@ -2966,9 +2971,10 @@ function buildPorJogoCanvas(rows, phases) {
       else {
         const stars=pred.star_rating!=null?Number(pred.star_rating):0;
         const hasResult=pred.actual_home_goals!=null;
-        ctx.fillStyle=hasResult?SCOLORS[stars]:"#1e2a3a"; ctx.fillRect(gx+1,ry+1,CW-2,ROW_H-3);
+        // Cell background: result colors for scored, dim for pending
+        ctx.fillStyle=hasResult?SCOLORS[stars]:"#252a3a"; ctx.fillRect(gx+1,ry+1,CW-2,ROW_H-3);
         const sc=`${pred.predicted_home_goals}-${pred.predicted_away_goals}`;
-        ctx.fillStyle=hasResult?STEXT[stars]:C.muted; ctx.font=F(11,true); ctx.textAlign="center";
+        ctx.fillStyle=hasResult?STEXT[stars]:C.dim; ctx.font=F(11,true); ctx.textAlign="center";
         ctx.fillText(sc,gx+CW/2,ry+ROW_H/2+2); ctx.textAlign="left";
         if (hasResult&&stars>0){
           ctx.font=F(stars<=3?6:7,true); ctx.textAlign="center";
@@ -2976,6 +2982,10 @@ function buildPorJogoCanvas(rows, phases) {
         } else if (hasResult&&stars===0){
           ctx.fillStyle=C.red+"cc"; ctx.font=F(9,true); ctx.textAlign="center";
           ctx.fillText("✗",gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
+        } else {
+          // Pending: show ? marker in dim color
+          ctx.fillStyle=C.dim; ctx.font=F(8,true); ctx.textAlign="center";
+          ctx.fillText("?",gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
         }
       }
       ctx.fillStyle=C.border; ctx.fillRect(gx+CW-1,ry,1,ROW_H);
@@ -2984,11 +2994,14 @@ function buildPorJogoCanvas(rows, phases) {
   });
   const fy=H-FOOT_H;
   ctx.fillStyle=C.panel; ctx.fillRect(0,fy,W,FOOT_H-8);
-  const legDefs=[[5,"Tudo certo"],[4,"+Tempo"],[3,"Placar exato"],[2,"1 gol certo"],[1,"Vencedor"],[0,"Errou"]];
+  const legDefs=[[5,"Tudo certo"],[4,"+Tempo"],[3,"Placar exato"],[2,"1 gol certo"],[1,"Vencedor"],[0,"Errou"],["?","Aguardando"]];
   const legSlot=W/legDefs.length;
   legDefs.forEach(([n,lbl],i)=>{
     const lx=i*legSlot+legSlot/2;
-    _canvasTxt(ctx,n>0?"★".repeat(Number(n)):"✗",lx,fy+12,F(8,true),STEXT[Number(n)],"center");
+    const isPending = n === "?";
+    const legSymbol = isPending ? "?" : n > 0 ? "★".repeat(Number(n)) : "✗";
+    const legColor  = isPending ? C.dim : STEXT[Number(n)];
+    _canvasTxt(ctx,legSymbol,lx,fy+12,F(8,true),legColor,"center");
     _canvasTxt(ctx,lbl,lx,fy+22,F(7),C.muted,"center");
   });
   ctx.fillStyle=C.border; ctx.fillRect(PAD,fy+FOOT_H-10,W-PAD*2,1);
@@ -3003,12 +3016,13 @@ function buildModelCardCanvas(row, icon, modelIcon) {
   const mgp={};
   for (const item of state.phase_predictions_by_model||[]) {
     if (item.model_id!==row.model_id) continue;
-    const valid=(item.predictions||[]).filter((p)=>p.has_prediction!==false&&p.predicted_home_goals!=null);
+    // Accept any non-missing prediction — even projected games where goals may be null
+    const valid=(item.predictions||[]).filter((p)=>p.has_prediction!==false);
     if (valid.length) mgp[item.phase]=valid;
   }
   // Dynamic phase heights
   const PH_HEAD=32, GR=17, PH_PAD=6, PH_GAP=14;
-  const phRH=(ph)=>{const hasData=row.phase_scores[ph]?.scored>0;if(!hasData)return PH_HEAD;return PH_HEAD+(mgp[ph]||[]).length*GR+PH_PAD;};
+  const phRH=(ph)=>{const hasPreds=(mgp[ph]||[]).length>0;if(!hasPreds)return PH_HEAD;return PH_HEAD+(mgp[ph]||[]).length*GR+PH_PAD;};
   const totalPhH=BULK_PHASES.reduce((s,ph)=>s+phRH(ph),0);
   const HDR_H=130, STATS_H=72, PH_SECTION=PH_GAP+20+totalPhH+PH_GAP;
   const STARS_H=94, TECH_H=96, FOOT_H=44;
@@ -3054,7 +3068,8 @@ function buildModelCardCanvas(row, icon, modelIcon) {
   BULK_PHASES.forEach((ph)=>{
     const score=row.phase_scores[ph], hasData=score&&Number(score.scored)>0;
     const preds=mgp[ph]||[];
-    _canvasTxt(ctx,PHASE_LABELS[ph]||ph,PAD,cy+20,F(10,true),hasData?C.text:C.dim);
+    const hasPreds=preds.length>0;
+    _canvasTxt(ctx,PHASE_LABELS[ph]||ph,PAD,cy+20,F(10,true),(hasData||hasPreds)?C.text:C.dim);
     if (hasData){
       const acc=score.accuracy||0, bw=Math.round(BAR_MAX*acc);
       ctx.fillStyle="#222a3a"; ctx.fillRect(BAR_X,cy+10,BAR_MAX,16);
@@ -3064,26 +3079,34 @@ function buildModelCardCanvas(row, icon, modelIcon) {
       _canvasTxt(ctx,`${Math.round(acc*100)}%`,BAR_END+8,cy+22,F(11,true),C.accent);
       const hits=score.winner_hits!=null?score.winner_hits:Math.round(acc*score.scored);
       _canvasTxt(ctx,`${hits}/${score.scored}`,BAR_END+60,cy+22,F(9),C.muted);
+    } else if (hasPreds){
+      // Predictions made but game not scored yet
+      ctx.fillStyle=C.dim; ctx.fillRect(BAR_X,cy+12,BAR_MAX,8);
+      _canvasTxt(ctx,"Palpites feitos — aguardando resultado",BAR_X+6,cy+20,F(9),C.muted);
     } else {
       _canvasTxt(ctx,"Sem dados",BAR_X,cy+20,F(9),C.dim);
     }
     cy+=PH_HEAD;
-    if (hasData&&preds.length){
+    if (preds.length){
       preds.forEach((pred)=>{
         const stars=pred.star_rating!=null?Number(pred.star_rating):0;
         const hasResult=pred.actual_home_goals!=null;
-        const sc=SC[stars]||C.muted;
-        ctx.fillStyle=(sc||"#888")+(hasResult?(stars>=1?"18":"22"):"0a");
-        ctx.fillRect(BAR_X-4,cy+1,W-PAD-BAR_X+4,GR-2);
+        const isWrong=hasResult&&stars===0;
+        const isRight=hasResult&&stars>0;
+        // Row background: red tint for wrong, subtle green for right, transparent for pending
+        if (isWrong) { ctx.fillStyle="#fb718518"; ctx.fillRect(BAR_X-4,cy+1,W-PAD-BAR_X+4,GR-2); }
+        else if (isRight) { ctx.fillStyle="#38d6a510"; ctx.fillRect(BAR_X-4,cy+1,W-PAD-BAR_X+4,GR-2); }
         const h3=_s3(pred.home), a3=_s3(pred.away);
-        const predScore=`${pred.predicted_home_goals}-${pred.predicted_away_goals}`;
+        const gh=pred.predicted_home_goals, ga=pred.predicted_away_goals;
+        const predScore=gh!=null&&ga!=null?`${gh}-${ga}`:"?";
         _canvasTxt(ctx,`${h3} × ${a3}`,BAR_X,cy+12,F(9),C.muted);
-        _canvasTxt(ctx,predScore,BAR_X+80,cy+12,F(9,true),hasResult?(stars>=1?sc:C.red):C.muted);
+        // Score: red with ✗ prefix if wrong, accent if right, muted if pending/unknown
+        const scoreColor=isWrong?C.red:isRight?C.accent:predScore==="?"?C.dim:C.muted;
+        const scorePrefix=isWrong?"✗ ":"";
+        _canvasTxt(ctx,scorePrefix+predScore,BAR_X+80,cy+12,F(9,true),scoreColor);
         if (hasResult){
-          _canvasTxt(ctx,"→",BAR_X+116,cy+12,F(8),C.dim);
-          _canvasTxt(ctx,`(${pred.actual_home_goals}-${pred.actual_away_goals})`,BAR_X+128,cy+12,F(9),C.muted);
-          if (stars>0) _canvasTxt(ctx,"★".repeat(stars),W-PAD-4,cy+12,F(stars>3?7:8,true),sc,"right");
-          else _canvasTxt(ctx,"✗",W-PAD-4,cy+12,F(9,true),C.red,"right");
+          _canvasTxt(ctx,"→",BAR_X+120,cy+12,F(8),C.dim);
+          _canvasTxt(ctx,`${pred.actual_home_goals}-${pred.actual_away_goals}`,BAR_X+132,cy+12,F(9),isWrong?C.red+"cc":C.muted);
         }
         cy+=GR;
       });
@@ -5908,6 +5931,33 @@ function formatDateTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+// Retorna {modelId: {phase: "DD/MM"}} — data mais antiga de locked_at por modelo×fase
+function phaseExecutionDates() {
+  const result = {};
+  for (const item of state.phase_predictions_by_model || []) {
+    if (item.model_id === "combo") continue;
+    let earliest = null;
+    for (const pred of item.predictions || []) {
+      const d = pred.locked_at;
+      if (!d) continue;
+      if (!earliest || d < earliest) earliest = d;
+    }
+    if (earliest) {
+      (result[item.model_id] ||= {})[item.phase] = earliest;
+    }
+  }
+  return result;
+}
+
+function fmtExecDate(isoStr) {
+  if (!isoStr) return null;
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  } catch (_) { return null; }
 }
 
 function localDateTimeValue(date) {
