@@ -6,15 +6,6 @@
   <title>CopaMind 2026 | Bolao das LLMs</title>
   <link rel="icon" type="image/png" href="../../docs/assets/icon.png" />
   <link rel="stylesheet" href="styles.css" />
-<script>window.COPAMIND_OFFLINE = true;</script>
-<style>
-/* modo offline: oculta controles locais */
-.header-actions { display: none !important; }
-#btn-refresh-scores, #run-all-models, #reset-phase-history, #reset-all-history,
-#cancel-sequential, .model-action-buttons, .context-note-form, #chat-form, #chat-reset,
-#btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }
-.offline-notice { display: flex !important; }
-</style>
 </head>
 <body>
   <main class="app">
@@ -26,7 +17,13 @@
           <h1>Bolao das LLMs</h1>
         </div>
       </div>
-      
+      <div class="header-actions">
+        <button id="open-chat-header" class="header-chat-button" type="button">Pergunte as IAs</button>
+        <button id="refresh-data" type="button">Recarregar</button>
+        <button type="button" data-export-static>Exportar HTML</button>
+        <button id="btn-publish-static" type="button" title="Exporta dados, copia para docs/ e faz git commit + push para o GitHub Pages">🚀 Publicar</button>
+        <a href="http://localhost:8501" target="_blank" rel="noreferrer">Admin</a>
+      </div>
     </header>
 
     <nav class="main-nav" aria-label="Navegacao principal">
@@ -462,7 +459,7 @@
             Gere um HTML unico com CSS, JavaScript, imagens e dados embutidos. Ele pode ser publicado
             em qualquer hospedagem simples de arquivo estatico.
           </p>
-          
+          <button type="button" data-export-static>Exportar HTML estatico</button>
           <span id="export-status"></span>
         </article>
       </div>
