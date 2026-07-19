@@ -12,6 +12,26 @@ const RUN_POLL_MS = 10000;
 const PROGRESS_POLL_MS = 2000;
 const RUN_TIMEOUT_MS = 15 * 60 * 1000;
 const BULK_PHASES = ["round_of_16", "quarterfinal", "semifinal", "third_place", "final"];
+const PUBLIC_VIEW_HASHES = Object.freeze({
+  home: "home",
+  bolao: "bolao",
+  ranking: "ranking",
+  benchmark: "benchmark",
+  analise: "analise",
+  linkedin: "resumo",
+  tabela: "tabela",
+  selecoes: "selecoes",
+  jogadores: "jogadores",
+  guia: "guia",
+  referencias: "referencias",
+  chat: "chat",
+});
+const HASH_TO_VIEW = Object.freeze({
+  ...Object.fromEntries(
+    Object.entries(PUBLIC_VIEW_HASHES).map(([view, hash]) => [hash, view]),
+  ),
+  linkedin: "linkedin",
+});
 // Escala semântica de qualidade: todo acerto usa uma cor positiva;
 // vermelho fica reservado exclusivamente para erro (0 estrelas).
 const STAR_SCORE_COLORS = Object.freeze({
@@ -32,7 +52,7 @@ const STATIC_ASSETS = [
 
 let state = null;
 let activePhase = "round_of_16";
-let activeView = "home";
+let activeView = viewFromHash() || "home";
 let activePlayerTeam = "all";
 let activePlayerRanking = "top20";
 let activeCapturePhase = null;
@@ -61,12 +81,7 @@ const CHAT_HARDWARE_DETAILS = {
 
 document.getElementById("refresh-data").addEventListener("click", () => loadData(true));
 document.getElementById("open-chat-header")?.addEventListener("click", () => {
-  activeView = "chat";
-  renderMainNav();
-  if (!chatSessionId || !chatModels.length) {
-    initializeChat().catch((error) => setChatStatus(`API do chat offline: ${error.message}`));
-  }
-  document.querySelector('[data-section="chat"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
+  activateView("chat", { scroll: true });
 });
 document.getElementById("btn-refresh-scores")?.addEventListener("click", triggerRefreshScores);
 document.getElementById("btn-export-linkedin")?.addEventListener("click", exportLinkedInImage);
@@ -88,20 +103,16 @@ document.getElementById("chat-select-none")?.addEventListener("click", () => sel
 document.getElementById("chat-question")?.addEventListener("input", updateChatSendState);
 document.querySelectorAll(".main-nav button").forEach((button) => {
   button.addEventListener("click", () => {
-    activeView = button.dataset.view || "bolao";
-    renderMainNav();
-    if (activeView === "chat" && (!chatSessionId || !chatModels.length)) {
-      initializeChat().catch((error) => setChatStatus(`API do chat offline: ${error.message}`));
-    }
+    activateView(button.dataset.view || "bolao");
   });
 });
-document.querySelectorAll("[data-home-view]").forEach((button) => {
+document.querySelectorAll(".home-nav-shortcuts [data-view], [data-home-view]").forEach((button) => {
   button.addEventListener("click", () => {
-    activeView = button.dataset.homeView || "bolao";
-    renderMainNav();
-    document.querySelector(`[data-section="${cssEscape(activeView)}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    activateView(button.dataset.homeView || button.dataset.view || "bolao", { scroll: true });
   });
 });
+window.addEventListener("hashchange", activateViewFromLocation);
+window.addEventListener("popstate", activateViewFromLocation);
 loadData();
 if (!window.COPAMIND_OFFLINE) {
   initializeChat().catch(() => setChatStatus("API do chat offline."));
@@ -409,6 +420,42 @@ function renderAll() {
   renderGuide();
   renderReferences();
   document.getElementById("generated-at").textContent = `Snapshot: ${formatDateTime(state.generated_at)}`;
+}
+
+function viewFromHash() {
+  const hash = decodeURIComponent(window.location.hash.slice(1))
+    .trim()
+    .toLowerCase()
+    .split("/")[0];
+  return HASH_TO_VIEW[hash] || null;
+}
+
+function activateViewFromLocation() {
+  const view = viewFromHash() || "home";
+  if (view !== activeView) {
+    activateView(view, { syncHash: false, scroll: true });
+  }
+}
+
+function activateView(view, { syncHash = true, scroll = false } = {}) {
+  const nextView = Object.hasOwn(PUBLIC_VIEW_HASHES, view) ? view : "home";
+  activeView = nextView;
+  renderMainNav();
+
+  if (syncHash) {
+    const nextHash = `#${PUBLIC_VIEW_HASHES[nextView]}`;
+    if (window.location.hash !== nextHash) {
+      window.history.pushState(null, "", nextHash);
+    }
+  }
+
+  if (nextView === "chat" && (!chatSessionId || !chatModels.length)) {
+    initializeChat().catch((error) => setChatStatus(`API do chat offline: ${error.message}`));
+  }
+  if (scroll) {
+    document.querySelector(`[data-section="${cssEscape(nextView)}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function renderMainNav() {
@@ -988,18 +1035,23 @@ function renderBenchmark() {
 
 function renderBenchmarkSummary(rows) {
   const currentRows = rows.filter((row) => !row.archived);
+  const currentModelIds = new Set(currentRows.map((row) => row.model_id));
+  const cohortRuns = (state.llm?.runs || [])
+    .filter((run) => currentModelIds.has(run.model_id));
   const runs = currentRows.reduce((sum, row) => sum + row.runs, 0);
   const valid = currentRows.reduce((sum, row) => sum + row.valid_runs, 0);
-  const invalid = currentRows.reduce((sum, row) => sum + row.invalid_runs, 0);
+  const firstResponseAccepted = cohortRuns
+    .filter((run) => run.valid && (run.attempts || []).length === 1)
+    .length;
   const best = currentRows.find((row) => row.runs > 0);
   const fastest = currentRows
     .filter((row) => row.avg_tokens_per_second != null)
     .sort((a, b) => b.avg_tokens_per_second - a.avg_tokens_per_second)[0];
   document.getElementById("benchmark-summary").innerHTML = `
     <div><span>Modelos atuais</span><strong>${currentRows.length}</strong></div>
-    <div><span>Chamadas</span><strong>${runs}</strong></div>
-    <div><span>JSON valido</span><strong>${runs ? Math.round(valid / runs * 100) : 0}%</strong></div>
-    <div><span>Invalidas</span><strong>${invalid}</strong></div>
+    <div><span>Slots modelo × partida</span><strong>${runs}</strong></div>
+    <div><span>Aceite final</span><strong>${valid}/${runs} · ${runs ? num(valid / runs * 100, 1) : 0}%</strong></div>
+    <div><span>1ª resposta aceita</span><strong>${firstResponseAccepted}/${runs} · ${runs ? num(firstResponseAccepted / runs * 100, 1) : 0}%</strong></div>
     <div><span>Melhor benchmark</span><strong>${escapeHtml(best?.display_name || "Aguardando")}</strong></div>
     <div><span>Mais rapido</span><strong>${escapeHtml(fastest?.display_name || "Aguardando")}</strong></div>`;
 }
@@ -1008,7 +1060,7 @@ function renderBenchmarkTable(rows) {
   document.getElementById("benchmark-table").innerHTML = `
     <div class="benchmark-table">
       <div class="benchmark-table-head">
-        <span>#</span><span></span><span>Modelo</span><span>Bench</span><span>Bolao</span><span>JSON</span><span>Chamadas</span><span>Lat.</span><span>Tok/s</span><span>Uso</span><span>Orientacao</span>
+        <span>#</span><span></span><span>Modelo</span><span>Bench</span><span>Bolao</span><span>Aceite</span><span>Saidas</span><span>Lat.</span><span>Tok/s</span><span>Uso</span><span>Orientacao</span>
       </div>
       ${rows.map((row, index) => {
         const imgSrc = escapeAttr(resolveModelImage(row) || avatarForModel(row));
@@ -1120,7 +1172,7 @@ function renderBenchmarkCharts() {
       <em>${rows.filter((row) => row.invalid_runs > 0).length} modelos exigiram ajuste no LM Studio <span title="Modelos que precisaram de ajuste de configuracao recebem penalizacao de usabilidade no Score do Benchmark (-8 pts). O Ranking das LLMs é independente: pontos do bolao nao sofrem esta penalizacao.">⚠ penaliza benchmark</span></em>
     </aside>
     <div class="benchmark-matrix-wrap"><div class="benchmark-matrix">
-      <div class="benchmark-matrix-head"><span>Modelo</span><span title="Usabilidade (JSON+facilidade) 45% · Acertividade 30% · Performance 20% · Disponib. 5% — NÃO inclui pontos do bolão (ver Ranking das LLMs)">Score Benchmark</span><span title="Pontos do Bolão (ver Ranking das LLMs) — referência apenas, NÃO compõe o Score Benchmark">Pontos Bolão ↗</span><span class="json-head">JSON válido<small>Structured Output</small></span><span>Acerto %</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
+      <div class="benchmark-matrix-head"><span>Modelo</span><span title="Usabilidade (aceite+facilidade) 45% · Acertividade 30% · Performance 20% · Disponib. 5% — NÃO inclui pontos do bolão (ver Ranking das LLMs)">Score Benchmark</span><span title="Pontos do Bolão (ver Ranking das LLMs) — referência apenas, NÃO compõe o Score Benchmark">Pontos Bolão ↗</span><span class="json-head">Aceite final<small>contrato estruturado</small></span><span>Acerto %</span><span>Velocidade</span><span>Brier ↓</span><span>Capacidade</span></div>
       ${rows.map((row, index) => `<div class="benchmark-matrix-row">
         <div class="matrix-model"><b>${index + 1}</b><img src="${escapeAttr(resolveModelImage(row) || avatarForModel(row))}" alt=""><span><strong>${escapeHtml(row.display_name)}</strong><small>${row.runs} execuções</small></span></div>
         ${metricCell(row.benchmark_score, 100)}
@@ -2671,7 +2723,7 @@ function buildEvolucaoCanvas(rows, phases) {
   const hG = ctx.createLinearGradient(0,0,W,62); hG.addColorStop(0,"#090e18"); hG.addColorStop(1,"#161a22");
   ctx.fillStyle = hG; ctx.fillRect(0, 0, W, 62);
   _canvasTxt(ctx, "EVOLUÇÃO DA ACURÁCIA POR FASE  —  COPAMIND 2026", PAD, 22, F(10,true), C.accent);
-  _canvasTxt(ctx, `${rows.length} modelos · ${phases.length} fases · mesmo contexto · mesma regra JSON`, PAD, 38, F(9), C.muted);
+  _canvasTxt(ctx, `${rows.length} modelos · ${phases.length} fases · mesma estrutura de tarefa · mesma regra JSON`, PAD, 38, F(9), C.muted);
   _canvasTxt(ctx, new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}), W-PAD, 22, F(9), C.muted, "right");
   ctx.fillStyle = C.accent; ctx.fillRect(0, 60, W, 2);
   [0,25,50,75,100].forEach((pct) => {

@@ -46,14 +46,14 @@
         <h2>CopaMind 2026</h2>
         <p class="home-desc">
           Um experimento de benchmark com LLMs locais rodando em hardware proprio.
-          Cada modelo recebe o mesmo pacote estatistico de pre-jogo — indices FIFA, analytics derivados
-          e evidencias de jogadores — e gera um palpite estruturado em JSON para cada partida do mata-mata.
+          Cada modelo percorre a mesma estrutura de tarefa e o mesmo contrato JSON. Os pacotes usam
+          indices FIFA, analytics derivados e evidencias de jogadores disponiveis em cada execucao.
           O score e calculado fase a fase conforme os resultados oficiais chegam.
         </p>
         <div class="home-highlights">
           <div><strong id="kpi-models-home">-</strong><span>modelos locais</span></div>
           <div><strong id="kpi-matches-home">-</strong><span>jogos pontuados</span></div>
-          <div><strong id="kpi-predictions-home">-</strong><span>palpites gerados</span></div>
+          <div><strong id="kpi-predictions-home">-</strong><span>registros no histórico</span></div>
         </div>
         <div class="home-nav-shortcuts">
           <button type="button" data-view="bolao">Bolao das LLMs</button>
@@ -68,7 +68,7 @@
       <div><span>Jogos mata-mata</span><strong id="kpi-matches">-</strong></div>
       <div><span>Modelos LLM</span><strong id="kpi-models">-</strong></div>
       <div><span>Features ML</span><strong id="kpi-features">-</strong></div>
-      <div><span>Palpites</span><strong id="kpi-predictions">-</strong></div>
+      <div><span>Registros de previsão</span><strong id="kpi-predictions">-</strong></div>
     </section>
 
     <section class="phase-shell view-section" data-section="bolao">
@@ -193,7 +193,7 @@
         <div>
           <p>Benchmark de LLMs locais</p>
           <h2>CopaMind 2026</h2>
-          <span>Mesmo contexto, mesma regra JSON, previsoes auditaveis e ranking por qualidade.</span>
+          <span>Mesma estrutura de tarefa, uma regra JSON, previsoes rastreaveis e ranking multidimensional.</span>
         </div>
         <div id="linkedin-phase-tabs" class="linkedin-phase-tabs"></div>
       </div>
@@ -382,7 +382,7 @@
             <p>
               CopaMind 2026 nasceu como um laboratorio divertido e serio ao mesmo tempo: usar dados
               da Copa, modelos locais e scoring transparente para descobrir quais IAs chutam melhor
-              quando todo mundo recebe o mesmo contexto.
+              quando cada modelo percorre a mesma estrutura de tarefa e o mesmo contrato.
             </p>
             <a href="https://www.linkedin.com/in/phellype-massarente-13739810a" target="_blank" rel="noreferrer">
               Ver LinkedIn
@@ -430,8 +430,8 @@
           </ul>
         </article>
         <article class="reference-card">
-          <h3>Modelos que precisaram de ajuste</h3>
-          <p>7 modelos nao obedecem JSON livremente e precisaram de <strong>Structured Output</strong> forcado no LM Studio para gerar palpites validos.</p>
+          <h3>Perfis que exigiram ajuste no ambiente</h3>
+          <p>Durante a configuracao, 7 modelos exigiram um perfil explicito de <strong>Structured Output</strong> no LM Studio. Esta lista descreve setup; nao equivale a falhas finais do contrato.</p>
           <ul class="ref-list struct-list">
             <li>zai-org / glm-4.7-flash</li>
             <li>nvidia / nemotron-3-nano-4b</li>
@@ -441,7 +441,7 @@
             <li>qwen / qwen3.6-27b</li>
             <li>qwen / qwen3.6-35b-a3b</li>
           </ul>
-          <p>Os demais <strong>21 modelos</strong> geraram JSON valido sem configuracao adicional.</p>
+          <p>Os demais <strong>20 modelos da coorte</strong> usaram o perfil-base. No snapshot auditado, 3 modelos terminaram com pelo menos um slot sem aceite final.</p>
         </article>
         <article class="reference-card disqualified-ref-card">
           <h3>Desclassificados</h3>
