@@ -149,17 +149,21 @@
     }
   }
 
-  let translating = false;
+  const observerOptions = { childList: true, subtree: true, characterData: true };
   const observer = new MutationObserver((mutations) => {
-    if (translating) return;
-    translating = true;
-    for (const mutation of mutations) {
-      mutation.addedNodes.forEach(translateElement);
-      if (mutation.type === "characterData") translateElement(mutation.target);
+    // Disconnect while translating: changing text nodes would otherwise make
+    // the observer enqueue its own mutations indefinitely.
+    observer.disconnect();
+    try {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach(translateElement);
+        if (mutation.type === "characterData") translateElement(mutation.target);
+      }
+    } finally {
+      observer.observe(document.body, observerOptions);
     }
-    translating = false;
   });
 
   translateElement(document.body);
-  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  observer.observe(document.body, observerOptions);
 })();
