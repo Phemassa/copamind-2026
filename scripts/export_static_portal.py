@@ -9,7 +9,7 @@ Uso:
 
 O que faz:
     - Remove docs/portal/ (subpasta legada, se existir).
-    - Copia apps/portal/{index.html,styles.css,app.js,en.js} para docs/ corrigindo
+    - Copia os arquivos do portal e o catalogo ingles para docs/.
       os caminhos relativos de desenvolvimento:
         ../../docs/assets/  ->  assets/
         ../../pictures/icons/  ->  icons/
@@ -88,7 +88,9 @@ def static_html(text: str, *, english: bool = False) -> str:
         )
         text = text.replace(
             '<script src="app.js"></script>',
-            '<script src="app.js"></script>\n  <script src="en.js"></script>',
+            '<script src="en-translations.js"></script>\n'
+            '  <script src="app.js"></script>\n'
+            '  <script src="en.js"></script>',
             1,
         )
     return text
@@ -113,7 +115,7 @@ def main() -> None:
     (DOCS / "data").mkdir(parents=True, exist_ok=True)
 
     # Arquivos de texto — corrige caminhos
-    for filename in ("index.html", "styles.css", "app.js", "en.js"):
+    for filename in ("index.html", "styles.css", "app.js", "en.js", "en-translations.js"):
         src = PORTAL_SRC / filename
         if not src.exists():
             print(f"  AVISO: {filename} nao encontrado, pulando.", file=sys.stderr)
@@ -169,6 +171,7 @@ def main() -> None:
     print("  docs/styles.css")
     print("  docs/app.js")
     print("  docs/en.js")
+    print("  docs/en-translations.js")
     print("  docs/en/index.html      <- English version")
     print("  docs/data/copamind.json")
     print("  docs/assets/             <- imagens (icon, banner, fundos)")
