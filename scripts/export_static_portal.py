@@ -9,7 +9,7 @@ Uso:
 
 O que faz:
     - Remove docs/portal/ (subpasta legada, se existir).
-    - Copia apps/portal/{index.html,styles.css,app.js} para docs/ corrigindo
+    - Copia apps/portal/{index.html,styles.css,app.js,en.js} para docs/ corrigindo
       os caminhos relativos de desenvolvimento:
         ../../docs/assets/  ->  assets/
         ../../pictures/icons/  ->  icons/
@@ -49,6 +49,50 @@ SUBSTITUTIONS: list[tuple[str, str]] = [
     ),
 ]
 
+OFFLINE_HEAD = """<script>window.COPAMIND_OFFLINE = true;</script>
+<style>
+/* modo offline: oculta controles locais */
+.header-actions { display: none !important; }
+#btn-refresh-scores, #run-all-models, #reset-phase-history, #reset-all-history,
+#cancel-sequential, .model-action-buttons, .context-note-form, #chat-form, #chat-reset,
+#btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }
+.offline-notice { display: flex !important; }
+.language-switch { position: fixed; right: 18px; bottom: 18px; z-index: 1000;
+  display: flex; gap: 4px; padding: 4px; border: 1px solid rgba(120,180,255,.3);
+  border-radius: 999px; background: rgba(5,15,30,.9); backdrop-filter: blur(10px); }
+.language-switch a { padding: 7px 10px; border-radius: 999px; color: #a9c8e8;
+  font: 700 12px/1 system-ui,sans-serif; text-decoration: none; }
+.language-switch a[aria-current="page"] { color: #06101e; background: #67e8f9; }
+</style>"""
+
+
+def static_html(text: str, *, english: bool = False) -> str:
+    """Prepara uma pagina sem controles locais e com seletor de idioma."""
+    text = fix_content(text)
+    text = text.replace("</head>", f"{OFFLINE_HEAD}\n</head>", 1)
+    switch = (
+        '<nav class="language-switch" aria-label="Language">'
+        f'<a href="./"'
+        f'{" " if english else " aria-current=\"page\""}>PT</a>'
+        f'<a href="en/"'
+        f'{" aria-current=\"page\"" if english else ""}>EN</a></nav>'
+    )
+    text = text.replace("</body>", f"{switch}\n</body>", 1)
+    if english:
+        text = text.replace('<html lang="pt-BR">', '<html lang="en">', 1)
+        text = text.replace("<head>", '<head>\n  <base href="../" />', 1)
+        text = text.replace(
+            "<title>CopaMind 2026 | Bolao das LLMs</title>",
+            "<title>CopaMind 2026 | LLM Prediction Pool</title>",
+            1,
+        )
+        text = text.replace(
+            '<script src="app.js"></script>',
+            '<script src="app.js"></script>\n  <script src="en.js"></script>',
+            1,
+        )
+    return text
+
 
 def fix_content(text: str) -> str:
     for old, new in SUBSTITUTIONS:
@@ -69,14 +113,27 @@ def main() -> None:
     (DOCS / "data").mkdir(parents=True, exist_ok=True)
 
     # Arquivos de texto — corrige caminhos
-    for filename in ("index.html", "styles.css", "app.js"):
+    for filename in ("index.html", "styles.css", "app.js", "en.js"):
         src = PORTAL_SRC / filename
         if not src.exists():
             print(f"  AVISO: {filename} nao encontrado, pulando.", file=sys.stderr)
             continue
-        content = fix_content(src.read_text(encoding="utf-8"))
+        content = src.read_text(encoding="utf-8")
+        if filename == "index.html":
+            content = static_html(content)
+        else:
+            content = fix_content(content)
         (DOCS / filename).write_text(content, encoding="utf-8")
         print(f"  ok  docs/{filename}")
+
+    # Versao inglesa reutiliza CSS, JS, imagens e snapshot da raiz.
+    en_dir = DOCS / "en"
+    en_dir.mkdir(parents=True, exist_ok=True)
+    index_src = PORTAL_SRC / "index.html"
+    if index_src.exists():
+        content = static_html(index_src.read_text(encoding="utf-8"), english=True)
+        (en_dir / "index.html").write_text(content, encoding="utf-8")
+        print("  ok  docs/en/index.html")
 
     # JSON de dados — corrige caminhos de icones locais embutidos
     json_src = PORTAL_SRC / "data" / "copamind.json"
@@ -111,6 +168,8 @@ def main() -> None:
     print("  docs/index.html          <- portal (raiz do site)")
     print("  docs/styles.css")
     print("  docs/app.js")
+    print("  docs/en.js")
+    print("  docs/en/index.html      <- English version")
     print("  docs/data/copamind.json")
     print("  docs/assets/             <- imagens (icon, banner, fundos)")
     print("  docs/icons/              <- icones dos modelos")
@@ -121,7 +180,8 @@ def main() -> None:
     print("  git push")
     print()
     print("GitHub Pages URL:")
-    print("  https://phemassa.github.io/copamind-2026/portal/")
+    print("  PT: https://phemassa.github.io/copamind-2026/")
+    print("  EN: https://phemassa.github.io/copamind-2026/en/")
 
 
 if __name__ == "__main__":

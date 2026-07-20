@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CopaMind 2026 | Bolao das LLMs</title>
-  <link rel="icon" type="image/png" href="../../docs/assets/icon.png" />
+  <link rel="icon" type="image/png" href="assets/icon.png" />
   <link rel="stylesheet" href="styles.css" />
 <script>window.COPAMIND_OFFLINE = true;</script>
 <style>
@@ -14,19 +14,31 @@
 #cancel-sequential, .model-action-buttons, .context-note-form, #chat-form, #chat-reset,
 #btn-extract-url, .chat-controls, [data-section="chat"] { display: none !important; }
 .offline-notice { display: flex !important; }
+.language-switch { position: fixed; right: 18px; bottom: 18px; z-index: 1000;
+  display: flex; gap: 4px; padding: 4px; border: 1px solid rgba(120,180,255,.3);
+  border-radius: 999px; background: rgba(5,15,30,.9); backdrop-filter: blur(10px); }
+.language-switch a { padding: 7px 10px; border-radius: 999px; color: #a9c8e8;
+  font: 700 12px/1 system-ui,sans-serif; text-decoration: none; }
+.language-switch a[aria-current="page"] { color: #06101e; background: #67e8f9; }
 </style>
 </head>
 <body>
   <main class="app">
     <header class="app-header">
       <div class="brand-line">
-        <img src="../../docs/assets/icon.png" alt="" />
+        <img src="assets/icon.png" alt="" />
         <div>
           <span>CopaMind 2026</span>
           <h1>Bolao das LLMs</h1>
         </div>
       </div>
-      
+      <div class="header-actions">
+        <button id="open-chat-header" class="header-chat-button" type="button">Pergunte as IAs</button>
+        <button id="refresh-data" type="button">Recarregar</button>
+        <button type="button" data-export-static>Exportar HTML</button>
+        <button id="btn-publish-static" type="button" title="Exporta dados, copia para docs/ e faz git commit + push para o GitHub Pages">🚀 Publicar</button>
+        <a aria-disabled="true" title="Disponivel apenas no servidor local" style="opacity:.35;pointer-events:none;cursor:default">Admin</a>
+      </div>
     </header>
 
     <nav class="main-nav" aria-label="Navegacao principal">
@@ -192,7 +204,7 @@
         <button id="btn-export-linkedin" type="button">📸 Exportar imagem</button>
       </div>
       <div class="linkedin-cover">
-        <img src="../../docs/assets/copamind_2026.png" alt="CopaMind 2026" />
+        <img src="assets/copamind_2026.png" alt="CopaMind 2026" />
         <div>
           <p>Benchmark de LLMs locais</p>
           <h2>CopaMind 2026</h2>
@@ -378,7 +390,7 @@
       <div class="reference-grid">
         <!-- Row 1: Autor | Hardware | Fontes -->
         <article class="author-card">
-          <img src="../../docs/assets/phellype.jpg" alt="Phellype Flaibam Massarente" class="author-photo" />
+          <img src="assets/phellype.jpg" alt="Phellype Flaibam Massarente" class="author-photo" />
           <div>
             <span>Autor / idealizador</span>
             <h3>Phellype Flaibam Massarente</h3>
@@ -462,7 +474,7 @@
             Gere um HTML unico com CSS, JavaScript, imagens e dados embutidos. Ele pode ser publicado
             em qualquer hospedagem simples de arquivo estatico.
           </p>
-          
+          <button type="button" data-export-static>Exportar HTML estatico</button>
           <span id="export-status"></span>
         </article>
       </div>
@@ -522,5 +534,6 @@
   </main>
 
   <script src="app.js"></script>
+<nav class="language-switch" aria-label="Language"><a href="./" aria-current="page">PT</a><a href="en/">EN</a></nav>
 </body>
 </html>
