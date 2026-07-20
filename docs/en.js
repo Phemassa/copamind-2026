@@ -96,7 +96,9 @@
     "Concluido": "Completed",
     "Concluído": "Completed",
     "Sem dados": "No data",
-    "Nenhum resultado": "No results"
+    "Nenhum resultado": "No results",
+    "Consenso Geral": "Overall Consensus",
+    "Referência agregada — fora da classificação": "Aggregate reference — not ranked"
     ,"Um experimento de benchmark com LLMs locais rodando em hardware proprio. Cada modelo percorre a mesma estrutura de tarefa e o mesmo contrato JSON. Os pacotes usam indices FIFA, analytics derivados e evidencias de jogadores disponiveis em cada execucao. O score e calculado fase a fase conforme os resultados oficiais chegam.": "A benchmark experiment with local LLMs running on local hardware. Every model follows the same task structure and JSON contract. The input packages use FIFA indexes, derived analytics, and player evidence available at run time. Scores are calculated stage by stage as official results arrive."
     ,"O CopaMind transforma dados de seleções, partidas e jogadores em um pacote estatístico enxuto. Esse pacote alimenta os modelos locais no LM Studio, e cada resposta vira um palpite auditável com telemetria, pontuação e acurácia por fase.": "CopaMind turns team, match, and player data into a compact statistical package. This package feeds local models in LM Studio, and every response becomes an auditable prediction with telemetry, scoring, and stage-by-stage accuracy."
     ,"Ataque combina produção real, xG, chutes no alvo e eficiência. Defesa combina gols sofridos, clean sheets, pressão, recuperações e exposição do goleiro. Controle mede posse, circulação, precisão e ruptura de linhas. Disciplina e físico entram como risco, não como prova isolada.": "Attack combines actual output, xG, shots on target, and efficiency. Defense combines goals conceded, clean sheets, pressing, recoveries, and goalkeeper exposure. Control measures possession, ball circulation, accuracy, and line-breaking ability. Discipline and physical metrics are treated as risk factors, not standalone proof."

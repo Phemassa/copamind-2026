@@ -1336,8 +1336,13 @@ h3 { font-size: 22px; }
 }
 
 .ranking-table-row.combo-row {
-  border-color: rgba(245, 200, 76, .64);
-  background: rgba(245, 200, 76, .08);
+  margin-top: 6px;
+  border-color: rgba(167, 139, 250, .48);
+  background: rgba(167, 139, 250, .07);
+}
+
+.ranking-table-row.combo-row > span:first-child {
+  color: var(--muted);
 }
 
 .ranking-table-row > span:first-child {

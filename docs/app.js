@@ -845,11 +845,14 @@ function renderRanking() {
 
 function renderRankingSummary() {
   const rows = rankingRows();
-  const scored = rows.filter((row) => row.scored > 0).length;
-  const votes = allValidPredictions().length;
-  const best = rows.find((row) => row.scored > 0);
+  const competitiveRows = rows.filter((row) => !row.is_combo);
+  const scored = competitiveRows.filter((row) => row.scored > 0).length;
+  const votes = allValidPredictions()
+    .filter((prediction) => prediction.model_id !== "combo")
+    .length;
+  const best = competitiveRows.find((row) => row.scored > 0);
   document.getElementById("ranking-summary").innerHTML = `
-    <div><span>Modelos</span><strong>${rows.filter((row) => !row.is_combo).length}</strong></div>
+    <div><span>Modelos</span><strong>${competitiveRows.length}</strong></div>
     <div><span>Com score</span><strong>${scored}</strong></div>
     <div><span>Palpites LLM</span><strong>${votes}</strong></div>
     <div><span>Lider</span><strong>${escapeHtml(best?.display_name || "Aguardando")}</strong></div>`;
@@ -858,6 +861,9 @@ function renderRankingSummary() {
 function renderRankingTable() {
   const rows = rankingRows();
   const phases = (state.phases || []).filter((p) => p.key !== "group");
+  const aggregateReferenceTitle = document.documentElement.lang.toLowerCase().startsWith("en")
+    ? "Aggregate reference — not ranked"
+    : "Referência agregada — fora da classificação";
   document.getElementById("ranking-table").innerHTML = `
     <div class="ranking-table">
       <div class="ranking-table-head">
@@ -874,7 +880,7 @@ function renderRankingTable() {
           }).join("  ");
         return `
         <div class="ranking-table-row ${row.is_combo ? "combo-row" : ""}">
-          <span>${index + 1}</span>
+          <span${row.is_combo ? ` title="${aggregateReferenceTitle}"` : ""}>${row.is_combo ? "—" : index + 1}</span>
           <img class="row-model-icon" src="${imgSrc}" alt="" onerror="this.onerror=null;this.src='${fallback}';" />
           <strong title="${escapeAttr(row.model_id)}">${escapeHtml(row.display_name)}</strong>
           <span class="pts-cell" title="${row.wrong > 0 ? `${row.points} pts brutos − ${row.wrong} erro(s) = ${row.net_score} pts efetivos` : `${row.points} pts — sem erros penalizados`}">
@@ -1018,7 +1024,7 @@ function rankingRows() {
       };
     })
     .sort((a, b) => (
-      Number(b.is_combo) - Number(a.is_combo)
+      Number(a.is_combo) - Number(b.is_combo)
       || accuracySortValue(b.accuracy) - accuracySortValue(a.accuracy)   // acerto% = critério principal
       || (b.net_score || 0) - (a.net_score || 0)                          // pts efetivos (desempate)
       || b.points - a.points
@@ -1578,11 +1584,16 @@ function buildRankingCanvas(rows, logo, iconMap) {
   rows.forEach((row, ri) => {
     const ry = HDR_H + COL_H + ri * ROW_H;
     const even = ri % 2 === 0;
-    ctx.fillStyle = even ? "#1a1f2c" : C.bg;
+    ctx.fillStyle = row.is_combo ? "#17152a" : even ? "#1a1f2c" : C.bg;
     ctx.fillRect(PAD, ry, totalColW, ROW_H - 1);
 
     const vals = [
-      { v: String(ri + 1), align: "center", color: C.gold, bold: true },
+      {
+        v: row.is_combo ? "—" : String(ri + 1),
+        align: "center",
+        color: row.is_combo ? C.muted : C.gold,
+        bold: true,
+      },
       null, // icon handled separately
       { v: row.display_name, align: "left",   color: C.text,  bold: false },
       { v: String(row.points), align: "center", color: row.points > 0 ? C.accent : C.muted },
