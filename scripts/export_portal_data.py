@@ -123,27 +123,13 @@ def _build_payload(repo: DuckDBRepository) -> dict[str, Any]:
             ),
         )
     ]
-    # Índice de resultados por par de times (para predictions projetadas sem match_id oficial)
-    results_by_teams: dict[tuple[str, str], Any] = {}
-    for r in results.values():
-        match_obj = matches_by_id.get(r.match_id)
-        if match_obj is not None:
-            results_by_teams[(match_obj.home_team_id, match_obj.away_team_id)] = r
-
-    def _result_for(item: Any) -> Any | None:
-        """Resolve resultado pelo match_id direto ou por team_id quando projetado."""
-        direct = results.get(item.match_id)
-        if direct is not None:
-            return direct
-        if str(item.match_id).startswith("projected:") and item.home_team_id and item.away_team_id:
-            return results_by_teams.get((item.home_team_id, item.away_team_id))
-        return None
+    results_by_phase_and_teams = _results_by_phase_and_teams(results, matches_by_id)
 
     serialized_predictions_all = [
         _prediction_payload(
             item,
             matches_by_id.get(item.match_id),
-            _result_for(item),
+            _resolve_prediction_result(item, results, results_by_phase_and_teams),
             payloads.get(item.prediction_id, {}),
         )
         for item in predictions
@@ -224,6 +210,39 @@ def _build_payload(repo: DuckDBRepository) -> dict[str, Any]:
             "model_metrics": model_metrics,
         },
     }
+
+
+def _results_by_phase_and_teams(
+    results: dict[str, Any],
+    matches_by_id: dict[str, Any],
+) -> dict[tuple[str, str, str], Any]:
+    """Indexa resultados oficiais sem misturar jogos iguais em fases distintas."""
+    indexed: dict[tuple[str, str, str], Any] = {}
+    for result in results.values():
+        match = matches_by_id.get(result.match_id)
+        if match is None:
+            continue
+        indexed[(str(match.stage), match.home_team_id, match.away_team_id)] = result
+    return indexed
+
+
+def _resolve_prediction_result(
+    prediction: Any,
+    results: dict[str, Any],
+    results_by_phase_and_teams: dict[tuple[str, str, str], Any],
+) -> Any | None:
+    """Resolve uma previsão direta ou projetada exigindo fase e confronto."""
+    direct = results.get(prediction.match_id)
+    if direct is not None:
+        return direct
+    if not str(prediction.match_id).startswith("projected:"):
+        return None
+    if not prediction.home_team_id or not prediction.away_team_id:
+        return None
+    phase = _phase_from_prediction(prediction, None)
+    return results_by_phase_and_teams.get(
+        (phase, prediction.home_team_id, prediction.away_team_id)
+    )
 
 
 def _build_players(teams: list[Any]) -> list[dict[str, Any]]:

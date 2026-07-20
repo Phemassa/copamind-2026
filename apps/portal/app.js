@@ -977,9 +977,22 @@ function rankingRows() {
       const weightedAccuracy = scored
         ? phaseList.reduce((sum, item) => sum + Number(item.accuracy || 0) * Number(item.scored || 0), 0) / scored
         : null;
-      const brierValues = phaseList.map((item) => item.brier_avg).filter((value) => value != null);
-      const brier = brierValues.length
-        ? brierValues.reduce((sum, value) => sum + Number(value), 0) / brierValues.length
+      const brierRows = phaseList.filter((item) => item.brier_avg != null);
+      const brierWeight = brierRows.reduce(
+        (sum, item) => sum + Math.max(
+          0,
+          Number(item.scored || 0) - Number(item.non_played_errors || 0),
+        ),
+        0,
+      );
+      const brier = brierWeight
+        ? brierRows.reduce((sum, item) => {
+          const weight = Math.max(
+            0,
+            Number(item.scored || 0) - Number(item.non_played_errors || 0),
+          );
+          return sum + Number(item.brier_avg) * weight;
+        }, 0) / brierWeight
         : null;
       const winnerHits = phaseList.reduce((sum, item) => sum + Number(item.winner_hits || 0), 0);
       const wrong = scored - winnerHits;          // previsões com vencedor errado
