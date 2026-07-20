@@ -966,7 +966,7 @@ function rankingRows() {
   for (const score of phaseScores) {
     const id = String(score.model_id);
     scoreMap[id] ||= {};
-    scoreMap[id][score.phase] = score;
+    scoreMap[id][score.phase] = scoreWithNonPlayedErrors(id, score.phase, score);
   }
   return (state.models || [])
     .map((model) => {
@@ -1013,6 +1013,52 @@ function rankingRows() {
       || brierSortValue(a.brier_avg) - brierSortValue(b.brier_avg)
       || a.display_name.localeCompare(b.display_name)
     ));
+}
+
+function officialMatchForPrediction(prediction, phase = null) {
+  if (!prediction) return null;
+  const homeId = prediction.home_team_id;
+  const awayId = prediction.away_team_id;
+  return (state.matches || []).find((match) => (
+    (!phase || match.stage === phase)
+    && (
+      (homeId && awayId && match.home_team_id === homeId && match.away_team_id === awayId)
+      || (prediction.match_id && match.match_id === prediction.match_id
+        && (!phase || match.stage === phase))
+    )
+  )) || null;
+}
+
+function predictionDidNotOccur(prediction, phase) {
+  if (!prediction || !phase || prediction.has_prediction === false) return false;
+  if (officialMatchForPrediction(prediction, phase)) return false;
+  const officialPhaseMatches = matchesForPhase(phase)
+    .filter((match) => match.home_team_id && match.away_team_id);
+  return officialPhaseMatches.length > 0;
+}
+
+function nonPlayedPredictionCount(modelId, phase) {
+  const item = (state.phase_predictions_by_model || []).find((row) => (
+    row.model_id === modelId && row.phase === phase
+  ));
+  return (item?.predictions || []).filter((prediction) => (
+    predictionDidNotOccur(prediction, phase)
+  )).length;
+}
+
+function scoreWithNonPlayedErrors(modelId, phase, score) {
+  const nonPlayedErrors = nonPlayedPredictionCount(modelId, phase);
+  if (!nonPlayedErrors) return score;
+  const scored = Number(score.scored || 0) + nonPlayedErrors;
+  const winnerHits = Number(score.winner_hits || 0);
+  return {
+    ...score,
+    scored,
+    predictions: Math.max(Number(score.predictions || 0), scored),
+    accuracy: scored ? winnerHits / scored : null,
+    non_played_errors: nonPlayedErrors,
+    s0: Number(score.s0 || 0) + nonPlayedErrors,
+  };
 }
 
 function allValidPredictions() {
@@ -1454,7 +1500,7 @@ function _canvasHeader(ctx, W, HDR_H, PAD, logo, title, subtitle, C) {
   _canvasTxt(ctx, title, tx, HDR_H / 2 + 12, _canvasF(22, true), C.text);
   _canvasTxt(ctx, subtitle, tx, HDR_H / 2 + 28, _canvasF(11), C.muted);
 
-  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const dateStr = predictionAuditLabel();
   _canvasTxt(ctx, dateStr, W - PAD, PAD + 12, _canvasF(10), C.muted, "right");
 
   ctx.fillStyle = C.accent;
@@ -1950,7 +1996,7 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   txt("Previsão das LLMs", tx, HDR_H / 2 + 12, F(30, true), C.text);
   txt("Chances por seleção · mesmos dados · mesma regra JSON · previsões auditáveis", tx, HDR_H / 2 + 30, F(12), C.muted);
 
-  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const dateStr = predictionAuditLabel(rows.map((row) => row.model_id), [phase]);
   txt(dateStr, W - PAD, PAD + 14, F(11), C.muted, "right");
 
   // Accent line
@@ -2108,7 +2154,9 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
   // ── Summary row: acertos por modelo ──────────────────────────────────────
   const canvasFinishedKeys = [];
   matchOrder.forEach((m) => {
-    if (canvasResultMap[m._key]) canvasFinishedKeys.push(m._key);
+    if (canvasResultMap[m._key] || predictionDidNotOccur(m, phase)) {
+      canvasFinishedKeys.push(m._key);
+    }
   });
   const canvasStarCounts = {};
   rows.forEach((row) => { canvasStarCounts[row.model_id] = [0, 0, 0, 0, 0, 0]; });
@@ -2121,9 +2169,11 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
       const pred = _findPred(row.predictions || [], key);
       if (!pred) return;
       try {
-        const s = pred.star_rating != null
-          ? Number(pred.star_rating)
-          : starRating(pred, off, actual);
+        const s = predictionDidNotOccur(pred, phase)
+          ? 0
+          : pred.star_rating != null
+            ? Number(pred.star_rating)
+            : starRating(pred, off, actual);
         if (s >= 0 && s <= 5) canvasStarCounts[row.model_id][s]++;
       } catch (_) { /* ignora erros de pontuacao individual */ }
     });
@@ -2143,11 +2193,12 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
     if (nCanvasFinished > 0) {
       const sc = canvasStarCounts[row.model_id] || [];
       const correct = [1, 2, 3, 4, 5].reduce((s, n) => s + (sc[n] || 0), 0);
+      const evaluated = correct + (sc[0] || 0);
       const topStars = [5, 4, 3, 2, 1].find((n) => sc[n] > 0) || 0;
-      const scoreColor = correct === nCanvasFinished
+      const scoreColor = evaluated > 0 && correct === evaluated
         ? starScoreColor(5)
         : correct > 0 ? starScoreColor(3) : C.muted;
-      txt(`${correct}/${nCanvasFinished}`, cx + CW / 2, sy + 16, F(12, true), scoreColor, "center");
+      txt(`${correct}/${evaluated}`, cx + CW / 2, sy + 16, F(12, true), scoreColor, "center");
       if (topStars > 0) {
         const starColor = starScoreColor(topStars, C.muted);
         txt("\u2605".repeat(topStars), cx + CW / 2, sy + 32, F(topStars > 3 ? 7 : 8, true), starColor, "center");
@@ -2203,8 +2254,13 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
       const cx = tableX + ri * CW;
       const pred = _findPred(row.predictions || [], m._key);
       const side = pred ? predictedSide(pred) : null;
-      const stars = pred ? (pred.star_rating != null ? Number(pred.star_rating) : starRating(pred, _findOfficial(m), actualSide)) : 0;
-      const isWrong = actualSide != null && stars === 0 && !!pred;
+      const didNotOccur = pred ? predictionDidNotOccur(pred, phase) : false;
+      const stars = pred
+        ? (didNotOccur ? 0 : pred.star_rating != null
+          ? Number(pred.star_rating)
+          : starRating(pred, _findOfficial(m), actualSide))
+        : 0;
+      const isWrong = !!pred && (didNotOccur || (actualSide != null && stars === 0));
 
       // Cell bg
       const baseBg = even ? "#181d28" : C.bg;
@@ -2243,13 +2299,15 @@ function buildLinkedInCanvas(rows, phase, icon, iconMap) {
         const tColor = stars >= 1
           ? starScoreColor(stars)
           : isWrong ? C.red : (side === "home" ? C.tHome : side === "away" ? C.tAway : C.tDraw);
-        const scoreStr = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
+        const scoreStr = `${didNotOccur ? "Ø " : ""}${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
         const penStr = hasPen ? `(${pred.penalty_winner === "home" ? 4 : 3}–${pred.penalty_winner === "away" ? 4 : 3})` : "";
 
         ctx.globalAlpha = dimFactor;
         txt(scoreStr, cx + CW / 2, ry + (hasPen ? 22 : 26), F(13, true), tColor, "center");
         if (penStr) txt(penStr, cx + CW / 2, ry + 36, F(9), C.muted, "center");
-        const winner = side === "home" ? homeShort : side === "away" ? awayShort : "EMP";
+        const winner = didNotOccur
+          ? "NÃO JOGOU"
+          : side === "home" ? homeShort : side === "away" ? awayShort : "EMP";
         txt(
           winner.slice(0, 7),
           cx + CW / 2,
@@ -2351,16 +2409,16 @@ function buildResumoCanvas(icon, iconMap) {
   _canvasTxt(ctx, "PREVISÃO DAS LLMS · COPAMIND 2026", tx, HDR_H / 2 - 20, F(10, true), C.accent);
   _canvasTxt(ctx, "Ranking das LLMs", tx, HDR_H / 2 + 12, F(30, true), C.text);
   _canvasTxt(ctx, "Acurácia e pontos · geral · mesmos dados · previsões auditáveis", tx, HDR_H / 2 + 30, F(12), C.muted);
-  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const dateStr = predictionAuditLabel(rows.map((row) => row.model_id));
   _canvasTxt(ctx, dateStr, W - PAD, PAD + 14, F(11), C.muted, "right");
   ctx.fillStyle = C.accent; ctx.fillRect(0, HDR_H - 2, W, 2);
 
   // ── Summary bar ────────────────────────────────────────────────────────────────────
   ctx.fillStyle = C.panel; ctx.fillRect(0, HDR_H, W, SUM_H);
   const maxAcc = rows[0]?.accuracy;
-  const execDate = formatDateTime(state?.generated_at);
+  const execDate = predictionAuditLabel(rows.map((row) => row.model_id), null, false);
   const sumItems = [
-    { label: "EXECUÇÃO",         value: execDate },
+    { label: "PALPITES GERADOS", value: execDate, compact: true },
     { label: "MODELOS",          value: String(rows.length) },
     { label: "JOGOS ANALISADOS", value: String(rows.reduce((s, r) => s + r.scored, 0)) },
     { label: "MELHOR ACURÁCIA",  value: maxAcc != null ? `${Math.round(maxAcc * 100)}%` : "—" },
@@ -2370,7 +2428,9 @@ function buildResumoCanvas(icon, iconMap) {
     if (i > 0) { ctx.fillStyle = C.border; ctx.fillRect(i * sw, HDR_H + 8, 1, SUM_H - 16); }
     const cx = i * sw + sw / 2;
     _canvasTxt(ctx, item.label, cx, HDR_H + 18, F(9, true), C.muted, "center");
-    _canvasTxt(ctx, item.value, cx, HDR_H + 42, F(20, true), C.text, "center");
+    // Intervalos de datas são mais largos que os demais KPIs; fonte compacta
+    // evita corte nas bordas da primeira coluna durante a exportação em PNG.
+    _canvasTxt(ctx, item.value, cx, HDR_H + 42, F(item.compact ? 13 : 20, true), C.text, "center");
   });
   ctx.fillStyle = C.border; ctx.fillRect(0, HDR_H + SUM_H - 1, W, 1);
 
@@ -2469,7 +2529,11 @@ function analisePhaseData(selectedPhases) {
   const sm = {};
   for (const score of state.phase_model_scores || []) {
     if (score.model_id === "combo" || !phases.has(score.phase)) continue;
-    (sm[score.model_id] ||= {})[score.phase] = score;
+    (sm[score.model_id] ||= {})[score.phase] = scoreWithNonPlayedErrors(
+      score.model_id,
+      score.phase,
+      score,
+    );
   }
   const mb = Object.fromEntries((state.models || []).filter((m) => !m.is_combo).map((m) => [m.model_id, m]));
   return Object.entries(sm)
@@ -2724,8 +2788,9 @@ function buildEvolucaoCanvas(rows, phases) {
   ctx.fillStyle = hG; ctx.fillRect(0, 0, W, 62);
   _canvasTxt(ctx, "EVOLUÇÃO DA ACURÁCIA POR FASE  —  COPAMIND 2026", PAD, 22, F(10,true), C.accent);
   _canvasTxt(ctx, `${rows.length} modelos · ${phases.length} fases · mesma estrutura de tarefa · mesma regra JSON`, PAD, 38, F(9), C.muted);
-  _canvasTxt(ctx, new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}), W-PAD, 22, F(9), C.muted, "right");
-  ctx.fillStyle = C.accent; ctx.fillRect(0, 60, W, 2);
+  _canvasTxt(ctx, predictionAuditLabel(rows.map((row) => row.model_id), phases), W-PAD, 22, F(9), C.muted, "right");
+  // Divisão neutra: uma faixa verde aqui parecia uma série constante de 100%.
+  ctx.fillStyle = C.border; ctx.fillRect(0, 60, W, 1);
   [0,25,50,75,100].forEach((pct) => {
     const y = CHART_Y + CHART_H - (pct/100) * CHART_H;
     ctx.strokeStyle = C.dim; ctx.lineWidth = 1; ctx.setLineDash(pct>0?[3,4]:[]);
@@ -2783,7 +2848,7 @@ function buildHeatmapCanvas(rows, phases) {
   ctx.fillStyle=hG; ctx.fillRect(0,0,W,HEAD_H);
   _canvasTxt(ctx,"MAPA DE CALOR — ACURÁCIA POR FASE  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
   _canvasTxt(ctx,"Verde = alta acurácia · cinza = sem dados · acertos/total na célula",PAD,38,F(9),C.muted);
-  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  _canvasTxt(ctx,predictionAuditLabel(rows.map((row)=>row.model_id),phases),W-PAD,22,F(9),C.muted,"right");
   ctx.fillStyle=C.accent; ctx.fillRect(0,HEAD_H-2,W,2);
   ctx.fillStyle=C.panel; ctx.fillRect(0,HEAD_H,W,COL_H);
   phases.forEach((ph,i)=>{
@@ -2850,7 +2915,7 @@ function buildEstrelasCanvas(rows, phases) {
   ctx.fillStyle=hG; ctx.fillRect(0,0,W,HEAD_H);
   _canvasTxt(ctx,"DISTRIBUIÇÃO DE QUALIDADE DAS PREVISÕES  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
   _canvasTxt(ctx,"★★★★★ tudo certo · barras maiores = mais jogos · ranking do bolão",PAD,38,F(9),C.muted);
-  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  _canvasTxt(ctx,predictionAuditLabel(rows.map((row)=>row.model_id),phases),W-PAD,22,F(9),C.muted,"right");
   ctx.fillStyle=C.accent; ctx.fillRect(0,HEAD_H-2,W,2);
   ctx.fillStyle=C.panel; ctx.fillRect(0,HEAD_H,W,COL_H);
   let lx=PAD+NAME_W;
@@ -2899,7 +2964,7 @@ function buildScatterCanvas(rows) {
   ctx.fillStyle=hG; ctx.fillRect(0,0,W,62);
   _canvasTxt(ctx,"SCATTER: ACURÁCIA × PONTOS  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
   _canvasTxt(ctx,"Cada círculo = 1 modelo · tamanho ∝ √jogos pontuados · cor = família",PAD,38,F(9),C.muted);
-  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  _canvasTxt(ctx,predictionAuditLabel(rows.map((row)=>row.model_id)),W-PAD,22,F(9),C.muted,"right");
   ctx.fillStyle=C.accent; ctx.fillRect(0,60,W,2);
   [0,25,50,75,100].forEach((pct)=>{
     const x=CHART_X+(pct/100)*CHART_W;
@@ -2941,14 +3006,33 @@ function buildPorJogoCanvas(rows, phases) {
   const C=_canvasPalette(), F=_canvasF, PAD=20;
   const phaseSet=new Set(phases), selIds=new Set(rows.map((r)=>r.model_id));
   const allGames=[], seenKeys=new Set();
-  // Collect games from ALL models in the phase (not just selIds) so projected
-  // games appear even when only a subset of models predicted them
-  for (const item of state.phase_predictions_by_model||[]) {
-    if (!phaseSet.has(item.phase)) continue;
-    for (const pred of item.predictions||[]) {
-      if (pred.has_prediction===false) continue;
-      const key=`${pred.home||pred.home_team_id||""}×${pred.away||pred.away_team_id||""}`;
-      if (!seenKeys.has(key)){seenKeys.add(key);allGames.push({key,phase:item.phase,home:pred.home||pred.home_team_id||"?",away:pred.away||pred.away_team_id||"?",home_team_id:pred.home_team_id,away_team_id:pred.away_team_id,match_id:pred.match_id});}
+  const officialGamesByPhase={};
+  const teamNames=Object.fromEntries((state.teams||[]).map((team)=>[team.team_id,team.name]));
+  // Fases já definidas usam os confrontos oficiais como colunas. Projeções
+  // antigas continuam nas células como erro, não como um "jogo" adicional.
+  for (const phase of phases) {
+    if (!phaseSet.has(phase)) continue;
+    const official=(officialGamesByPhase[phase]=matchesForPhase(phase)
+      .filter((match)=>match.home_team_id&&match.away_team_id));
+    if (official.length) {
+      official.forEach((match)=>{
+        const key=`${phase}:${match.home_team_id}×${match.away_team_id}`;
+        if (!seenKeys.has(key)){seenKeys.add(key);allGames.push({
+          key,phase,home:match.home||teamNames[match.home_team_id]||match.home_team_id,
+          away:match.away||teamNames[match.away_team_id]||match.away_team_id,
+          home_team_id:match.home_team_id,away_team_id:match.away_team_id,
+          match_id:match.match_id,
+        });}
+      });
+      continue;
+    }
+    for (const item of state.phase_predictions_by_model||[]) {
+      if (item.phase!==phase) continue;
+      for (const pred of item.predictions||[]) {
+        if (pred.has_prediction===false) continue;
+        const key=`${phase}:${pred.home_team_id||pred.home||""}×${pred.away_team_id||pred.away||""}`;
+        if (!seenKeys.has(key)){seenKeys.add(key);allGames.push({key,phase:item.phase,home:pred.home||pred.home_team_id||"?",away:pred.away||pred.away_team_id||"?",home_team_id:pred.home_team_id,away_team_id:pred.away_team_id,match_id:pred.match_id});}
+      }
     }
   }
   allGames.sort((a,b)=>(phases.indexOf(a.phase)-phases.indexOf(b.phase))||String(a.match_id).localeCompare(String(b.match_id)));
@@ -2958,7 +3042,13 @@ function buildPorJogoCanvas(rows, phases) {
     predMap[item.model_id]||={};
     for (const pred of item.predictions||[]) {
       if (pred.has_prediction===false) continue;
-      const key=`${pred.home||pred.home_team_id||""}×${pred.away||pred.away_team_id||""}`;
+      let key=`${item.phase}:${pred.home_team_id||pred.home||""}×${pred.away_team_id||pred.away||""}`;
+      const official=officialGamesByPhase[item.phase]||[];
+      // 3º lugar e final têm uma única partida: qualquer projeção daquele
+      // modelo pertence à coluna oficial, mesmo quando previu outros times.
+      if (official.length===1) {
+        key=`${item.phase}:${official[0].home_team_id}×${official[0].away_team_id}`;
+      }
       predMap[item.model_id][key]=pred;
     }
   }
@@ -2973,7 +3063,7 @@ function buildPorJogoCanvas(rows, phases) {
   ctx.fillStyle=hG; ctx.fillRect(0,0,W,HDR_H);
   _canvasTxt(ctx,"PREVISÕES POR JOGO  —  COPAMIND 2026",PAD,22,F(10,true),C.accent);
   _canvasTxt(ctx,`${rows.length} modelos · ${allGames.length} jogos · ranking do bolão`,PAD,38,F(9),C.muted);
-  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD,22,F(9),C.muted,"right");
+  _canvasTxt(ctx,predictionAuditLabel(rows.map((row)=>row.model_id),phases),W-PAD,22,F(9),C.muted,"right");
   ctx.fillStyle=C.accent; ctx.fillRect(0,HDR_H-2,W,2);
   ctx.fillStyle=C.panel; ctx.fillRect(0,HDR_H,W,PHASE_H+COL_H);
   const _fifaCodes=Object.fromEntries((state.teams||[]).filter((t)=>t.fifa_code).map((t)=>[t.team_id,t.fifa_code]));
@@ -3021,8 +3111,9 @@ function buildPorJogoCanvas(rows, phases) {
       const pred=predMap[row.model_id]?.[game.key];
       if (!pred){_canvasTxt(ctx,"—",gx+CW/2,ry+ROW_H/2+4,F(10),C.dim,"center");}
       else {
-        const stars=pred.star_rating!=null?Number(pred.star_rating):0;
-        const hasResult=pred.actual_home_goals!=null;
+        const didNotOccur=predictionDidNotOccur(pred,game.phase);
+        const stars=didNotOccur?0:(pred.star_rating!=null?Number(pred.star_rating):0);
+        const hasResult=pred.actual_home_goals!=null||didNotOccur;
         // Cell background: result colors for scored, dim for pending
         ctx.fillStyle=hasResult?SCOLORS[stars]:"#252a3a"; ctx.fillRect(gx+1,ry+1,CW-2,ROW_H-3);
         const sc=`${pred.predicted_home_goals}-${pred.predicted_away_goals}`;
@@ -3033,7 +3124,7 @@ function buildPorJogoCanvas(rows, phases) {
           ctx.fillStyle=STEXT[stars]; ctx.fillText("★".repeat(stars),gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
         } else if (hasResult&&stars===0){
           ctx.fillStyle=C.red+"cc"; ctx.font=F(9,true); ctx.textAlign="center";
-          ctx.fillText("✗",gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
+          ctx.fillText(didNotOccur?"Ø":"✗",gx+CW/2,ry+ROW_H-6); ctx.textAlign="left";
         } else {
           // Pending: show ? marker in dim color
           ctx.fillStyle=C.dim; ctx.font=F(8,true); ctx.textAlign="center";
@@ -3093,7 +3184,7 @@ function buildModelCardCanvas(row, icon, modelIcon) {
   _canvasTxt(ctx,"COPAMIND 2026  ·  ANÁLISE DE LLM LOCAL",tx,28,F(9,true),C.accent);
   _canvasTxt(ctx,(row.display_name||row.model_id).replace(/^[^/]+\//,""),tx,66,F(24,true),C.text);
   _canvasTxt(ctx,`${row.family||"local"}  ·  ${row.model_id}`,tx,84,F(9),C.muted);
-  _canvasTxt(ctx,new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"}),W-PAD-ICON_SZ-10,HDR_H-18,F(9),C.muted,"right");
+  _canvasTxt(ctx,predictionAuditLabel([row.model_id]),W-PAD-ICON_SZ-10,HDR_H-18,F(9),C.muted,"right");
   ctx.fillStyle=C.accent; ctx.fillRect(0,HDR_H-2,W,2);
   let cy=HDR_H;
   // Stats bar
@@ -3141,8 +3232,9 @@ function buildModelCardCanvas(row, icon, modelIcon) {
     cy+=PH_HEAD;
     if (preds.length){
       preds.forEach((pred)=>{
-        const stars=pred.star_rating!=null?Number(pred.star_rating):0;
-        const hasResult=pred.actual_home_goals!=null;
+        const didNotOccur=predictionDidNotOccur(pred,ph);
+        const stars=didNotOccur?0:(pred.star_rating!=null?Number(pred.star_rating):0);
+        const hasResult=pred.actual_home_goals!=null||didNotOccur;
         const isWrong=hasResult&&stars===0;
         const isRight=hasResult&&stars>0;
         // Row background: red tint for wrong, subtle green for right, transparent for pending
@@ -3154,9 +3246,11 @@ function buildModelCardCanvas(row, icon, modelIcon) {
         _canvasTxt(ctx,`${h3} × ${a3}`,BAR_X,cy+12,F(9),C.muted);
         // Score: red with ✗ prefix if wrong, accent if right, muted if pending/unknown
         const scoreColor=isWrong?C.red:isRight?C.accent:predScore==="?"?C.dim:C.muted;
-        const scorePrefix=isWrong?"✗ ":"";
+        const scorePrefix=isWrong?(didNotOccur?"Ø ":"✗ "):"";
         _canvasTxt(ctx,scorePrefix+predScore,BAR_X+80,cy+12,F(9,true),scoreColor);
-        if (hasResult){
+        if (didNotOccur) {
+          _canvasTxt(ctx,"não ocorreu",BAR_X+120,cy+12,F(8,true),C.red);
+        } else if (hasResult){
           _canvasTxt(ctx,"→",BAR_X+120,cy+12,F(8),C.dim);
           _canvasTxt(ctx,`${pred.actual_home_goals}-${pred.actual_away_goals}`,BAR_X+132,cy+12,F(9),isWrong?C.red+"cc":C.muted);
         }
@@ -3168,25 +3262,25 @@ function buildModelCardCanvas(row, icon, modelIcon) {
   cy+=PH_GAP; ctx.fillStyle=C.border; ctx.fillRect(PAD,cy,W-PAD*2,1); cy+=12;
   // Stars distribution
   _canvasTxt(ctx,"DISTRIBUIÇÃO DE ESTRELAS",PAD,cy+14,F(9,true),C.accent); cy+=22;
-  const stars={1:0,2:0,3:0,4:0,5:0};
-  BULK_PHASES.forEach((ph)=>{const s=row.phase_scores[ph];if(!s)return;for(let n=1;n<=5;n++)stars[n]+=(Number(s[`s${n}`])||0);});
+  const stars={0:0,1:0,2:0,3:0,4:0,5:0};
+  BULK_PHASES.forEach((ph)=>{const s=row.phase_scores[ph];if(!s)return;for(let n=0;n<=5;n++)stars[n]+=(Number(s[`s${n}`])||0);});
   const totalStars=Object.values(stars).reduce((s,v)=>s+v,0);
   const SBAR_X=PAD+10, SBAR_W=W-PAD*2-20;
   ctx.fillStyle="#222a3a"; ctx.fillRect(SBAR_X,cy,SBAR_W,28);
   let sx=SBAR_X;
-  [5,4,3,2,1].forEach((n)=>{
+  [5,4,3,2,1,0].forEach((n)=>{
     const count=stars[n]||0;if(!count||!totalStars)return;
     const sw2=Math.round((count/totalStars)*SBAR_W);
     ctx.fillStyle=SC[n]; ctx.fillRect(sx,cy,sw2,28);
-    if(sw2>28)_canvasTxt(ctx,`${"★".repeat(n)} ${count}`,sx+sw2/2,cy+18,F(9,true),"rgba(0,0,0,0.8)","center");
+    if(sw2>28)_canvasTxt(ctx,`${n ? "★".repeat(n) : "✗"} ${count}`,sx+sw2/2,cy+18,F(9,true),"rgba(0,0,0,0.8)","center");
     sx+=sw2;
   });
   cy+=34;
   let legX=SBAR_X;
-  [[5,"Tudo certo"],[4,"+Tempo"],[3,"Placar exato"],[2,"1 gol certo"],[1,"Vencedor"]].forEach(([n,lbl])=>{
+  [[5,"Tudo certo"],[4,"+Tempo"],[3,"Placar exato"],[2,"1 gol certo"],[1,"Vencedor"],[0,"Erro"]].forEach(([n,lbl])=>{
     ctx.fillStyle=SC[Number(n)]; ctx.fillRect(legX,cy+3,9,9);
-    _canvasTxt(ctx,`${"★".repeat(Number(n))}: ${stars[Number(n)]} (${lbl})`,legX+13,cy+11,F(8),C.muted);
-    legX+=138;
+    _canvasTxt(ctx,`${Number(n) ? "★".repeat(Number(n)) : "✗"}: ${stars[Number(n)]} (${lbl})`,legX+13,cy+11,F(8),C.muted);
+    legX+=116;
   });
   cy+=18; ctx.fillStyle=C.border; ctx.fillRect(PAD,cy,W-PAD*2,1); cy+=12;
   // Tech metrics
@@ -3323,7 +3417,8 @@ function renderLinkedInCaptures() {
       <div><span>Fase</span><strong>Geral</strong></div>
       <div><span>Modelos</span><strong>${rRows.length}</strong></div>
       <div><span>Jogos analisados</span><strong>${rRows.reduce((s, r) => s + r.scored, 0)}</strong></div>
-      <div><span>Melhor acurácia</span><strong>${rRows[0]?.accuracy != null ? pct(rRows[0].accuracy) : "—"}</strong></div>`;
+      <div><span>Melhor acurácia</span><strong>${rRows[0]?.accuracy != null ? pct(rRows[0].accuracy) : "—"}</strong></div>
+      <div class="linkedin-summary-date"><span>Período dos palpites</span><strong>${escapeHtml(predictionAuditLabel(rRows.map((row) => row.model_id), null, false))}</strong></div>`;
     document.getElementById("linkedin-team-ranking").innerHTML = "";
     const gridEl = document.getElementById("linkedin-capture-grid");
     gridEl.innerHTML = `<p style="padding:24px;color:#7080a0;font-size:13px">Gerando pré-visualização...</p>`;
@@ -3351,7 +3446,8 @@ function renderLinkedInCaptures() {
     <div><span>Fase</span><strong>${escapeHtml(phaseInfo?.label || phaseLabel(phase))}</strong></div>
     <div><span>Modelos validos</span><strong>${rows.length}</strong></div>
     <div><span>Palpites</span><strong>${validPredictions}</strong></div>
-    <div><span>JSON 100%</span><strong>${bestJson}</strong></div>`;
+    <div><span>JSON 100%</span><strong>${bestJson}</strong></div>
+    <div class="linkedin-summary-date"><span>Palpites gerados</span><strong>${escapeHtml(predictionAuditLabel(rows.map((row) => row.model_id), [phase], false))}</strong></div>`;
   if (!rows.length) {
     document.getElementById("linkedin-capture-grid").innerHTML = empty("Nenhum palpite valido nesta fase ainda. Rode os modelos e exporte o snapshot.");
     return;
@@ -3412,7 +3508,9 @@ function renderLinkedInCaptures() {
   }
 
   // Compute star counts per model (only for finished matches)
-  const finishedMatchKeys = matchOrder.filter((m) => matchResultMap[m._key]).map((m) => m._key);
+  const finishedMatchKeys = matchOrder
+    .filter((m) => matchResultMap[m._key] || predictionDidNotOccur(m, phase))
+    .map((m) => m._key);
   const modelStarCounts = {};
   rows.forEach((row) => { modelStarCounts[row.model_id] = [0, 0, 0, 0, 0, 0]; }); // idx 0-5
   finishedMatchKeys.forEach((key) => {
@@ -3422,7 +3520,7 @@ function renderLinkedInCaptures() {
     rows.forEach((row) => {
       const pred = findPred(row.predictions || [], key);
       if (!pred) return;
-      const s = starRating(pred, offMatch, actual);
+      const s = predictionDidNotOccur(pred, phase) ? 0 : starRating(pred, offMatch, actual);
       modelStarCounts[row.model_id][s]++;
     });
   });
@@ -3445,10 +3543,11 @@ function renderLinkedInCaptures() {
     ${rows.map((row) => {
       const sc = modelStarCounts[row.model_id] || [];
       const correct = [1,2,3,4,5].reduce((s, n) => s + (sc[n] || 0), 0);
+      const evaluated = correct + (sc[0] || 0);
       const breakdown = [5,4,3,2,1].filter((n) => sc[n] > 0)
         .map((n) => `<span class="sc sc-${n}">${"★".repeat(n)}<i>${sc[n]}</i></span>`).join("");
       return `<td class="resumo-cell resumo-summary-cell">
-        <b class="sc-total">${correct}/${nFinished}</b>${breakdown}
+        <b class="sc-total">${correct}/${evaluated}</b>${breakdown}
       </td>`;
     }).join("")}
   </tr>` : "";
@@ -3463,17 +3562,19 @@ function renderLinkedInCaptures() {
     // but at least one team is already eliminated from the tournament
     const homeElim = m.home_team_id && eliminatedIds.has(m.home_team_id);
     const awayElim = m.away_team_id && eliminatedIds.has(m.away_team_id);
-    const isImpossible = !actual && (homeElim || awayElim);
+    const isImpossible = predictionDidNotOccur(m, phase) || (!actual && (homeElim || awayElim));
     const hasScore = officialMatch && officialMatch.home_score != null;
     const scoreDisplay = hasScore ? `${officialMatch.home_score}–${officialMatch.away_score}` : null;
     const cells = rows.map((row) => {
       const pred = findPred(row.predictions || [], m._key);
       if (!pred) return `<td class="resumo-cell resumo-empty">—</td>`;
       const side = predictedSide(pred);
-      const stars = pred.star_rating != null
+      const didNotOccur = predictionDidNotOccur(pred, phase);
+      const stars = didNotOccur ? 0 : pred.star_rating != null
         ? Number(pred.star_rating)
         : starRating(pred, officialMatch, actual);
-      const isWrong = actual !== null && actual !== undefined && stars === 0 && side !== actual;
+      const isWrong = didNotOccur
+        || (actual !== null && actual !== undefined && stars === 0 && side !== actual);
       const starsStr = stars > 0 ? "★".repeat(stars) : "";
       const baseScore = `${pred.predicted_home_goals ?? "?"}–${pred.predicted_away_goals ?? "?"}`;
       let penLine = "";
@@ -3492,6 +3593,7 @@ function renderLinkedInCaptures() {
       const awayProb = total > 0 ? 100 - homeProb : null;
       return `<td class="resumo-cell resumo-${escapeAttr(side)}${stars > 0 ? ` resumo-stars-${stars}` : ""}${isWrong ? " resumo-wrong" : ""}">
         ${starsStr ? `<span class="resumo-stars-badge">${escapeHtml(starsStr)}</span>` : ""}
+        ${didNotOccur ? `<span class="resumo-non-played">não ocorreu</span>` : ""}
         <span class="resumo-cell-team${side === "home" ? " is-predicted" : ""}">
           <b>${escapeHtml(shortTeamName(m.home))}</b>${homeProb != null ? `<em>${homeProb}%</em>` : ""}
         </span>
@@ -5362,7 +5464,7 @@ function predictionRow(prediction) {
       <div class="prediction-item prediction-item--pending ${failed ? "prediction-item--invalid" : ""}">
         <div>
           <b>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</b>
-          <span>${formatDateTime(prediction.match_date)} | ${failed ? escapeHtml(prediction.projection_note || "execução sem palpite válido") : "aguardando execução"}</span>
+          <span>${prediction.locked_at ? `Retorno da LLM: ${formatDateTime(prediction.locked_at)}` : formatDateTime(prediction.match_date)} | ${failed ? escapeHtml(prediction.projection_note || "execução sem palpite válido") : "aguardando execução"}</span>
         </div>
         <div class="prediction-result">
           <strong>${lmstudioError ? "LM" : invalid ? "JSON" : "-"}</strong>
@@ -5386,7 +5488,7 @@ function predictionRow(prediction) {
     <div class="prediction-item${prediction.exact_score ? " pred-item--exact" : prediction.winner_hit ? " pred-item--winner" : ""}">
       <div>
         <b>${escapeHtml(prediction.home)} x ${escapeHtml(prediction.away)}</b>
-        <span class="prediction-meta">${formatDateTime(prediction.match_date)} | ${escapeHtml(shortRound(prediction.predictor_name))}</span>
+        <span class="prediction-meta">Palpite gerado em ${formatDateTime(prediction.locked_at)} | jogo em ${formatDateTime(prediction.match_date)} | ${escapeHtml(shortRound(prediction.predictor_name))}</span>
       </div>
       <div class="prediction-result">
         <strong>${escapeHtml(predictedScoreText(prediction))}</strong>
@@ -5985,6 +6087,34 @@ function formatDateTime(value) {
   }).format(date);
 }
 
+function predictionAuditLabel(modelIds = null, phases = null, includePrefix = true) {
+  const modelSet = modelIds ? new Set(modelIds) : null;
+  const phaseSet = phases ? new Set(phases) : null;
+  const timestamps = [];
+  for (const item of state?.phase_predictions_by_model || []) {
+    if (item.model_id === "combo") continue;
+    if (modelSet && !modelSet.has(item.model_id)) continue;
+    if (phaseSet && !phaseSet.has(item.phase)) continue;
+    for (const prediction of item.predictions || []) {
+      if (!prediction.locked_at || prediction.has_prediction === false) continue;
+      const timestamp = new Date(prediction.locked_at).getTime();
+      if (Number.isFinite(timestamp)) timestamps.push(timestamp);
+    }
+  }
+  if (!timestamps.length) return includePrefix ? "Data do palpite indisponível" : "Indisponível";
+  const first = new Date(Math.min(...timestamps));
+  const last = new Date(Math.max(...timestamps));
+  const format = (date) => date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const firstLabel = format(first);
+  const lastLabel = format(last);
+  const range = firstLabel === lastLabel ? firstLabel : `${firstLabel}–${lastLabel}`;
+  return includePrefix ? `Palpites: ${range}` : range;
+}
+
 // Retorna {modelId: {phase: "DD/MM"}} — data mais antiga de locked_at por modelo×fase
 function phaseExecutionDates() {
   const result = {};
@@ -6008,7 +6138,7 @@ function fmtExecDate(isoStr) {
   try {
     const d = new Date(isoStr);
     if (isNaN(d.getTime())) return null;
-    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
   } catch (_) { return null; }
 }
 

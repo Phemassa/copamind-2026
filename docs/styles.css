@@ -1620,6 +1620,11 @@ h3 { font-size: 22px; }
   font-size: 20px;
 }
 
+.linkedin-summary .linkedin-summary-date strong {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
 .linkedin-capture-grid {
   overflow-x: auto;
 }
@@ -1890,14 +1895,21 @@ h3 { font-size: 22px; }
   color: var(--red) !important;
 }
 
-/* ── impossible match (team already eliminated) ── */
-.resumo-impossible td {
+.resumo-non-played {
+  display: block;
+  color: var(--red);
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* ── impossible match: keep error cells vivid and dim only the fixture label ── */
+.resumo-impossible .resumo-match-td {
   opacity: .32;
   text-decoration: line-through;
   filter: grayscale(.8);
-}
-.resumo-impossible .resumo-match-td {
-  text-decoration: none;
   position: relative;
 }
 .resumo-impossible .resumo-match-td::after {
